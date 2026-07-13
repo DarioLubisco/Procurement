@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 02-seam-generar-pedido
 
@@ -11,7 +11,11 @@ Also listed in: `tickets.md`
 
 **Blocked by:** PedidoBaseline extraíble + parity en fixtures
 
-- [ ] `PerfilPedido` accepts cobertura, criterios_agrupacion, filtros_operativos, nivel, preset?, presupuesto_maximo?
-- [ ] `GenerarResult` exposes pedido_baseline, pedido_propuesto, comparativa_cantidades
-- [ ] Baseline in the result matches the extracted Baseline calculator on the same inputs
-- [ ] Fixture harness can call the seam without live DB
+- [x] `PerfilPedido` accepts cobertura, criterios_agrupacion, filtros_operativos, nivel, preset?, presupuesto_maximo?
+- [x] `GenerarResult` exposes pedido_baseline, pedido_propuesto, comparativa_cantidades
+- [x] Baseline in the result matches the extracted Baseline calculator on the same inputs
+- [x] Fixture harness can call the seam without live DB
+
+## Comments
+
+- Implemented `generar_pedido` with identity stubs for Propuesto/Comparativa (2026-07-12).

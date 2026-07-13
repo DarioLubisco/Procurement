@@ -1,0 +1,110 @@
+"""Unified Generar seam: PedidoBaseline + PedidoPropuesto + ComparativaCantidades."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+from typing import List, Optional, Sequence
+
+import pandas as pd
+
+from .pedido_baseline import (
+    BaselineLine,
+    FiltrosOperativos,
+    compute_pedido_baseline,
+)
+
+
+class NivelPerfil(str, Enum):
+    SENCILLO = "Sencillo"
+    INTERMEDIO = "Intermedio"
+    AVANZADO = "Avanzado"
+
+
+class PresetSencillo(str, Enum):
+    CONSERVADOR = "Conservador"
+    NORMAL = "Normal"
+    AGRESIVO = "Agresivo"
+
+
+@dataclass(frozen=True)
+class PerfilPedido:
+    cobertura: int
+    criterios_agrupacion: Sequence[str]
+    filtros_operativos: FiltrosOperativos
+    nivel: NivelPerfil
+    preset: Optional[PresetSencillo] = None
+    presupuesto_maximo: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class PropuestoLine:
+    barra: str
+    descripcion: str
+    proveedor: str
+    cantidad: int
+
+
+@dataclass(frozen=True)
+class ComparativaRow:
+    barra_baseline: str
+    desc_baseline: str
+    qty_baseline: int
+    barra_propuesto: str
+    desc_propuesto: str
+    qty_propuesto: int
+    justificacion_delta: str
+
+
+@dataclass(frozen=True)
+class GenerarResult:
+    pedido_baseline: List[BaselineLine]
+    pedido_propuesto: List[PropuestoLine]
+    comparativa_cantidades: List[ComparativaRow]
+
+
+def generar_pedido(perfil: PerfilPedido, *, catalog: pd.DataFrame) -> GenerarResult:
+    """Orchestrate Generar offline via injected catalog (no live DB/HTTP).
+
+    Ticket 02: Baseline is real; Propuesto and Comparativa are identity stubs.
+    """
+    criterios = list(perfil.criterios_agrupacion) if perfil.criterios_agrupacion else None
+    baseline = compute_pedido_baseline(
+        catalog,
+        cobertura_dias=float(perfil.cobertura),
+        filtros=perfil.filtros_operativos,
+        criterios_agrupacion=criterios,
+    )
+    propuesto, comparativa = _identity_stubs(baseline)
+    return GenerarResult(
+        pedido_baseline=baseline,
+        pedido_propuesto=propuesto,
+        comparativa_cantidades=comparativa,
+    )
+
+
+def _identity_stubs(
+    baseline: Sequence[BaselineLine],
+) -> tuple[List[PropuestoLine], List[ComparativaRow]]:
+    propuesto: List[PropuestoLine] = []
+    comparativa: List[ComparativaRow] = []
+    for line in baseline:
+        propuesto.append(
+            PropuestoLine(
+                barra=line.barra,
+                descripcion=line.descripcion,
+                proveedor="",
+                cantidad=line.cantidad,
+            )
+        )
+        comparativa.append(
+            ComparativaRow(
+                barra_baseline=line.barra,
+                desc_baseline=line.descripcion,
+                qty_baseline=line.cantidad,
+                barra_propuesto=line.barra,
+                desc_propuesto=line.descripcion,
+                qty_propuesto=line.cantidad,
+                justificacion_delta="",
+            )
+        )
+    return propuesto, comparativa
