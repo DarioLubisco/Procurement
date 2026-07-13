@@ -13,18 +13,13 @@ from .pedido_baseline import (
     FiltrosOperativos,
     compute_pedido_baseline,
 )
+from .presets import PresetSencillo, resolve_preset_knobs
 
 
 class NivelPerfil(str, Enum):
     SENCILLO = "Sencillo"
     INTERMEDIO = "Intermedio"
     AVANZADO = "Avanzado"
-
-
-class PresetSencillo(str, Enum):
-    CONSERVADOR = "Conservador"
-    NORMAL = "Normal"
-    AGRESIVO = "Agresivo"
 
 
 @dataclass(frozen=True)
@@ -63,12 +58,13 @@ class GenerarResult:
     comparativa_cantidades: List[ComparativaRow]
 
 
-def generar_pedido(perfil: PerfilPedido, *, catalog: pd.DataFrame) -> GenerarResult:
-    """Orchestrate Generar offline via injected catalog (no live DB/HTTP).
-
-    Ticket 02: Baseline is real; Propuesto and Comparativa are identity stubs.
-    Ticket 03: CriteriosAgrupacion resolve to system default when unset.
-    """
+def generar_pedido(
+    perfil: PerfilPedido,
+    *,
+    catalog: pd.DataFrame,
+    market_offers: Optional[pd.DataFrame] = None,
+) -> GenerarResult:
+    """Orchestrate Generar offline via injected catalog/offers (no live DB/HTTP)."""
     criterios = resolve_criterios_agrupacion(perfil.criterios_agrupacion)
     baseline = compute_pedido_baseline(
         catalog,
@@ -76,12 +72,82 @@ def generar_pedido(perfil: PerfilPedido, *, catalog: pd.DataFrame) -> GenerarRes
         filtros=perfil.filtros_operativos,
         criterios_agrupacion=criterios,
     )
-    propuesto, comparativa = _identity_stubs(baseline)
+
+    if (
+        perfil.nivel is NivelPerfil.SENCILLO
+        and perfil.preset is PresetSencillo.CONSERVADOR
+        and market_offers is not None
+    ):
+        propuesto, comparativa = _propuesto_conservador(baseline, market_offers)
+    else:
+        propuesto, comparativa = _identity_stubs(baseline)
+
     return GenerarResult(
         pedido_baseline=baseline,
         pedido_propuesto=propuesto,
         comparativa_cantidades=comparativa,
     )
+
+
+def _propuesto_conservador(
+    baseline: Sequence[BaselineLine],
+    market_offers: pd.DataFrame,
+) -> tuple[List[PropuestoLine], List[ComparativaRow]]:
+    """Conservador: qty_mult=1, no F5; pick cheapest offer for same BARRA (w3)."""
+    knobs = resolve_preset_knobs(PresetSencillo.CONSERVADOR)
+    assert knobs.amplifier_enabled is False
+    assert knobs.ext_max_dias_extra == 0
+
+    offers = market_offers.copy()
+    offers["barra"] = offers["barra"].astype(str)
+    offers["precio"] = pd.to_numeric(offers["precio"], errors="coerce")
+    offers["stock_proveedor"] = pd.to_numeric(
+        offers.get("stock_proveedor", pd.Series([None] * len(offers))),
+        errors="coerce",
+    )
+
+    propuesto: List[PropuestoLine] = []
+    comparativa: List[ComparativaRow] = []
+    for line in baseline:
+        qty = int(line.cantidad)
+        proveedor = ""
+        match = offers[offers["barra"] == line.barra]
+        if not match.empty:
+            # w3 posicionamiento ≈ prefer cheaper offer among same BARRA
+            ranked = match.sort_values("precio", ascending=True)
+            chosen = ranked.iloc[0]
+            proveedor = str(chosen["proveedor"])
+            stock = chosen["stock_proveedor"]
+            if pd.notna(stock):
+                qty = min(qty, int(stock))
+
+        justificacion = ""
+        if qty != line.cantidad:
+            justificacion = (
+                f"delta cantidad {line.cantidad}→{qty} "
+                f"(Conservador: stock_proveedor/tope oferta)"
+            )
+
+        propuesto.append(
+            PropuestoLine(
+                barra=line.barra,
+                descripcion=line.descripcion,
+                proveedor=proveedor,
+                cantidad=qty,
+            )
+        )
+        comparativa.append(
+            ComparativaRow(
+                barra_baseline=line.barra,
+                desc_baseline=line.descripcion,
+                qty_baseline=line.cantidad,
+                barra_propuesto=line.barra,
+                desc_propuesto=line.descripcion,
+                qty_propuesto=qty,
+                justificacion_delta=justificacion,
+            )
+        )
+    return propuesto, comparativa
 
 
 def _identity_stubs(
