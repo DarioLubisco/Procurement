@@ -7,6 +7,7 @@ from typing import List, Optional, Sequence
 
 import pandas as pd
 
+from .criterios_agrupacion import resolve_criterios_agrupacion
 from .pedido_baseline import (
     BaselineLine,
     FiltrosOperativos,
@@ -66,8 +67,9 @@ def generar_pedido(perfil: PerfilPedido, *, catalog: pd.DataFrame) -> GenerarRes
     """Orchestrate Generar offline via injected catalog (no live DB/HTTP).
 
     Ticket 02: Baseline is real; Propuesto and Comparativa are identity stubs.
+    Ticket 03: CriteriosAgrupacion resolve to system default when unset.
     """
-    criterios = list(perfil.criterios_agrupacion) if perfil.criterios_agrupacion else None
+    criterios = resolve_criterios_agrupacion(perfil.criterios_agrupacion)
     baseline = compute_pedido_baseline(
         catalog,
         cobertura_dias=float(perfil.cobertura),

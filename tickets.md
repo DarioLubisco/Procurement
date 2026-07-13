@@ -34,10 +34,10 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** Seam `generar_pedido` → GenerarResult (Baseline real + stubs)
 
-- [ ] Request criterios_agrupacion changes Grupo membership for Baseline aggregation
-- [ ] Default five-attribute set used when no override provided
-- [ ] DemandaGrupal / gaps use the same effective list as Baseline
-- [ ] Hardcoded PA+FF+conc-only path is no longer the runtime authority
+- [x] Request criterios_agrupacion changes Grupo membership for Baseline aggregation
+- [x] Default five-attribute set used when no override provided
+- [x] DemandaGrupal / gaps use the same effective list as Baseline
+- [x] Hardcoded PA+FF+conc-only path is no longer the runtime authority
 
 ## Preset Conservador → Propuesto + ComparativaCantidades básica
 

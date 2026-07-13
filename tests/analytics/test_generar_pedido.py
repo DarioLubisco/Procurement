@@ -7,6 +7,10 @@ from analytics_engine.core.pedido_baseline import (
     FiltrosOperativos,
     compute_pedido_baseline,
 )
+from analytics_engine.core.criterios_agrupacion import (
+    CRITERIOS_AGRUPACION_DEFAULT,
+    resolve_criterios_agrupacion,
+)
 from analytics_engine.core.generar_pedido import (
     NivelPerfil,
     PerfilPedido,
@@ -15,24 +19,32 @@ from analytics_engine.core.generar_pedido import (
 )
 
 
+def _row(**overrides):
+    base = {
+        "barra": "111",
+        "descripcion": "Paracetamol 500mg",
+        "rotacion_mensual": 100.0,
+        "existen": 40.0,
+        "categoria": "ANALGESICOS",
+        "es_generico": True,
+        "principio_activo": "PARACETAMOL",
+        "forma_farmaceutica": "TAB",
+        "concentracion": "500",
+        "cantidad_presentacion": "20",
+        "contenido_neto": "1",
+    }
+    base.update(overrides)
+    return base
+
+
 def _catalog() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "barra": "111",
-                "descripcion": "Paracetamol 500mg",
-                "rotacion_mensual": 100.0,
-                "existen": 40.0,
-                "categoria": "ANALGESICOS",
-                "es_generico": True,
-            }
-        ]
-    )
+    return pd.DataFrame([_row()])
 
 
 def test_generar_pedido_returns_baseline_matching_calculator():
     catalog = _catalog()
     filtros = FiltrosOperativos()
+    criterios = resolve_criterios_agrupacion(None)
     perfil = PerfilPedido(
         cobertura=30,
         criterios_agrupacion=[],
@@ -41,12 +53,15 @@ def test_generar_pedido_returns_baseline_matching_calculator():
         preset=PresetSencillo.CONSERVADOR,
         presupuesto_maximo=None,
     )
-    expected = compute_pedido_baseline(catalog, 30.0, filtros, criterios_agrupacion=[])
+    expected = compute_pedido_baseline(
+        catalog, 30.0, filtros, criterios_agrupacion=criterios
+    )
     result = generar_pedido(perfil, catalog=catalog)
 
     assert [line.barra for line in result.pedido_baseline] == [line.barra for line in expected]
     assert [line.cantidad for line in result.pedido_baseline] == [line.cantidad for line in expected]
     assert result.pedido_baseline[0].descripcion == "Paracetamol 500mg"
+    assert criterios == list(CRITERIOS_AGRUPACION_DEFAULT)
 
 
 def test_generar_pedido_exposes_propuesto_and_comparativa_identity_stubs():

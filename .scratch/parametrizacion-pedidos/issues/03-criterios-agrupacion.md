@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 03-criterios-agrupacion
 
@@ -11,7 +11,11 @@ Also listed in: `tickets.md`
 
 **Blocked by:** Seam `generar_pedido` → GenerarResult (Baseline real + stubs)
 
-- [ ] Request criterios_agrupacion changes Grupo membership for Baseline aggregation
-- [ ] Default five-attribute set used when no override provided
-- [ ] DemandaGrupal / gaps use the same effective list as Baseline
-- [ ] Hardcoded PA+FF+conc-only path is no longer the runtime authority
+- [x] Request criterios_agrupacion changes Grupo membership for Baseline aggregation
+- [x] Default five-attribute set used when no override provided
+- [x] DemandaGrupal / gaps use the same effective list as Baseline
+- [x] Hardcoded PA+FF+conc-only path is no longer the runtime authority
+
+## Comments
+
+- `resolve_criterios_agrupacion` + `compute_demanda_grupal` are the Generar-path authority; optimizer Molécula-3 remains legacy until later tickets wire Propuesto to this resolver (2026-07-12).
