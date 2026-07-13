@@ -1,17 +1,26 @@
 """DistribucionParcial multi-factor within Grupo (ADR-0006)."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List, Sequence
+from dataclasses import dataclass, field
+from typing import List, Sequence, Tuple
 
 import pandas as pd
 
 from .gap_extension import MiembroGrupo, compute_gap_extension_oferta
 from .pedido_baseline import BaselineLine
 from .presets import PresetKnobs
+from .split_lead_time import OfferCandidate, compute_split_lead_time
 
 # Desvío threshold for F5 trigger (Normal default ADR-0011)
 _F5_DESVIO_UMBRAL = -0.10
+
+
+@dataclass(frozen=True)
+class PropuestoLeg:
+    barra: str
+    descripcion: str
+    proveedor: str
+    cantidad: int
 
 
 @dataclass(frozen=True)
@@ -24,7 +33,8 @@ class Allocation:
     qty_propuesto: int
     proveedor: str
     justificacion_delta: str
-
+    # Extra Propuesto lines when SplitLeadTime fires (same Baseline row)
+    extra_legs: Tuple[PropuestoLeg, ...] = field(default_factory=tuple)
 
 def distribute_parcial(
     baseline: Sequence[BaselineLine],
@@ -65,9 +75,15 @@ def distribute_parcial(
             )
             continue
 
+        split = _try_split_lead_time(line, row, candidates, knobs)
+        if split is not None:
+            out.append(split)
+            continue
+
         scored = _score_offers(candidates, knobs, baseline_elasticidad=_elasticidad(row))
         chosen = scored.iloc[0]
         qty = int(line.cantidad)
+        qty = _apply_amplifier(qty, chosen, knobs)
         stock = chosen.get("stock_proveedor")
         if pd.notna(stock):
             qty = min(qty, int(stock))
@@ -92,9 +108,10 @@ def distribute_parcial(
                 justificacion_delta=justificacion,
             )
         )
-
     if knobs.ext_max_dias_extra > 0:
-        out = _apply_f5_extension(out, baseline, cat, offers, criterios, by_barra)
+        out = _apply_f5_extension(
+            out, baseline, cat, offers, criterios, by_barra, knobs.f5_umbral
+        )
     return out
 
 
@@ -105,13 +122,14 @@ def _apply_f5_extension(
     offers: pd.DataFrame,
     criterios: Sequence[str],
     by_barra: dict,
+    f5_umbral: float = _F5_DESVIO_UMBRAL,
 ) -> List[Allocation]:
     """Reinforce only offer SKUs with Gap_ext; never boost non-offer members."""
     if "desvio" not in offers.columns:
         return allocations
 
     offer_barras = set(
-        offers.loc[offers["desvio"] <= _F5_DESVIO_UMBRAL, "barra"].astype(str)
+        offers.loc[offers["desvio"] <= f5_umbral, "barra"].astype(str)
     )
     if not offer_barras:
         return allocations
@@ -171,6 +189,105 @@ def _apply_f5_extension(
         justificacion_delta=just,
     )
     return allocations
+
+
+def _try_split_lead_time(
+    line: BaselineLine,
+    catalog_row,
+    candidates: pd.DataFrame,
+    knobs: PresetKnobs,
+) -> Allocation | None:
+    """Return Allocation with 2+ Propuesto legs when SplitLeadTime fires."""
+    if not knobs.split_lead_time_enabled:
+        return None
+    if candidates is None or len(candidates) < 2:
+        return None
+    if "lead_time_dias" not in candidates.columns:
+        return None
+
+    existen = 0.0
+    rot_mensual = 0.0
+    if catalog_row is not None:
+        try:
+            existen = float(catalog_row.get("existen", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            existen = 0.0
+        try:
+            rot_mensual = float(catalog_row.get("rotacion_mensual", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            rot_mensual = 0.0
+    rot_diaria = rot_mensual / 30.0
+
+    offer_list: List[OfferCandidate] = []
+    for _, o in candidates.iterrows():
+        moq_val = o.get("moq") if "moq" in candidates.columns else None
+        if moq_val is not None and pd.isna(moq_val):
+            moq_val = None
+        elif moq_val is not None:
+            moq_val = float(moq_val)
+        stock = o.get("stock_proveedor")
+        if stock is not None and pd.isna(stock):
+            stock = None
+        elif stock is not None:
+            stock = float(stock)
+        desc = line.descripcion
+        if "descripcion" in o.index and pd.notna(o.get("descripcion")):
+            desc = str(o["descripcion"])
+        offer_list.append(
+            OfferCandidate(
+                proveedor=str(o["proveedor"]),
+                barra=str(o["barra"]),
+                descripcion=desc,
+                lead_time_dias=float(o.get("lead_time_dias") or 0.0),
+                precio=float(o.get("precio") or 0.0),
+                stock_proveedor=stock,
+                moq=moq_val,
+            )
+        )
+
+    # Need distinct LTs for a meaningful fast vs cheap split
+    lts = {o.lead_time_dias for o in offer_list}
+    if len(lts) < 2:
+        return None
+
+    result = compute_split_lead_time(
+        existen=existen,
+        rotacion_diaria=rot_diaria,
+        demanda=int(line.cantidad),
+        offers=offer_list,
+    )
+    if not result.fired or len(result.legs) < 2:
+        return None
+
+    primary = result.legs[0]
+    extras = tuple(
+        PropuestoLeg(
+            barra=leg.barra,
+            descripcion=leg.descripcion,
+            proveedor=leg.proveedor,
+            cantidad=leg.cantidad,
+        )
+        for leg in result.legs[1:]
+        if leg.cantidad > 0
+    )
+    total_qty = sum(leg.cantidad for leg in result.legs)
+    just = result.justificacion
+    if primary.barra != line.barra:
+        just = (
+            f"cambio de código {line.barra}→{primary.barra} (sucedáneo del Grupo); {just}"
+        )
+
+    return Allocation(
+        barra_baseline=line.barra,
+        desc_baseline=line.descripcion,
+        qty_baseline=line.cantidad,
+        barra_propuesto=primary.barra,
+        desc_propuesto=primary.descripcion,
+        qty_propuesto=total_qty,
+        proveedor=primary.proveedor,
+        justificacion_delta=just,
+        extra_legs=extras,
+    )
 
 
 def _elasticidad(row) -> float:
@@ -239,10 +356,28 @@ def _offers_for_group(
     return matched
 
 
+def _apply_amplifier(qty: int, chosen: pd.Series, knobs: PresetKnobs) -> int:
+    """Scale qty by exponential amplifier when preset enables it and desvío exists."""
+    if not knobs.amplifier_enabled or qty <= 0:
+        return qty
+    if "desvio" not in chosen.index or pd.isna(chosen.get("desvio")):
+        return qty
+    from .nonlinear import exponential_amplifier
+
+    mult = exponential_amplifier(
+        float(chosen["desvio"]),
+        knobs.amp_a,
+        knobs.amp_b,
+        knobs.amp_max_increment_pct,
+        knobs.amp_floor_pct,
+    )
+    return max(0, int(round(qty * mult)))
+
+
 def _score_offers(
     candidates: pd.DataFrame, knobs: PresetKnobs, baseline_elasticidad: float
 ) -> pd.DataFrame:
-    """Higher score is better. Price and LeadTime can outweigh elasticidad."""
+    """Higher score is better. Price, opportunity (desvío), and LeadTime can outweigh elasticidad."""
     df = candidates.copy()
     precio = df["precio"].fillna(df["precio"].max() + 1)
     lt = df["lead_time_dias"].fillna(0.0)
@@ -254,18 +389,26 @@ def _score_offers(
     precio_n = (precio - precio.min()) / (precio.max() - precio.min() + 1e-9)
     lt_n = (lt - lt.min()) / (lt.max() - lt.min() + 1e-9)
 
+    if "desvio" in df.columns:
+        desvio = pd.to_numeric(df["desvio"], errors="coerce").fillna(0.0)
+        # Negative desvío (cheap vs hist) → higher opportunity score
+        opp = (-desvio).clip(lower=0.0)
+        opp_n = opp / (opp.max() + 1e-9) if opp.max() > 0 else opp
+    else:
+        opp_n = 0.0
+
     # Elasticidad of the *baseline* line as mild preference for staying flexible —
-    # NOT sole arbiter: price (w3) dominates under Conservador.
+    # NOT sole arbiter: price (w3) / opportunity (w4) dominate per preset.
     elast_boost = 0.05 * (baseline_elasticidad / 5.0)
 
     df["_score"] = (
         knobs.w3_posicionamiento * (1.0 - precio_n)
+        + knobs.w4 * opp_n
+        + knobs.w5 * opp_n * knobs.opp_lambda * 0.1
         + lt_weight * (1.0 - lt_n)
         + elast_boost
         + knobs.w1 * 0.0
         + knobs.w2 * 0.0
-        + knobs.w4 * 0.0
-        + knobs.w5 * 0.0
     )
     return df.sort_values("_score", ascending=False)
 

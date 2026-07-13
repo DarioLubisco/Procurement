@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 08-presets-normal-agresivo
 
@@ -11,7 +11,13 @@ Also listed in: `tickets.md`
 
 **Blocked by:** Preset Conservador → Propuesto + ComparativaCantidades básica; GapExtensionOferta (F5); SplitLeadTime + MOQ nullable
 
-- [ ] Normal maps to ADR-0011 (calibrated amp/F5/pesos, medium soft LeadTime)
-- [ ] Agresivo maps to ADR-0013 (stronger amp/F5/price pesos; SplitLeadTime-aware)
-- [ ] Same fixture inputs yield materially different Propuesto/Comparativa across the three presets
-- [ ] Baseline remains unchanged when only the preset changes
+- [x] Normal maps to ADR-0011 (calibrated amp/F5/pesos, medium soft LeadTime)
+- [x] Agresivo maps to ADR-0013 (stronger amp/F5/price pesos; SplitLeadTime-aware)
+- [x] Same fixture inputs yield materially different Propuesto/Comparativa across the three presets
+- [x] Baseline remains unchanged when only the preset changes
+
+## Implementation notes
+
+- `resolve_preset_knobs` covers Conservador / Normal / Agresivo
+- `generar_pedido` routes any Sencillo preset through DistribucionParcial
+- Amp applied when enabled; F5 uses preset `f5_umbral`; SplitLeadTime gated by `split_lead_time_enabled` (off Conservador, on Normal/Agresivo)

@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 07-split-leadtime-moq
 
@@ -11,9 +11,15 @@ Also listed in: `tickets.md`
 
 **Blocked by:** DistribucionParcial multi-factor + sucedáneos en Comparativa
 
-- [ ] Split fires only when Existen < rot × LT_fast
-- [ ] Fast leg qty = max(rot×LT, MOQ) when MOQ present, else rot×LT, capped by offer stock
-- [ ] Remainder goes to cheapest worse-LT supplier
-- [ ] No forced fast minimum when Existen already covers rot×LT
-- [ ] PedidoPropuesto can show 2+ lines same product different proveedores
-- [ ] Missing MOQ does not block; SAPROD.Minimo is never used as MOQ
+- [x] Split fires only when Existen < rot × LT_fast
+- [x] Fast leg qty = max(rot×LT, MOQ) when MOQ present, else rot×LT, capped by offer stock
+- [x] Remainder goes to cheapest worse-LT supplier
+- [x] No forced fast minimum when Existen already covers rot×LT
+- [x] PedidoPropuesto can show 2+ lines same product different proveedores
+- [x] Missing MOQ does not block; SAPROD.Minimo is never used as MOQ
+
+## Implementation notes
+
+- Pure seam: `analytics_engine/core/split_lead_time.py` (`compute_split_lead_time`)
+- Wired into `distribute_parcial` → `generar_pedido` (extra Propuesto legs; one Comparativa row)
+- MOQ via nullable `moq` on offer rows; never SAPROD.Minimo

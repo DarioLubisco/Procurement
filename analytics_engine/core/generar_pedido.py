@@ -7,6 +7,7 @@ from typing import List, Optional, Sequence
 
 import pandas as pd
 
+from .backorder import normalize_backorder, subtract_backorder_from_baseline
 from .criterios_agrupacion import resolve_criterios_agrupacion
 from .distribucion_parcial import distribute_parcial
 from .pedido_baseline import (
@@ -14,7 +15,7 @@ from .pedido_baseline import (
     FiltrosOperativos,
     compute_pedido_baseline,
 )
-from .presets import PresetSencillo, resolve_preset_knobs
+from .presets import PresetSencillo, apply_living_overrides, resolve_preset_knobs
 
 
 class NivelPerfil(str, Enum):
@@ -31,6 +32,8 @@ class PerfilPedido:
     nivel: NivelPerfil
     preset: Optional[PresetSencillo] = None
     presupuesto_maximo: Optional[float] = None
+    # Intermedio/Avanzado: living OptimizerConfig overrides (no S4/kappa)
+    overrides: Optional[dict] = None
 
 
 @dataclass(frozen=True)
@@ -64,8 +67,13 @@ def generar_pedido(
     *,
     catalog: pd.DataFrame,
     market_offers: Optional[pd.DataFrame] = None,
+    backorder: Optional[pd.DataFrame] = None,
 ) -> GenerarResult:
-    """Orchestrate Generar offline via injected catalog/offers (no live DB/HTTP)."""
+    """Orchestrate Generar offline via injected catalog/offers/backorder (no live DB/HTTP).
+
+    `backorder` is BARRA×cantidad from dedicated backend tables (ADR-0009). Same
+    subtraction applies to Baseline and (via Baseline ceiling) Propuesto.
+    """
     criterios = resolve_criterios_agrupacion(perfil.criterios_agrupacion)
     baseline = compute_pedido_baseline(
         catalog,
@@ -73,14 +81,29 @@ def generar_pedido(
         filtros=perfil.filtros_operativos,
         criterios_agrupacion=criterios,
     )
+    bo_map = normalize_backorder(backorder)
+    baseline = subtract_backorder_from_baseline(baseline, bo_map)
 
-    if (
-        perfil.nivel is NivelPerfil.SENCILLO
-        and perfil.preset is PresetSencillo.CONSERVADOR
-        and market_offers is not None
-    ):
-        propuesto, comparativa = _propuesto_conservador(
-            baseline, catalog, market_offers, criterios
+    if market_offers is None:
+        propuesto, comparativa = _identity_stubs(baseline)
+    elif perfil.nivel is NivelPerfil.SENCILLO and perfil.preset is not None:
+        propuesto, comparativa = _propuesto_desde_knobs(
+            resolve_preset_knobs(perfil.preset),
+            baseline,
+            catalog,
+            market_offers,
+            criterios,
+        )
+    elif perfil.nivel in (NivelPerfil.INTERMEDIO, NivelPerfil.AVANZADO):
+        # Definitivo: base = Normal (calibrado) or last Sencillo preset, then living overrides
+        base_preset = perfil.preset or PresetSencillo.NORMAL
+        knobs = apply_living_overrides(
+            resolve_preset_knobs(base_preset),
+            perfil.overrides,
+            nivel=perfil.nivel.value,
+        )
+        propuesto, comparativa = _propuesto_desde_knobs(
+            knobs, baseline, catalog, market_offers, criterios
         )
     else:
         propuesto, comparativa = _identity_stubs(baseline)
@@ -92,31 +115,39 @@ def generar_pedido(
     )
 
 
-def _propuesto_conservador(
+def _propuesto_desde_knobs(
+    knobs,
     baseline: Sequence[BaselineLine],
     catalog: pd.DataFrame,
     market_offers: pd.DataFrame,
     criterios: Sequence[str],
 ) -> tuple[List[PropuestoLine], List[ComparativaRow]]:
-    """Conservador via DistribucionParcial: qty ceiling = Baseline line; multi-factor pick."""
-    knobs = resolve_preset_knobs(PresetSencillo.CONSERVADOR)
-    assert knobs.amplifier_enabled is False
-    assert knobs.ext_max_dias_extra == 0
-
+    """PedidoPropuesto via DistribucionParcial with resolved knobs."""
     allocations = distribute_parcial(
         baseline, catalog, market_offers, knobs, criterios
     )
     propuesto: List[PropuestoLine] = []
     comparativa: List[ComparativaRow] = []
     for alloc in allocations:
+        extra_qty = sum(leg.cantidad for leg in alloc.extra_legs)
+        primary_qty = alloc.qty_propuesto - extra_qty
         propuesto.append(
             PropuestoLine(
                 barra=alloc.barra_propuesto,
                 descripcion=alloc.desc_propuesto,
                 proveedor=alloc.proveedor,
-                cantidad=alloc.qty_propuesto,
+                cantidad=primary_qty,
             )
         )
+        for leg in alloc.extra_legs:
+            propuesto.append(
+                PropuestoLine(
+                    barra=leg.barra,
+                    descripcion=leg.descripcion,
+                    proveedor=leg.proveedor,
+                    cantidad=leg.cantidad,
+                )
+            )
         comparativa.append(
             ComparativaRow(
                 barra_baseline=alloc.barra_baseline,
@@ -129,7 +160,6 @@ def _propuesto_conservador(
             )
         )
     return propuesto, comparativa
-
 
 def _identity_stubs(
     baseline: Sequence[BaselineLine],

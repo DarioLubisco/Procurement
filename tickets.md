@@ -81,12 +81,12 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** DistribucionParcial multi-factor + sucedáneos en Comparativa
 
-- [ ] Split fires only when Existen < rot × LT_fast
-- [ ] Fast leg qty = max(rot×LT, MOQ) when MOQ present, else rot×LT, capped by offer stock
-- [ ] Remainder goes to cheapest worse-LT supplier
-- [ ] No forced fast minimum when Existen already covers rot×LT
-- [ ] PedidoPropuesto can show 2+ lines same product different proveedores
-- [ ] Missing MOQ does not block; SAPROD.Minimo is never used as MOQ
+- [x] Split fires only when Existen < rot × LT_fast
+- [x] Fast leg qty = max(rot×LT, MOQ) when MOQ present, else rot×LT, capped by offer stock
+- [x] Remainder goes to cheapest worse-LT supplier
+- [x] No forced fast minimum when Existen already covers rot×LT
+- [x] PedidoPropuesto can show 2+ lines same product different proveedores
+- [x] Missing MOQ does not block; SAPROD.Minimo is never used as MOQ
 
 ## Presets Normal y Agresivo
 
@@ -94,10 +94,10 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** Preset Conservador → Propuesto + ComparativaCantidades básica; GapExtensionOferta (F5); SplitLeadTime + MOQ nullable
 
-- [ ] Normal maps to ADR-0011 (calibrated amp/F5/pesos, medium soft LeadTime)
-- [ ] Agresivo maps to ADR-0013 (stronger amp/F5/price pesos; SplitLeadTime-aware)
-- [ ] Same fixture inputs yield materially different Propuesto/Comparativa across the three presets
-- [ ] Baseline remains unchanged when only the preset changes
+- [x] Normal maps to ADR-0011 (calibrated amp/F5/pesos, medium soft LeadTime)
+- [x] Agresivo maps to ADR-0013 (stronger amp/F5/price pesos; SplitLeadTime-aware)
+- [x] Same fixture inputs yield materially different Propuesto/Comparativa across the three presets
+- [x] Baseline remains unchanged when only the preset changes
 
 ## Backorder desde tablas + resta igual en ambos lados
 
@@ -105,10 +105,10 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** Seam `generar_pedido` → GenerarResult (Baseline real + stubs)
 
-- [ ] Backorder source tables identified and documented
-- [ ] Same backorder quantities subtract from Baseline and Propuesto
-- [ ] Comparativa deltas are not polluted by one-sided backorder
-- [ ] Happy path does not require subtraction_files
+- [x] Backorder source tables identified and documented
+- [x] Same backorder quantities subtract from Baseline and Propuesto
+- [x] Comparativa deltas are not polluted by one-sided backorder
+- [x] Happy path does not require subtraction_files
 
 ## API + FE Generar Sencillo (Comparativa + Propuesto con proveedor)
 
@@ -116,11 +116,11 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** DistribucionParcial multi-factor + sucedáneos en Comparativa; Presets Normal y Agresivo; Backorder desde tablas + resta igual en ambos lados
 
-- [ ] Productive Generar calls unified path (not legacy-only Excel generator)
-- [ ] Comprador sees Comparativa columns: Baseline BARRA/desc/qty, Propuesto BARRA/desc/qty, JustificacionDelta
-- [ ] Comprador sees Propuesto with proveedor on first Generar
-- [ ] First Generar UI is Sencillo only (preset + cobertura + filtros + criterios + optional budget)
-- [ ] CriteriosAgrupacion editable before Generar; effective list sent on request
+- [x] Productive Generar calls unified path (not legacy-only Excel generator)
+- [x] Comprador sees Comparativa columns: Baseline BARRA/desc/qty, Propuesto BARRA/desc/qty, JustificacionDelta
+- [x] Comprador sees Propuesto with proveedor on first Generar
+- [x] First Generar UI is Sencillo only (preset + cobertura + filtros + criterios + optional budget)
+- [x] CriteriosAgrupacion editable before Generar; effective list sent on request
 
 ## Regenerar PedidoDefinitivo (Intermedio/Avanzado)
 
@@ -128,10 +128,10 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** API + FE Generar Sencillo (Comparativa + Propuesto con proveedor)
 
-- [ ] Regenerar is distinct from first Generar Sencillo in UX/language
-- [ ] Intermedio/Avanzado regeneration returns updated Propuesto + Comparativa
-- [ ] Dead S4 / kappa knobs are not exposed in Pedido profile UI
-- [ ] Overrides that are in living OptimizerConfig can affect Definitivo output
+- [x] Regenerar is distinct from first Generar Sencillo in UX/language
+- [x] Intermedio/Avanzado regeneration returns updated Propuesto + Comparativa
+- [x] Dead S4 / kappa knobs are not exposed in Pedido profile UI
+- [x] Overrides that are in living OptimizerConfig can affect Definitivo output
 
 ## Deprecar forced_includes y Excel como artefacto primario
 
@@ -139,6 +139,6 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** API + FE Generar Sencillo (Comparativa + Propuesto con proveedor)
 
-- [ ] forced_includes not required for Generar happy path
-- [ ] Primary human artifact is Comparativa + Propuesto (not bare Excel two-column export)
-- [ ] subtraction_files documented/treated as contingency only, not FiltroOperativo de primer nivel
+- [x] forced_includes not required for Generar happy path
+- [x] Primary human artifact is Comparativa + Propuesto (not bare Excel two-column export)
+- [x] subtraction_files documented/treated as contingency only, not FiltroOperativo de primer nivel

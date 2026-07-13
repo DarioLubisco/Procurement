@@ -1,0 +1,603 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // Basic Elements
+    const fileInput = document.getElementById('subtractionFiles');
+    const dropArea = document.getElementById('dropArea');
+    const fileListContainer = document.getElementById('fileListContainer');
+
+    const form = document.getElementById('generateForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const alertBox = document.getElementById('alertBox');
+
+    // Category Elements
+    const categoriesList = document.getElementById('categoriesList');
+    const categoryCount = document.getElementById('categoryCount');
+    const categorySearch = document.getElementById('categorySearch');
+    const btnSelectAll = document.getElementById('btnSelectAll');
+    const btnSelectNone = document.getElementById('btnSelectNone');
+
+    let selectedFiles = []; // Array to store files
+    let categoryMap = {};
+    let categoryTree = [];
+
+    // --- CONFIG DEFAULTS LOGIC ---
+    const btnSaveDefaults = document.getElementById('btnSaveDefaults');
+    const inputDays = document.getElementById('pedidoDays');
+    const inputRows = document.getElementById('numRows');
+    const inputUmbral = document.getElementById('umbralRotacion');
+
+    function loadDefaults() {
+        const d_days = localStorage.getItem('syn_ped_days');
+        const d_rows = localStorage.getItem('syn_ped_rows');
+        const d_umbral = localStorage.getItem('syn_ped_umbral');
+        
+        if (d_days) inputDays.value = d_days;
+        if (d_rows) inputRows.value = d_rows;
+        if (d_umbral) inputUmbral.value = d_umbral;
+    }
+    
+    if (btnSaveDefaults) {
+        btnSaveDefaults.addEventListener('click', () => {
+            localStorage.setItem('syn_ped_days', inputDays.value);
+            localStorage.setItem('syn_ped_rows', inputRows.value);
+            localStorage.setItem('syn_ped_umbral', inputUmbral.value);
+            btnSaveDefaults.innerHTML = '<i class="fas fa-check"></i> Guardado';
+            btnSaveDefaults.classList.remove('btn-secondary');
+            btnSaveDefaults.classList.add('btn-primary');
+            setTimeout(() => {
+                btnSaveDefaults.innerHTML = '<i class="fas fa-save"></i> Guardar por Defecto';
+                btnSaveDefaults.classList.remove('btn-primary');
+                btnSaveDefaults.classList.add('btn-secondary');
+            }, 2000);
+        });
+    }
+
+    loadDefaults();
+
+    // --- CATEGORY LOGIC ---
+    async function fetchCategories() {
+        try {
+            const response = await fetch('/api/pedidos/categories');
+            if (!response.ok) throw new Error("Fallo al obtener categorías");
+            const data = await response.json();
+
+            const rawCategories = data.categories || [];
+            categoryMap = {};
+            rawCategories.forEach(cat => {
+                categoryMap[cat.id] = {
+                    id: cat.id, name: cat.name, parentId: cat.parentId,
+                    selected: true, indeterminate: false, children: [], visible: true
+                };
+            });
+
+            categoryTree = [];
+            Object.values(categoryMap).forEach(cat => {
+                if (cat.parentId === "0" || !categoryMap[cat.parentId]) {
+                    categoryTree.push(cat);
+                } else {
+                    categoryMap[cat.parentId].children.push(cat);
+                }
+            });
+
+            renderCategories();
+        } catch (error) {
+            console.error(error);
+            if (categoriesList) {
+                categoriesList.innerHTML = `<li style="color:var(--danger); padding:1rem;">Error cargando categorías. Revisa la conexión al motor SQL.</li>`;
+            }
+        }
+    }
+
+    function renderCategories() {
+        if (!categoriesList) return;
+        categoriesList.innerHTML = '';
+        let visibleCount = 0;
+
+        function buildNodeDOM(node) {
+            if (!node.visible) return null;
+            visibleCount++;
+
+            const li = document.createElement('li');
+            li.style.listStyle = 'none';
+            const hasChildren = node.children.some(c => c.visible);
+
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '0.5rem';
+            row.style.padding = '0.25rem 0';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `cat_${node.id}`;
+            checkbox.value = node.name;
+            checkbox.checked = node.selected;
+            checkbox.indeterminate = node.indeterminate;
+            checkbox.addEventListener('change', (e) => handleCheckboxChange(node.id, e.target.checked));
+            
+            const label = document.createElement('label');
+            label.htmlFor = `cat_${node.id}`;
+            label.textContent = node.name;
+            if(hasChildren) label.style.fontWeight = 'bold';
+
+            row.appendChild(checkbox);
+            row.appendChild(label);
+            li.appendChild(row);
+
+            if (hasChildren) {
+                const ul = document.createElement('ul');
+                ul.style.paddingLeft = '1.5rem';
+                node.children.forEach(child => {
+                    const childDOM = buildNodeDOM(child);
+                    if (childDOM) ul.appendChild(childDOM);
+                });
+                li.appendChild(ul);
+            }
+            return li;
+        }
+
+        categoryTree.forEach(rootNode => {
+            const nodeDOM = buildNodeDOM(rootNode);
+            if (nodeDOM) categoriesList.appendChild(nodeDOM);
+        });
+
+        if (visibleCount === 0) categoriesList.innerHTML = `<li style="padding:1rem;">No se encontraron categorías.</li>`;
+        updateCategoryCount();
+    }
+
+    function handleCheckboxChange(id, isChecked) {
+        const node = categoryMap[id];
+        if (!node) return;
+        node.selected = isChecked;
+        node.indeterminate = false;
+
+        function updateChildren(n, checkState) {
+            n.children.forEach(child => {
+                child.selected = checkState;
+                child.indeterminate = false;
+                const cb = document.getElementById(`cat_${child.id}`);
+                if (cb) { cb.checked = checkState; cb.indeterminate = false; }
+                updateChildren(child, checkState);
+            });
+        }
+        updateChildren(node, isChecked);
+        updateParentState(node.parentId);
+        updateCategoryCount();
+    }
+
+    function updateParentState(parentId) {
+        if (!parentId || parentId === "0") return;
+        const parent = categoryMap[parentId];
+        if (!parent) return;
+
+        let allSelected = true, noneSelected = true, hasIndeterminate = false;
+        parent.children.forEach(child => {
+            if (child.selected) noneSelected = false;
+            else allSelected = false;
+            if (child.indeterminate) hasIndeterminate = true;
+        });
+
+        if (allSelected && !hasIndeterminate) { parent.selected = true; parent.indeterminate = false; }
+        else if (noneSelected && !hasIndeterminate) { parent.selected = false; parent.indeterminate = false; }
+        else { parent.selected = false; parent.indeterminate = true; }
+
+        const cb = document.getElementById(`cat_${parent.id}`);
+        if (cb) { cb.checked = parent.selected; cb.indeterminate = parent.indeterminate; }
+        updateParentState(parent.parentId);
+    }
+
+    function applySearch(filterText) {
+        const lowerFilter = filterText.toLowerCase();
+        Object.values(categoryMap).forEach(cat => cat.visible = cat.name.toLowerCase().includes(lowerFilter));
+        
+        function ensureParentVisibility(node) {
+            let childIsVisible = false;
+            node.children.forEach(child => { if (ensureParentVisibility(child)) childIsVisible = true; });
+            if (childIsVisible) node.visible = true;
+            return node.visible;
+        }
+        categoryTree.forEach(ensureParentVisibility);
+        renderCategories();
+    }
+
+    function updateCategoryCount() {
+        if (!categoryCount) return;
+        const total = Object.keys(categoryMap).length;
+        const checkedCount = Object.values(categoryMap).filter(c => c.selected).length;
+        categoryCount.textContent = `${checkedCount} Seleccionadas`;
+    }
+
+    if (categorySearch) categorySearch.addEventListener('input', (e) => applySearch(e.target.value));
+    if (btnSelectAll) btnSelectAll.addEventListener('click', () => {
+        categoryTree.forEach(root => handleCheckboxChange(root.id, true));
+    });
+    if (btnSelectNone) btnSelectNone.addEventListener('click', () => {
+        categoryTree.forEach(root => handleCheckboxChange(root.id, false));
+    });
+
+    fetchCategories();
+
+    // --- DRAG AND DROP FILE LOGIC ---
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        if (dropArea) dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+    function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        if (dropArea) dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+        if (dropArea) dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
+    });
+
+    if (dropArea) {
+        dropArea.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files), false);
+        dropArea.addEventListener('click', () => fileInput.click());
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+            fileInput.value = '';
+        });
+    }
+
+    function handleFiles(files) {
+        let validFiles = [];
+        Array.from(files).forEach(file => {
+            if (file.name.endsWith('.xlsx')) {
+                if (!selectedFiles.find(f => f.name === file.name)) validFiles.push(file);
+            } else {
+                showAlert(`"${file.name}" ignorado, debe ser .xlsx`, false);
+            }
+        });
+
+        if (validFiles.length > 0) {
+            selectedFiles = selectedFiles.concat(validFiles);
+            hideAlert();
+            renderFileList();
+        }
+    }
+
+    window.removeFile = function(index) {
+        selectedFiles.splice(index, 1);
+        renderFileList();
+    }
+
+    function renderFileList() {
+        if (!fileListContainer) return;
+        fileListContainer.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+            fileListContainer.innerHTML += `
+                <div class="file-chip">
+                    <span><i class="fas fa-file-excel"></i> ${file.name}</span>
+                    <i class="fas fa-times remove-btn" onclick="removeFile(${index})"></i>
+                </div>
+            `;
+        });
+    }
+
+    // --- FORM SUBMISSION (Generar Sencillo → Comparativa + Propuesto) ---
+    function showAlert(msg, isSuccess) {
+        if (alertBox) {
+            alertBox.textContent = msg;
+            alertBox.style.display = 'block';
+            alertBox.className = `alert alert-${isSuccess ? 'success' : 'danger'}`;
+            alertBox.style.backgroundColor = isSuccess ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+            alertBox.style.color = isSuccess ? '#10b981' : '#ef4444';
+        }
+    }
+    function hideAlert() { if (alertBox) alertBox.style.display = 'none'; }
+
+    function collectCriteriosAgrupacion() {
+        return Array.from(document.querySelectorAll('.criterio-cb:checked')).map(cb => cb.value);
+    }
+
+    function buildSencilloPayload() {
+        const selectedCategoryNames = Object.values(categoryMap)
+            .filter(c => c.selected).map(c => c.name);
+        const presupuestoRaw = document.getElementById('presupuestoMaximo')?.value;
+        const presupuesto = presupuestoRaw !== undefined && presupuestoRaw !== ''
+            ? Number(presupuestoRaw) : null;
+        return {
+            cobertura: Number(document.getElementById('pedidoDays').value),
+            preset: document.getElementById('presetSencillo')?.value || 'Conservador',
+            criterios_agrupacion: collectCriteriosAgrupacion(),
+            categorias: selectedCategoryNames,
+            include_generics: document.getElementById('includeGenerics')?.checked !== false,
+            include_brands: document.getElementById('includeBrands')?.checked !== false,
+            umbral_rotacion: Number(document.getElementById('umbralRotacion')?.value || 0),
+            num_rows: Number(document.getElementById('numRows').value),
+            presupuesto_maximo: presupuesto,
+        };
+    }
+
+    function renderGenerarResult(data) {
+        const section = document.getElementById('generarResultSection');
+        const compBody = document.getElementById('comparativaTableBody');
+        const propBody = document.getElementById('propuestoTableBody');
+        if (!section || !compBody || !propBody) return;
+
+        compBody.innerHTML = '';
+        (data.comparativa_cantidades || []).forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding:0.5rem; font-family:monospace;">${row.barra_baseline}</td>
+                <td style="padding:0.5rem;">${row.desc_baseline || ''}</td>
+                <td style="padding:0.5rem; text-align:right;">${row.qty_baseline}</td>
+                <td style="padding:0.5rem; font-family:monospace;">${row.barra_propuesto}</td>
+                <td style="padding:0.5rem;">${row.desc_propuesto || ''}</td>
+                <td style="padding:0.5rem; text-align:right;">${row.qty_propuesto}</td>
+                <td style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary);">${row.justificacion_delta || ''}</td>
+            `;
+            compBody.appendChild(tr);
+        });
+
+        propBody.innerHTML = '';
+        (data.pedido_propuesto || []).forEach(line => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding:0.5rem; font-family:monospace;">${line.barra}</td>
+                <td style="padding:0.5rem;">${line.descripcion || ''}</td>
+                <td style="padding:0.5rem; font-weight:600;">${line.proveedor || ''}</td>
+                <td style="padding:0.5rem; text-align:right;">${line.cantidad}</td>
+            `;
+            propBody.appendChild(tr);
+        });
+
+        section.style.display = 'block';
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function collectDefinitivoOverrides() {
+        const overrides = {};
+        const amp = document.getElementById('ovAmpMax')?.value;
+        const ext = document.getElementById('ovExtDias')?.value;
+        const opp = document.getElementById('ovOppLambda')?.value;
+        if (amp !== undefined && amp !== '') overrides.amp_max_increment_pct = Number(amp);
+        if (ext !== undefined && ext !== '') overrides.ext_max_dias_extra = Number(ext);
+        if (opp !== undefined && opp !== '') overrides.opp_lambda = Number(opp);
+        return overrides;
+    }
+
+    const btnRegenerarDefinitivo = document.getElementById('btnRegenerarDefinitivo');
+    if (btnRegenerarDefinitivo) {
+        btnRegenerarDefinitivo.addEventListener('click', async () => {
+            hideAlert();
+            const resultSection = document.getElementById('generarResultSection');
+            if (!resultSection || resultSection.style.display === 'none') {
+                showAlert("Primero ejecute Generar (Sencillo) para ver la Comparativa.", false);
+                return;
+            }
+            btnRegenerarDefinitivo.disabled = true;
+            const original = btnRegenerarDefinitivo.innerHTML;
+            btnRegenerarDefinitivo.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Regenerando Definitivo...';
+            try {
+                const base = buildSencilloPayload();
+                const payload = {
+                    ...base,
+                    nivel: document.getElementById('nivelDefinitivo')?.value || 'Intermedio',
+                    base_preset: document.getElementById('basePresetDefinitivo')?.value || 'Normal',
+                    overrides: collectDefinitivoOverrides(),
+                };
+                delete payload.preset;
+                const response = await fetch('/api/pedidos/regenerar-definitivo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || "Error al regenerar Definitivo");
+                }
+                const data = await response.json();
+                renderGenerarResult(data);
+                showAlert(
+                    `Pedido Definitivo regenerado (${data.meta?.nivel}). Comparativa y Propuesto actualizados juntos.`,
+                    true
+                );
+            } catch (error) {
+                showAlert(error.message, false);
+            } finally {
+                btnRegenerarDefinitivo.disabled = false;
+                btnRegenerarDefinitivo.innerHTML = original;
+            }
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            submitBtn.disabled = true;
+            btnText.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Generando...';
+
+            const excludedSection = document.getElementById('excludedSection');
+            if (excludedSection) excludedSection.style.display = 'none';
+
+            const payload = buildSencilloPayload();
+            if (!payload.categorias || payload.categorias.length === 0) {
+                showAlert("Debe seleccionar al menos una familia.", false);
+                submitBtn.disabled = false;
+                btnText.innerHTML = 'Generar (Sencillo)';
+                return;
+            }
+            if (!payload.criterios_agrupacion.length) {
+                showAlert("Seleccione al menos un Criterio de Agrupación.", false);
+                submitBtn.disabled = false;
+                btnText.innerHTML = 'Generar (Sencillo)';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/pedidos/generar-sencillo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || "Error en Generar Sencillo");
+                }
+                const data = await response.json();
+                renderGenerarResult(data);
+                const nComp = (data.comparativa_cantidades || []).length;
+                const nProp = (data.pedido_propuesto || []).length;
+                showAlert(`Generar Sencillo listo: ${nComp} filas Comparativa, ${nProp} líneas Propuesto (${data.meta?.preset || ''}).`, true);
+            } catch (error) {
+                showAlert(error.message, false);
+            } finally {
+                submitBtn.disabled = false;
+                btnText.innerHTML = 'Generar (Sencillo)';
+            }
+        });
+    }
+
+    // Legacy Excel path (secondary)
+    const btnLegacyExcel = document.getElementById('btnLegacyExcel');
+    if (btnLegacyExcel) {
+        btnLegacyExcel.addEventListener('click', async () => {
+            hideAlert();
+            btnLegacyExcel.disabled = true;
+            const formData = new FormData();
+            formData.append('pedido_days', document.getElementById('pedidoDays').value);
+            formData.append('num_rows', document.getElementById('numRows').value);
+            const umbral = document.getElementById('umbralRotacion') ? document.getElementById('umbralRotacion').value : '0.0';
+            formData.append('umbral_rotacion', umbral);
+            formData.append('preview_mode', 'true');
+            const includeGenerics = document.getElementById('includeGenerics') ? document.getElementById('includeGenerics').checked : true;
+            const includeBrands = document.getElementById('includeBrands') ? document.getElementById('includeBrands').checked : true;
+            formData.append('include_generics', includeGenerics ? 'true' : 'false');
+            formData.append('include_brands', includeBrands ? 'true' : 'false');
+            selectedFiles.forEach(file => formData.append('subtraction_files', file));
+            const selectedCategoryNames = Object.values(categoryMap).filter(c => c.selected).map(c => c.name);
+            if (selectedCategoryNames.length === 0) {
+                showAlert("Debe seleccionar al menos una familia.", false);
+                btnLegacyExcel.disabled = false;
+                return;
+            }
+            formData.append('categories', selectedCategoryNames.join(','));
+            try {
+                const response = await fetch('/api/pedidos/generate', { method: 'POST', body: formData });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || "Error al calcular el reporte");
+                }
+                const data = await response.json();
+                const excludedSection = document.getElementById('excludedSection');
+                if (data.excluidos && data.excluidos.length > 0) {
+                    const tbody = document.getElementById('excludedTableBody');
+                    const countSpan = document.getElementById('excludedCount');
+                    if (tbody && countSpan && excludedSection) {
+                        tbody.innerHTML = '';
+                        countSpan.textContent = `${data.excluidos.length} Productos`;
+                        data.excluidos.forEach(item => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); color: var(--text-primary);">
+                                    <input type="checkbox" class="exclude-checkbox" value="${item.BARRA}">
+                                </td>
+                                <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); font-family: monospace; color: var(--text-primary);">${item.BARRA}</td>
+                                <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-primary);">${item.Descrip || ''}</td>
+                                <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); color: var(--danger); font-weight: bold;">${item.RotacionMensual.toFixed(2)}</td>
+                                <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); color: var(--text-primary);">${item.Existen || 0}</td>
+                                <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); color: var(--text-primary);">${item.CANTIDAD}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                        excludedSection.style.display = 'block';
+                        showAlert("Legacy: revise exclusiones y use Generar Excel Definitivo.", false);
+                    }
+                } else {
+                    formData.set('preview_mode', 'false');
+                    await generateFinalExcel(formData);
+                }
+            } catch (error) {
+                showAlert(error.message, false);
+            } finally {
+                btnLegacyExcel.disabled = false;
+            }
+        });
+    }
+
+    // Logic for Select All in exclusions table
+    const selectAllExcluded = document.getElementById('selectAllExcluded');
+    if (selectAllExcluded) {
+        selectAllExcluded.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.exclude-checkbox');
+            checkboxes.forEach(cb => cb.checked = e.target.checked);
+        });
+    }
+
+    // Logic for Final Generate
+    const generateFinalBtn = document.getElementById('generateFinalBtn');
+    if (generateFinalBtn) {
+        generateFinalBtn.addEventListener('click', async () => {
+            hideAlert();
+            generateFinalBtn.disabled = true;
+            const originalHtml = generateFinalBtn.innerHTML;
+            generateFinalBtn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px; border-color: white transparent transparent transparent;"></div> Generando...';
+            
+            const formData = new FormData();
+            formData.append('pedido_days', document.getElementById('pedidoDays').value);
+            formData.append('num_rows', document.getElementById('numRows').value);
+            const umbral = document.getElementById('umbralRotacion') ? document.getElementById('umbralRotacion').value : '0.0';
+            formData.append('umbral_rotacion', umbral);
+            formData.append('preview_mode', 'false'); // Force final download
+            
+            const includeGenerics = document.getElementById('includeGenerics') ? document.getElementById('includeGenerics').checked : true;
+            const includeBrands = document.getElementById('includeBrands') ? document.getElementById('includeBrands').checked : true;
+            formData.append('include_generics', includeGenerics ? 'true' : 'false');
+            formData.append('include_brands', includeBrands ? 'true' : 'false');
+            
+            selectedFiles.forEach(file => formData.append('subtraction_files', file));
+            
+            const selectedCategoryNames = Object.values(categoryMap)
+                .filter(c => c.selected).map(c => c.name);
+            formData.append('categories', selectedCategoryNames.join(','));
+
+            // forced_includes deprecated — not part of Generar happy path (ticket 12)
+            // Legacy Excel path no longer gathers forced barcodes for primary flow.
+
+            try {
+                await generateFinalExcel(formData);
+                document.getElementById('excludedSection').style.display = 'none';
+            } catch (error) {
+                showAlert(error.message, false);
+            } finally {
+                generateFinalBtn.disabled = false;
+                generateFinalBtn.innerHTML = originalHtml;
+            }
+        });
+    }
+
+    async function generateFinalExcel(formData) {
+        const response = await fetch('/api/pedidos/generate', { method: 'POST', body: formData });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || "Error al generar el archivo Excel");
+        }
+
+        const blob = await response.blob();
+        let filename = "Pedido.xlsx";
+        const disposition = response.headers.get('Content-Disposition');
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            const match = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+            if (match != null && match[1]) filename = match[1].replace(/['"]/g, '');
+        }
+
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+
+        showAlert("Matríz de Pedidos generada y descargada exitosamente.", true);
+        selectedFiles = [];
+        renderFileList();
+    }
+});

@@ -42,7 +42,7 @@ def test_gap_ext_intermediate_not_full_group_dump():
 def test_f5_reinforces_only_offer_in_distribution():
     """When F5 knobs active and Desvío triggers, only offer BARRA gets extra qty."""
     knobs = PresetKnobs(
-        amplifier_enabled=True,
+        amplifier_enabled=False,  # isolate F5 from amp (ticket 08)
         ext_max_dias_extra=21,
         w1=0.0,
         w2=0.0,
