@@ -57,11 +57,11 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** Preset Conservador → Propuesto + ComparativaCantidades básica
 
-- [ ] Within a Grupo, multiple Baseline lines can receive partial Propuesto quotas
-- [ ] Elasticidad alone does not dictate allocation when other motor factors conflict (e.g. LeadTime soft / price)
-- [ ] Propuesto may resolve a Grupo need with a different BARRA from mercado vivo
-- [ ] JustificacionDelta states code change when barra_propuesto ≠ barra_baseline
-- [ ] Comparativa qty_propuesto is the line quota, not the entire Grupo gap dumped on one row
+- [x] Within a Grupo, multiple Baseline lines can receive partial Propuesto quotas
+- [x] Elasticidad alone does not dictate allocation when other motor factors conflict (e.g. LeadTime soft / price)
+- [x] Propuesto may resolve a Grupo need with a different BARRA from mercado vivo
+- [x] JustificacionDelta states code change when barra_propuesto ≠ barra_baseline
+- [x] Comparativa qty_propuesto is the line quota, not the entire Grupo gap dumped on one row
 
 ## GapExtensionOferta (F5)
 

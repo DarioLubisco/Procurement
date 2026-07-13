@@ -8,6 +8,7 @@ from typing import List, Optional, Sequence
 import pandas as pd
 
 from .criterios_agrupacion import resolve_criterios_agrupacion
+from .distribucion_parcial import distribute_parcial
 from .pedido_baseline import (
     BaselineLine,
     FiltrosOperativos,
@@ -78,7 +79,9 @@ def generar_pedido(
         and perfil.preset is PresetSencillo.CONSERVADOR
         and market_offers is not None
     ):
-        propuesto, comparativa = _propuesto_conservador(baseline, market_offers)
+        propuesto, comparativa = _propuesto_conservador(
+            baseline, catalog, market_offers, criterios
+        )
     else:
         propuesto, comparativa = _identity_stubs(baseline)
 
@@ -91,60 +94,38 @@ def generar_pedido(
 
 def _propuesto_conservador(
     baseline: Sequence[BaselineLine],
+    catalog: pd.DataFrame,
     market_offers: pd.DataFrame,
+    criterios: Sequence[str],
 ) -> tuple[List[PropuestoLine], List[ComparativaRow]]:
-    """Conservador: qty_mult=1, no F5; pick cheapest offer for same BARRA (w3)."""
+    """Conservador via DistribucionParcial: qty ceiling = Baseline line; multi-factor pick."""
     knobs = resolve_preset_knobs(PresetSencillo.CONSERVADOR)
     assert knobs.amplifier_enabled is False
     assert knobs.ext_max_dias_extra == 0
 
-    offers = market_offers.copy()
-    offers["barra"] = offers["barra"].astype(str)
-    offers["precio"] = pd.to_numeric(offers["precio"], errors="coerce")
-    offers["stock_proveedor"] = pd.to_numeric(
-        offers.get("stock_proveedor", pd.Series([None] * len(offers))),
-        errors="coerce",
+    allocations = distribute_parcial(
+        baseline, catalog, market_offers, knobs, criterios
     )
-
     propuesto: List[PropuestoLine] = []
     comparativa: List[ComparativaRow] = []
-    for line in baseline:
-        qty = int(line.cantidad)
-        proveedor = ""
-        match = offers[offers["barra"] == line.barra]
-        if not match.empty:
-            # w3 posicionamiento ≈ prefer cheaper offer among same BARRA
-            ranked = match.sort_values("precio", ascending=True)
-            chosen = ranked.iloc[0]
-            proveedor = str(chosen["proveedor"])
-            stock = chosen["stock_proveedor"]
-            if pd.notna(stock):
-                qty = min(qty, int(stock))
-
-        justificacion = ""
-        if qty != line.cantidad:
-            justificacion = (
-                f"delta cantidad {line.cantidad}→{qty} "
-                f"(Conservador: stock_proveedor/tope oferta)"
-            )
-
+    for alloc in allocations:
         propuesto.append(
             PropuestoLine(
-                barra=line.barra,
-                descripcion=line.descripcion,
-                proveedor=proveedor,
-                cantidad=qty,
+                barra=alloc.barra_propuesto,
+                descripcion=alloc.desc_propuesto,
+                proveedor=alloc.proveedor,
+                cantidad=alloc.qty_propuesto,
             )
         )
         comparativa.append(
             ComparativaRow(
-                barra_baseline=line.barra,
-                desc_baseline=line.descripcion,
-                qty_baseline=line.cantidad,
-                barra_propuesto=line.barra,
-                desc_propuesto=line.descripcion,
-                qty_propuesto=qty,
-                justificacion_delta=justificacion,
+                barra_baseline=alloc.barra_baseline,
+                desc_baseline=alloc.desc_baseline,
+                qty_baseline=alloc.qty_baseline,
+                barra_propuesto=alloc.barra_propuesto,
+                desc_propuesto=alloc.desc_propuesto,
+                qty_propuesto=alloc.qty_propuesto,
+                justificacion_delta=alloc.justificacion_delta,
             )
         )
     return propuesto, comparativa
