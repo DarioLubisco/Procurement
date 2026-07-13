@@ -69,11 +69,11 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 
 **Blocked by:** DistribucionParcial multi-factor + sucedáneos en Comparativa
 
-- [ ] F5 does not add coverage days to non-offer Grupo members
-- [ ] F5 does not dump the full Gap_grupo onto offer SKUs
-- [ ] Gap_ext uses non-offer-only rotation denominator for f
-- [ ] Fixture matching ADR-0012 example semantics passes
-- [ ] JustificacionDelta mentions F5 / f when extension applied
+- [x] F5 does not add coverage days to non-offer Grupo members
+- [x] F5 does not dump the full Gap_grupo onto offer SKUs
+- [x] Gap_ext uses non-offer-only rotation denominator for f
+- [x] Fixture matching ADR-0012 example semantics passes
+- [x] JustificacionDelta mentions F5 / f when extension applied
 
 ## SplitLeadTime + MOQ nullable
 

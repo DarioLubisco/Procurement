@@ -6,8 +6,12 @@ from typing import List, Sequence
 
 import pandas as pd
 
+from .gap_extension import MiembroGrupo, compute_gap_extension_oferta
 from .pedido_baseline import BaselineLine
 from .presets import PresetKnobs
+
+# Desvío threshold for F5 trigger (Normal default ADR-0011)
+_F5_DESVIO_UMBRAL = -0.10
 
 
 @dataclass(frozen=True)
@@ -31,9 +35,8 @@ def distribute_parcial(
 ) -> List[Allocation]:
     """Allocate each Baseline line a partial Propuesto quota using multi-factor scores.
 
-    Not winner-takes-all: each Baseline BARRA keeps its own qty as the quota ceiling.
-    Elasticidad is one soft signal; price and LeadTime can outweigh it.
-    Offers from other BARRAs in the same Grupo are allowed (sucedáneos).
+    Not winner-takes-all: each Baseline BARRA keeps its own qty as the quota ceiling
+    (before optional F5 reinforcement to offers only).
     """
     cat = catalog.copy()
     cat["barra"] = cat["barra"].astype(str)
@@ -89,7 +92,85 @@ def distribute_parcial(
                 justificacion_delta=justificacion,
             )
         )
+
+    if knobs.ext_max_dias_extra > 0:
+        out = _apply_f5_extension(out, baseline, cat, offers, criterios, by_barra)
     return out
+
+
+def _apply_f5_extension(
+    allocations: List[Allocation],
+    baseline: Sequence[BaselineLine],
+    catalog: pd.DataFrame,
+    offers: pd.DataFrame,
+    criterios: Sequence[str],
+    by_barra: dict,
+) -> List[Allocation]:
+    """Reinforce only offer SKUs with Gap_ext; never boost non-offer members."""
+    if "desvio" not in offers.columns:
+        return allocations
+
+    offer_barras = set(
+        offers.loc[offers["desvio"] <= _F5_DESVIO_UMBRAL, "barra"].astype(str)
+    )
+    if not offer_barras:
+        return allocations
+
+    # Build miembros from baseline lines
+    miembros: List[MiembroGrupo] = []
+    for line in baseline:
+        row = by_barra.get(line.barra)
+        if row is None:
+            continue
+        rot = float(row.get("rotacion_mensual", 0.0) or 0.0)
+        elast = _elasticidad(row)
+        en_oferta = line.barra in offer_barras
+        miembros.append(
+            MiembroGrupo(
+                barra=line.barra,
+                rotacion=rot,
+                elasticidad=elast,
+                gap=float(line.cantidad),
+                en_oferta=en_oferta,
+            )
+        )
+
+    if not any(m.en_oferta for m in miembros):
+        return allocations
+
+    ext = compute_gap_extension_oferta(miembros)
+    # Extra units beyond sum of offer baseline gaps, assigned only to offer lines
+    offer_alloc_idxs = [
+        i for i, a in enumerate(allocations) if a.barra_baseline in offer_barras
+    ]
+    if not offer_alloc_idxs:
+        return allocations
+
+    current_offer_qty = sum(allocations[i].qty_propuesto for i in offer_alloc_idxs)
+    target = int(round(ext.gap_ext))
+    extra = max(0, target - current_offer_qty)
+    if extra <= 0:
+        return allocations
+
+    # Put all extra on first offer line (single-offer fixture); split later if needed
+    i0 = offer_alloc_idxs[0]
+    a = allocations[i0]
+    new_qty = a.qty_propuesto + extra
+    just = a.justificacion_delta
+    f5_note = f"F5 GapExtensionOferta f={ext.f:.3f} gap_ext={ext.gap_ext:.1f}"
+    just = f"{just}; {f5_note}" if just else f5_note
+    allocations = list(allocations)
+    allocations[i0] = Allocation(
+        barra_baseline=a.barra_baseline,
+        desc_baseline=a.desc_baseline,
+        qty_baseline=a.qty_baseline,
+        barra_propuesto=a.barra_propuesto,
+        desc_propuesto=a.desc_propuesto,
+        qty_propuesto=new_qty,
+        proveedor=a.proveedor,
+        justificacion_delta=just,
+    )
+    return allocations
 
 
 def _elasticidad(row) -> float:
