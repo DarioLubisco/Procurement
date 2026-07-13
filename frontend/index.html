@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Synapse Business Suite</title>
+  <script>
+    (function() {
+        const theme = localStorage.getItem('synapse-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  
+  <link rel="stylesheet" href="css/style.css"/>
+
+</head>
+<body>
+<div class="app-container">
+
+  <!-- ── SIDEBAR INYECTADO POR JS ── -->
+  <aside class="sidebar" id="sidebar-container"></aside>
+
+  <!-- ── MAIN CONTENT ── -->
+  <main class="main-content">
+    <div class="header">
+      <div class="header-left">
+        <h1>Synapse Central</h1>
+        <p class="subtitle">Visión Global de Operaciones y Flujo de Caja</p>
+      </div>
+
+      <!-- Tasa BCV Header -->
+      <div class="header-rate-badge" style="display:flex; align-items:center; gap:0.8rem; background:rgba(255,255,255,0.03); padding:0.4rem 1rem; border-radius:var(--radius-lg); border:1px solid var(--border-subtle); margin-left:auto; margin-right:1.5rem;">
+        <div style="display:flex; flex-direction:column; align-items:flex-end;">
+          <span style="font-size:0.65rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom: 2px;">Tasa BCV Vigente</span>
+          <div style="display:flex; align-items:baseline; gap:0.3rem;">
+            <span id="calc-tasa-display-bs" style="font-size:1.15rem; font-weight:800; color:var(--warning); font-variant-numeric:tabular-nums;">Bs. 0.00</span>
+            <span style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">= $1.00</span>
+          </div>
+        </div>
+        <div style="width:32px; height:32px; background:rgba(245,158,11,0.1); border-radius:50%; display:flex; align-items:center; justify-content:center;">
+          <i class="fas fa-coins" style="color:var(--warning); font-size:0.9rem;"></i>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      async function loadTasa() {
+        try {
+          const res = await fetch('/caja/tasa_del_dia');
+          const json = await res.json();
+          if (json.tasa) {
+            document.getElementById('calc-tasa-display-bs').textContent = 'Bs. ' + json.tasa.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2});
+          }
+        } catch(e) {}
+      }
+      document.addEventListener('DOMContentLoaded', loadTasa);
+    </script>
+
+    <!-- KPIs Rápidos Globales -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="stat-icon-wrapper blue">
+          <i class="fas fa-file-invoice-dollar fa-lg"></i>
+        </div>
+        <div class="stat-info">
+          <h3>Retenciones Pendientes</h3>
+          <p>12</p>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="stat-icon-wrapper green">
+          <i class="fas fa-money-bill-wave fa-lg"></i>
+        </div>
+        <div class="stat-info">
+          <h3>Efectivo Global USD</h3>
+          <p>$ 4,520</p>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="stat-icon-wrapper yellow">
+          <i class="fas fa-exclamation-triangle fa-lg"></i>
+        </div>
+        <div class="stat-info">
+          <h3>Moléculas Agotadas</h3>
+          <p>8 Items</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Integrado (Lanzadores) -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div class="section-card" style="cursor: pointer; transition: transform 0.2s;" onclick="window.location.href='modulo_cxp.html'">
+        <h3><i class="fas fa-wallet" style="color:var(--primary-accent);"></i> Gestión de Proveedores</h3>
+        <p style="color:var(--text-secondary); margin-bottom:1rem; font-size:0.95rem;">Emite pagos, controla notas de crédito y genera retenciones 100% integradas.</p>
+        <button class="btn btn-primary"><i class="fas fa-arrow-right"></i> Ir a Cuentas por Pagar</button>
+      </div>
+      
+      <div class="section-card" style="cursor: pointer; transition: transform 0.2s;" onclick="window.location.href='modulo_caja.html?v=' + Date.now()">
+        <h3><i class="fas fa-cash-register" style="color:var(--success);"></i> Control Financiero</h3>
+        <p style="color:var(--text-secondary); margin-bottom:1rem; font-size:0.95rem;">Cierres de caja, calculadora mixta multimoneda y conciliaciones bancarias.</p>
+        <button class="btn btn-primary" style="background:var(--success); color:white;"><i class="fas fa-arrow-right"></i> Ir a Cierres de Caja</button>
+      </div>
+      
+      <div class="section-card" style="grid-column: span 2; cursor: pointer; transition: transform 0.2s;" onclick="window.location.href='modulo_pedidos.html'">
+        <h3><i class="fas fa-capsules" style="color:var(--warning);"></i> Orquestador de Inventario y Ventas</h3>
+        <p style="color:var(--text-secondary); margin-bottom:1rem; font-size:0.95rem;">Motor sugerido de compra de moléculas para la farmacia basado en rotación.</p>
+        <button class="btn btn-primary" style="background:var(--warning); color:#111;"><i class="fas fa-arrow-right"></i> Ir a Pedidos</button>
+      </div>
+    </div>
+  </main>
+  
+</div>
+
+<script src="js/sidebar.js"></script>
+<script src="js/theme.js"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+# ============================================================
+# Synapse - .gitignore
+# ============================================================
+
+# --- SECRETOS - NUNCA subir al repositorio ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# --- Node / Frontend ---
+node_modules/
+dist/
+.npm/
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Credenciales y Tokens ---
+token.json
+credentials.json
+*credential*
+Synapse_credential/
+Synapse_credentials/
+Synapse_credentials.mmd
+Synapse_cretentials.mmd
+Synapse_credential.mmd
+*.key
+*.pem
+*.p12
+
+# --- Logs ---
+*.log
+logs/
+
+# --- IDE / Editor ---
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+
+# --- Archivos temporales ---
+*.tmp
+*.swp
+scratch/
