@@ -19,6 +19,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedFiles = []; // Array to store files
     let categoryMap = {};
     let categoryTree = [];
+    let lastGenerarResult = null;
+    let vmIntentosRecalc = {};
+    let vmActivoProveedor = null;
+    let vmPanelAck = false;
 
     // --- CONFIG DEFAULTS LOGIC ---
     const btnSaveDefaults = document.getElementById('btnSaveDefaults');
@@ -349,6 +353,144 @@ document.addEventListener('DOMContentLoaded', () => {
         section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
+    function stashGenerarResult(data, { resetVm = true } = {}) {
+        lastGenerarResult = data;
+        if (resetVm) {
+            vmIntentosRecalc = {};
+            vmActivoProveedor = null;
+            vmPanelAck = false;
+            const vmPanel = document.getElementById('validarMinimosPanel');
+            if (vmPanel) vmPanel.style.display = 'none';
+        }
+        renderGenerarResult(data);
+    }
+
+    function applyValidarMinimosResponse(data) {
+        if (!lastGenerarResult) lastGenerarResult = {};
+        lastGenerarResult.pedido_propuesto = data.pedido_propuesto;
+        lastGenerarResult.comparativa_cantidades = data.comparativa_cantidades;
+        if (data.pedido_baseline) lastGenerarResult.pedido_baseline = data.pedido_baseline;
+        const vm = (data.meta && data.meta.validar_minimos) || {};
+        vmIntentosRecalc = vm.intentos_recalc || vmIntentosRecalc;
+        vmActivoProveedor = vm.activo || null;
+        renderGenerarResult(lastGenerarResult);
+        renderValidarMinimosUI(vm);
+        if (vm.requiere_panel_antes_recalc) {
+            vmPanelAck = true;
+        }
+    }
+
+    function renderValidarMinimosUI(vm) {
+        const panel = document.getElementById('validarMinimosPanel');
+        const colaEl = document.getElementById('validarMinimosCola');
+        const detEl = document.getElementById('validarMinimosDetalle');
+        const hint = document.getElementById('validarMinimosHint');
+        if (!panel || !colaEl || !detEl) return;
+        panel.style.display = 'block';
+        const cola = vm.cola || [];
+        if (!cola.length) {
+            colaEl.innerHTML = '<strong style="color:#10b981;">Todos los proveedores cumplen el mínimo (o no tienen mínimo configurado).</strong>';
+            detEl.innerHTML = '';
+            if (hint) hint.textContent = '';
+            return;
+        }
+        colaEl.innerHTML = '<strong>Cola (mayor déficit primero):</strong><ul style="margin:0.4rem 0 0 1.2rem;">' +
+            cola.map(d => `<li><code>${d.proveedor}</code> total $${d.total_usd} / mín $${d.minimo_usd} (déficit $${d.deficit_usd})</li>`).join('') +
+            '</ul>';
+        const p = vm.panel;
+        if (p) {
+            const reps = (p.reemplazos || []).slice(0, 8).map(r =>
+                `${r.barra_actual}→${r.proveedor_alt}/${r.barra_alternativa} (ahorro línea $${r.ahorro_usd})`
+            ).join('<br>');
+            const huerf = (p.huerfanos_si_rechaza || []).map(h => h.barra).join(', ') || 'ninguno';
+            detEl.innerHTML = `
+                <div><strong>Activo:</strong> ${p.proveedor} — total $${p.total_usd}, mín $${p.minimo_usd}, déficit $${p.deficit_usd}</div>
+                <div><strong>Ahorro vs 2º (barra→Grupo):</strong> $${p.ahorro_vs_segundo_usd}</div>
+                <div style="margin-top:0.4rem;"><strong>Reemplazos:</strong><br>${reps || '—'}</div>
+                <div style="margin-top:0.4rem;"><strong>Huérfanos si rechaza:</strong> ${huerf}</div>
+            `;
+        } else {
+            detEl.innerHTML = '';
+        }
+        if (hint) {
+            hint.textContent = vm.requiere_panel_antes_recalc
+                ? 'Tras el 1er recálculo debe revisar el panel (costo de rechazo / reemplazos) antes de otro %. Pulse Recalcular de nuevo para confirmar (panel_ack).'
+                : 'Sugerencia: +50% cobertura solo en SKUs de este proveedor. Puede aceptar submínimo o rechazar.';
+        }
+        if (vm.requiere_panel_antes_recalc) {
+            // User has seen panel; next recalc will send panel_ack=true once they click Recalcular again
+            vmPanelAck = true;
+        }
+    }
+
+    async function callValidarMinimos(action, extra = {}) {
+        if (!lastGenerarResult) {
+            showAlert('Primero ejecute Generar (Sencillo).', false);
+            return;
+        }
+        const payload = {
+            action,
+            cobertura: Number(document.getElementById('pedidoDays').value),
+            criterios_agrupacion: collectCriteriosAgrupacion(),
+            pedido_propuesto: lastGenerarResult.pedido_propuesto || [],
+            comparativa_cantidades: lastGenerarResult.comparativa_cantidades || [],
+            pedido_baseline: lastGenerarResult.pedido_baseline || [],
+            intentos_recalc: vmIntentosRecalc,
+            proveedor: extra.proveedor || vmActivoProveedor,
+            pct_extra: Number(document.getElementById('vmPctExtra')?.value || 50),
+            panel_ack: !!extra.panel_ack || (action === 'recalcular' && vmPanelAck),
+        };
+        const response = await fetch('/api/pedidos/validar-minimos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Error en Validar mínimos');
+        }
+        const data = await response.json();
+        applyValidarMinimosResponse(data);
+        const vm = data.meta?.validar_minimos || {};
+        if (action === 'evaluar' && !(vm.cola || []).length) {
+            showAlert('Sin proveedores bajo mínimo.', true);
+        } else if (action === 'recalcular' && vm.requiere_panel_antes_recalc && (lastGenerarResult.pedido_propuesto || []).length) {
+            // if qty unchanged because ack required first time — message already in hint
+            showAlert(`Validar mínimos: revise panel de ${vm.activo || ''}.`, true);
+        } else {
+            showAlert(`Validar mínimos (${action}) — cola: ${(vm.cola || []).length}`, true);
+        }
+    }
+
+    document.getElementById('btnValidarMinimos')?.addEventListener('click', async () => {
+        try {
+            await callValidarMinimos('evaluar');
+        } catch (e) {
+            showAlert(e.message, false);
+        }
+    });
+    document.getElementById('btnVmRecalcular')?.addEventListener('click', async () => {
+        try {
+            await callValidarMinimos('recalcular', { panel_ack: vmPanelAck });
+        } catch (e) {
+            showAlert(e.message, false);
+        }
+    });
+    document.getElementById('btnVmAceptar')?.addEventListener('click', async () => {
+        try {
+            await callValidarMinimos('aceptar');
+        } catch (e) {
+            showAlert(e.message, false);
+        }
+    });
+    document.getElementById('btnVmRechazar')?.addEventListener('click', async () => {
+        try {
+            await callValidarMinimos('rechazar');
+        } catch (e) {
+            showAlert(e.message, false);
+        }
+    });
+
     function collectDefinitivoOverrides() {
         const overrides = {};
         document.querySelectorAll('#definitivoOverridesHost [data-override-key]').forEach((el) => {
@@ -497,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(errorData.detail || "Error al regenerar Definitivo");
                 }
                 const data = await response.json();
-                renderGenerarResult(data);
+                stashGenerarResult(data, { resetVm: true });
                 const applied = (data.meta?.overrides_applied || []).join(', ') || 'ninguno';
                 showAlert(
                     `Pedido Definitivo regenerado (${data.meta?.nivel}). Overrides: ${applied}.`,
@@ -548,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(errorData.detail || "Error en Generar Sencillo");
                 }
                 const data = await response.json();
-                renderGenerarResult(data);
+                stashGenerarResult(data);
                 const nComp = (data.comparativa_cantidades || []).length;
                 const nProp = (data.pedido_propuesto || []).length;
                 showAlert(`Generar Sencillo listo: ${nComp} filas Comparativa, ${nProp} líneas Propuesto (${data.meta?.preset || ''}).`, true);

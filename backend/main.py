@@ -63,7 +63,6 @@ async def log_requests(request, call_next):
         raise
 @app.get("/api/health")
 async def health_check():
-    """El Orquestador usa esto para saber si el Backend está vivo"""
     return {"status": "ok", "message": "Synapse API running inside Docker"}
 
 # Aquí conectaremos los Enrutadores (Routers)
@@ -73,7 +72,6 @@ from routers.cxp import router as cxp_router
 from routers.pedidos import router as pedidos_router
 from routers.inventario import router as inventario_router
 from routers.n8n_webhook import router as n8n_webhook_router
-from routers.orquestador import router as orquestador_router
 from routers.proveedores_b2b import router as proveedores_b2b_router
 from routers.rotacion_grupal import router as rotacion_grupal_router
 
@@ -88,9 +86,10 @@ app.include_router(cxp_router)
 app.include_router(pedidos_router)
 from routers.generar_sencillo import router as generar_sencillo_router
 app.include_router(generar_sencillo_router)
+from routers.validar_minimos import router as validar_minimos_router
+app.include_router(validar_minimos_router)
 app.include_router(inventario_router)
 app.include_router(n8n_webhook_router)
-app.include_router(orquestador_router)
 app.include_router(proveedores_b2b_router)
 app.include_router(rotacion_grupal_router)
 

@@ -322,6 +322,30 @@
                     </table>
                 </div>
 
+                <!-- Validar mínimos proveedor (ADR-0016) -->
+                <div id="validarMinimosSection" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: rgba(245, 158, 11, 0.06);">
+                    <h3 style="margin: 0 0 0.5rem 0;"><i class="fas fa-dollar-sign"></i> Validar mínimos proveedor</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                        Paso explícito tras Generar. Compara total USD por proveedor vs <code>MontoMinimoPedidoUSD</code>.
+                        No altera el primer Generar hasta que usted actúe.
+                    </p>
+                    <button type="button" id="btnValidarMinimos" class="btn btn-secondary" style="height: 44px; width: 100%; font-weight: 600;">
+                        <i class="fas fa-balance-scale"></i> Evaluar mínimos
+                    </button>
+                    <div id="validarMinimosPanel" style="display:none; margin-top: 1rem;">
+                        <div id="validarMinimosCola" style="font-size: 0.85rem; margin-bottom: 0.75rem;"></div>
+                        <div id="validarMinimosDetalle" style="font-size: 0.85rem; margin-bottom: 0.75rem; color: var(--text-secondary);"></div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                            <label style="font-size: 0.8rem;">% extra cobertura</label>
+                            <input type="number" id="vmPctExtra" class="form-control" value="50" min="0" max="500" step="5" style="width: 100px; height: 40px;">
+                            <button type="button" id="btnVmRecalcular" class="btn btn-primary" style="height: 40px;">Recalcular</button>
+                            <button type="button" id="btnVmAceptar" class="btn btn-secondary" style="height: 40px;">Aceptar submínimo</button>
+                            <button type="button" id="btnVmRechazar" class="btn btn-secondary" style="height: 40px; border-color: #ef4444; color: #ef4444;">Rechazar proveedor</button>
+                        </div>
+                        <p id="validarMinimosHint" style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;"></p>
+                    </div>
+                </div>
+
                 <!-- Regenerar PedidoDefinitivo (post-Comparativa) -->
                 <div id="regenerarDefinitivoSection" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: rgba(16, 185, 129, 0.05);">
                     <h3 style="margin: 0 0 0.5rem 0;"><i class="fas fa-redo"></i> Regenerar Pedido Definitivo</h3>
@@ -402,7 +426,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260714-definitivo"></script>
+<script src="js/app_pedidos.js?v=20260714-validar-minimos"></script>
 
 <script>
   // Inicializa Lucide Icons si hay alguno
