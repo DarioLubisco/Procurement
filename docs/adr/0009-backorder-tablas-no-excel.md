@@ -8,5 +8,5 @@ El backorder (cantidades ya pedidas / en tránsito / pendientes) se toma de **ta
 
 - FiltrosOperativos = categorías, genéricos/marcas, umbral, tope de líneas (+ Cobertura / CriteriosAgrupacion aparte).
 - Integrar lectura de tablas de backorder; **restar en Baseline y Propuesto** (mismo dato).
-- En este repo aún no aparece el nombre de esas tablas — documentar schema en implementación.
+- Tablas productivas: `Procurement.BackorderPedidosCabecera` + `BackorderPedidosLineas` (loader 2026-07-14).
 - Enmiendas que listaban subtraction_files como contrato operativo quedan parcialmente obsoletas en ese punto.

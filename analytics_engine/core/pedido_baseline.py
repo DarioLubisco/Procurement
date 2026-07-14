@@ -91,7 +91,7 @@ def compute_pedido_baseline(
                     }
                 )
             )
-            df = df.merge(grouped, on="_grp_key", how="left").copy()
+            df = df.merge(grouped, on="_grp_key", how="left")
             rot = df["_rot_grupo"].fillna(df["rotacion_mensual"])
             stock = df["_stock_grupo"].fillna(df["existen"])
 

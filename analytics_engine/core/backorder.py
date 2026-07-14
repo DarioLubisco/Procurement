@@ -1,34 +1,26 @@
 """Backorder subtraction from dedicated backend tables (ADR-0009).
 
-## Schema discovery (P1) — 2026-07-12
+## Schema discovery — updated 2026-07-14
 
-Searched this monorepo (`sql/`, `backend/`, `analytics_engine/`): **no dedicated
-Backorder / en-tránsito / pedidos-pendientes table** is defined yet.
+Physical tables (SQL Server `Procurement`):
 
-Legacy path today: Excel `subtraction_files` upload in `backend/routers/pedidos.py`
-(`BARRA` × `CANTIDAD`). Per ADR-0009 that remains contingency only — not a P1
-parity requirement.
+| Table | Role |
+|-------|------|
+| `BackorderPedidosCabecera` | Pedido header (`EstadoBackorder`, proveedor, fechas) |
+| `BackorderPedidosLineas` | Lines: `CodigoBarras` / `CodigoProducto`, `CantidadPendiente`, `EstadoLinea` |
+| `BackorderReceipts` | Receipt events (not required for Generar subtract) |
+| `BackorderResolution` | Close-out metrics |
 
-### Injectable contract (offline seam)
+**Open need** = sum(`CantidadPendiente`) by barra for cabeceras whose
+`EstadoBackorder` is not `CERRADO`/`CANCELADO`, and líneas not
+`COMPLETO`/`REVERTIDO`/`CANCELADO`. Barra = `CodigoBarras` if present, else
+`CodigoProducto`.
 
-Until physical tables exist, `generar_pedido(..., backorder=DataFrame)` accepts:
+Loader: `backend/services/backorder_loader.py` → injectable
+`generar_pedido(..., backorder=DataFrame)` with columns `barra`, `cantidad`.
+Same map subtracted from **PedidoBaseline and PedidoPropuesto**.
 
-| column    | type | meaning                                      |
-|-----------|------|----------------------------------------------|
-| `barra`   | str  | product barcode (CodProd / BARRA)            |
-| `cantidad`| int  | committed / in-transit / pending qty to subtract |
-
-Same map is subtracted from **PedidoBaseline and PedidoPropuesto** so Comparativa
-deltas stay motor-only.
-
-### Candidate sources to wire when discovered
-
-Document here when ops confirms (do not invent):
-
-- ERP open POs / transfers keyed by CodProd
-- Any future `Procurement.Backorder` (or equivalent) view
-
-Reader should produce the DataFrame above; do not reintroduce Excel as happy path.
+Legacy Excel `subtraction_files` remains contingency only (ADR-0009).
 """
 from __future__ import annotations
 

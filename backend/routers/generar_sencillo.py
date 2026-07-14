@@ -79,6 +79,19 @@ async def generar_sencillo(body: GenerarSencilloRequest):
                 detail=f"No se pudo cargar catálogo/mercado: {exc}",
             ) from exc
 
+    backorder_rows = body.backorder
+    if backorder_rows is None:
+        try:
+            try:
+                from backend.services.backorder_loader import load_backorder_from_db
+            except ImportError:
+                from services.backorder_loader import load_backorder_from_db  # type: ignore
+
+            backorder_rows = load_backorder_from_db()
+        except Exception as exc:
+            logging.warning("Backorder DB load skipped: %s", exc)
+            backorder_rows = []
+
     try:
         payload = run_generar_sencillo(
             cobertura=body.cobertura,
@@ -92,7 +105,7 @@ async def generar_sencillo(body: GenerarSencilloRequest):
             num_rows=body.num_rows,
             preset=body.preset,
             presupuesto_maximo=body.presupuesto_maximo,
-            backorder_rows=body.backorder,
+            backorder_rows=backorder_rows,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -143,6 +156,19 @@ async def regenerar_definitivo(body: RegenerarDefinitivoRequest):
                 detail=f"No se pudo cargar catálogo/mercado: {exc}",
             ) from exc
 
+    backorder_rows = body.backorder
+    if backorder_rows is None:
+        try:
+            try:
+                from backend.services.backorder_loader import load_backorder_from_db
+            except ImportError:
+                from services.backorder_loader import load_backorder_from_db  # type: ignore
+
+            backorder_rows = load_backorder_from_db()
+        except Exception as exc:
+            logging.warning("Backorder DB load skipped: %s", exc)
+            backorder_rows = []
+
     try:
         payload = run_regenerar_definitivo(
             cobertura=body.cobertura,
@@ -158,7 +184,7 @@ async def regenerar_definitivo(body: RegenerarDefinitivoRequest):
             base_preset=body.base_preset,
             presupuesto_maximo=body.presupuesto_maximo,
             overrides=body.overrides,
-            backorder_rows=body.backorder,
+            backorder_rows=backorder_rows,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
