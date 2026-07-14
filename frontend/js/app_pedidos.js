@@ -438,22 +438,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function loadDefinitivoOverrideSchema() {
+    async function loadDefinitivoOverrideSchema(attempt = 0) {
         const nivel = document.getElementById('nivelDefinitivo')?.value || 'Intermedio';
         try {
             const response = await fetch(`/api/pedidos/overrides-schema?nivel=${encodeURIComponent(nivel)}`);
-            if (!response.ok) throw new Error('schema');
+            if (!response.ok) throw new Error(`schema HTTP ${response.status}`);
             const schema = await response.json();
+            if (!schema.fields || !schema.fields.length) {
+                throw new Error('schema sin fields');
+            }
             renderDefinitivoOverrideFields(schema);
         } catch (err) {
             console.warn('overrides-schema unavailable', err);
+            if (attempt < 2) {
+                setTimeout(() => loadDefinitivoOverrideSchema(attempt + 1), 600 * (attempt + 1));
+            }
         }
     }
 
+    // Expose for smoke / debugging
+    window.__loadDefinitivoOverrideSchema = loadDefinitivoOverrideSchema;
+
     const nivelDefinitivoEl = document.getElementById('nivelDefinitivo');
     if (nivelDefinitivoEl) {
-        nivelDefinitivoEl.addEventListener('change', loadDefinitivoOverrideSchema);
-        loadDefinitivoOverrideSchema();
+        nivelDefinitivoEl.addEventListener('change', () => loadDefinitivoOverrideSchema(0));
+        loadDefinitivoOverrideSchema(0);
     }
 
     const btnRegenerarDefinitivo = document.getElementById('btnRegenerarDefinitivo');
