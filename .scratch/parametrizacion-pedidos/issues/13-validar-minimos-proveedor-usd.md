@@ -12,10 +12,12 @@ Post-Generar step: evaluate supplier USD minimums, boost coverage % on that supp
 - [x] `POST /api/pedidos/validar-minimos` (evaluar|recalcular|aceptar|rechazar)
 - [x] Loader `ProveedorConfig.MontoMinimoPedidoUSD`
 - [x] FE panel after Generar
-- [ ] Live smoke with seeded minimo on DROCERCA (ops)
+- [x] Live smoke API: Generar Sencillo → Evaluar (cola con `#ProveedorID`; 2026-07-14)
+- [x] Live smoke FE: headless Chrome `modulo_pedidos` → Generar Sencillo → Evaluar (cola `#11…`; 2026-07-14)
+- [x] FE proxy path: Generar → Evaluar → Recalc (`requiere_panel`) → Aceptar (cascade a `#12`)
 
 ## Blocked by
 
 None
 
-Status: ready-for-agent
+Status: done

@@ -123,3 +123,22 @@ def test_sucedaneo_changes_barra_and_justificacion_declares_codigo():
     prop = next(p for p in result.pedido_propuesto if p.barra == "S3")
     assert prop.proveedor == "P_S3"
     assert prop.cantidad > 0
+
+
+def test_empty_catalog_dataframe_returns_empty_not_keyerror():
+    """Column-less empty catalog (API inject / filtered category) must not 500."""
+    perfil = PerfilPedido(
+        cobertura=7,
+        criterios_agrupacion=[],
+        filtros_operativos=FiltrosOperativos(),
+        nivel=NivelPerfil.SENCILLO,
+        preset=PresetSencillo.CONSERVADOR,
+    )
+    result = generar_pedido(
+        perfil,
+        catalog=pd.DataFrame(),
+        market_offers=pd.DataFrame(),
+    )
+    assert result.pedido_baseline == []
+    assert result.pedido_propuesto == []
+    assert result.comparativa_cantidades == []

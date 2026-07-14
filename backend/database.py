@@ -139,13 +139,31 @@ class PyODBCPool:
             return self.get_connection()
 
     def release_connection(self, conn):
+        # Always rollback before reuse. close() returns the connection to the pool
+        # without committing — uncommitted DDL/DML would otherwise linger (or appear
+        # to "vanish" after API restart) and leak across requests.
+        try:
+            conn.rollback()
+        except Exception as exc:
+            logging.warning(
+                "ODBC rollback on release failed; discarding connection: %s", exc
+            )
+            try:
+                conn.close()
+            except Exception:
+                pass
+            with self.lock:
+                self.current_connections = max(0, self.current_connections - 1)
+            return
         try:
             self.pool.put_nowait(conn)
         except queue.Full:
             try:
                 conn.close()
-            except:
+            except Exception:
                 pass
+            with self.lock:
+                self.current_connections = max(0, self.current_connections - 1)
 
 db_pool = PyODBCPool(max_connections=50)
 scraper_pool = PyODBCPool(max_connections=30)

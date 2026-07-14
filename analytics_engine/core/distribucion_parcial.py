@@ -48,6 +48,22 @@ def distribute_parcial(
     Not winner-takes-all: each Baseline BARRA keeps its own qty as the quota ceiling
     (before optional F5 reinforcement to offers only).
     """
+    # Empty / schema-less catalog (filtered category, inject []) → no KeyError on barra
+    if catalog is None or catalog.empty or "barra" not in catalog.columns:
+        return [
+            Allocation(
+                barra_baseline=line.barra,
+                desc_baseline=line.descripcion,
+                qty_baseline=line.cantidad,
+                barra_propuesto=line.barra,
+                desc_propuesto=line.descripcion,
+                qty_propuesto=line.cantidad,
+                proveedor="",
+                justificacion_delta="sin catálogo (vacío o sin columna barra)",
+            )
+            for line in baseline
+        ]
+
     cat = catalog.copy()
     cat["barra"] = cat["barra"].astype(str)
     # Empty / failed market load (e.g. Mercado_Vivo timeout) → no columns
