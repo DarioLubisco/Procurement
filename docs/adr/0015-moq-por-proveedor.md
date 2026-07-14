@@ -1,21 +1,20 @@
-# MOQ por proveedor (no SAPROD.Minimo)
+# MOQ / mínimo por proveedor (no SAPROD.Minimo)
 
-El MOQ de SplitLeadTime es **por proveedor/oferta**, no `SAPROD.Minimo` ERP. **Ubicación del dato: decidir en P1.** Hasta entonces MOQ es nullable y el split usa solo `rot×LT` cuando falta.
+El mínimo de compra es **por proveedor**, no `SAPROD.Minimo` ERP.
 
-**Status:** accepted (grill Q28=B, Q29=C)
+**Status:** accepted (grill Q28=B, Q29=C; fuente schema 2026-07-14)
 
-## Discovery 2026-07-14
+## Fuente canónica (2026-07-14)
 
-Searched SQL Server (`Procurement`, `Analitica`, `Proveedores`, `dbo`):
+Tabla: `[Procurement].[ProveedorConfig]`  
+Columna: **`MontoMinimoPedidoUSD`** `DECIMAL(18,2) NULL`  
+Unidad: **dólares** (mínimo de pedido monetario), no unidades de SKU.  
+Migración: `sql/008_proveedor_config_monto_minimo_usd.sql`.
 
-- `Analitica.Mercado_Vivo` — **no** tiene columna MOQ / pedido mínimo.
-- Tablas `Proveedores.*` — sin MOQ por proveedor.
-- `SAPROD.Minimo` / `ManejoStock.Minimo` existen pero son **mínimos ERP de farmacia**, no MOQ de compra al proveedor (prohibidos por este ADR).
-
-**Decisión operativa:** seguir con MOQ nullable. No cablear SAPROD.Minimo. Cuando ops publique tabla/campo `moq` en ofertas o maestro de proveedores, mapear a `OfferLeg.moq` / columna `moq` en `market_offers`.
+`Analitica.Mercado_Vivo` sigue sin MOQ por oferta. `SAPROD.Minimo` / `ManejoStock.Minimo` siguen **prohibidos** como sustituto.
 
 ## Consequences
 
-- P1 no se bloquea por schema MOQ.
-- Cuando exista la fuente, enchufar a `max(rot×LT, MOQ)` sin cambiar la regla de dominio.
-- No reactivar SAPROD.Minimo como MOQ sin nueva decisión.
+- Hasta que haya valor cargado, el campo es NULL (DROCERCA hoy = NULL).
+- El SplitLeadTime histórico usa `moq` en **unidades** (`max(rot×LT, MOQ)`). Un monto USD requiere regla distinta (p.ej. convertir con precio de oferta, o validar `sum(qty×precio) ≥ MontoMinimoPedidoUSD` por proveedor). **Cableado al motor: pendiente de grill.**
+- No reactivar `SAPROD.Minimo` como MOQ sin nueva decisión.
