@@ -4,7 +4,8 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
@@ -49,14 +50,30 @@ class RegenerarDefinitivoRequest(BaseModel):
     backorder: Optional[List[Dict[str, Any]]] = None
 
 
-@router.post("/generar-sencillo")
-async def generar_sencillo(body: GenerarSencilloRequest):
-    """Productive Generar Sencillo → Comparativa + Propuesto (not Excel-primary)."""
-    from analytics_engine.core.generar_sencillo_api import run_generar_sencillo
+def _load_catalog_offers_backorder(
+    *,
+    categorias: Optional[List[str]],
+    include_generics: bool,
+    include_brands: bool,
+    catalog: Optional[List[Dict[str, Any]]],
+    market_offers: Optional[List[Dict[str, Any]]],
+    backorder: Optional[List[Dict[str, Any]]],
+    log_label: str,
+) -> Tuple[
+    Sequence[Dict[str, Any]],
+    Sequence[Dict[str, Any]],
+    Sequence[Dict[str, Any]],
+    int,
+    str,
+]:
+    """Load DB inputs when not injected; return rows + load_ms + data_source."""
+    t0 = time.perf_counter()
+    data_source = "injected"
+    out_catalog = catalog
+    out_offers = market_offers
 
-    catalog = body.catalog
-    offers = body.market_offers
-    if catalog is None or offers is None:
+    if out_catalog is None or out_offers is None:
+        data_source = "db"
         try:
             try:
                 from backend.services.generar_sencillo_loaders import (
@@ -67,20 +84,23 @@ async def generar_sencillo(body: GenerarSencilloRequest):
                     load_catalog_and_offers_from_db,
                 )
 
-            catalog, offers = load_catalog_and_offers_from_db(
-                categorias=body.categorias,
-                include_generics=body.include_generics,
-                include_brands=body.include_brands,
+            out_catalog, out_offers = load_catalog_and_offers_from_db(
+                categorias=categorias,
+                include_generics=include_generics,
+                include_brands=include_brands,
             )
         except Exception as exc:
-            logging.error("DB load for generar-sencillo failed: %s", exc, exc_info=True)
+            logging.error("DB load for %s failed: %s", log_label, exc, exc_info=True)
             raise HTTPException(
                 status_code=503,
                 detail=f"No se pudo cargar catálogo/mercado: {exc}",
             ) from exc
 
-    backorder_rows = body.backorder
+    backorder_rows = backorder
     if backorder_rows is None:
+        if data_source == "injected":
+            # Injected catalog/offers but no backorder → still try DB for open BOs
+            data_source = "injected+db_backorder"
         try:
             try:
                 from backend.services.backorder_loader import load_backorder_from_db
@@ -91,6 +111,31 @@ async def generar_sencillo(body: GenerarSencilloRequest):
         except Exception as exc:
             logging.warning("Backorder DB load skipped: %s", exc)
             backorder_rows = []
+
+    load_ms = int((time.perf_counter() - t0) * 1000)
+    assert out_catalog is not None and out_offers is not None
+    return out_catalog, out_offers, backorder_rows or [], load_ms, data_source
+
+
+@router.post("/generar-sencillo")
+async def generar_sencillo(body: GenerarSencilloRequest):
+    """Productive Generar Sencillo → Comparativa + Propuesto (not Excel-primary)."""
+    from analytics_engine.core.generar_sencillo_api import (
+        attach_input_observability_meta,
+        run_generar_sencillo,
+    )
+
+    catalog, offers, backorder_rows, load_ms, data_source = (
+        _load_catalog_offers_backorder(
+            categorias=body.categorias,
+            include_generics=body.include_generics,
+            include_brands=body.include_brands,
+            catalog=body.catalog,
+            market_offers=body.market_offers,
+            backorder=body.backorder,
+            log_label="generar-sencillo",
+        )
+    )
 
     try:
         payload = run_generar_sencillo(
@@ -113,6 +158,14 @@ async def generar_sencillo(body: GenerarSencilloRequest):
         logging.error("generar-sencillo failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    attach_input_observability_meta(
+        payload,
+        catalog_rows=catalog,
+        market_offers_rows=offers,
+        backorder_rows=backorder_rows,
+        load_ms=load_ms,
+        data_source=data_source,
+    )
     return JSONResponse(payload)
 
 
@@ -129,45 +182,22 @@ async def overrides_schema(nivel: str = "Avanzado"):
 @router.post("/regenerar-definitivo")
 async def regenerar_definitivo(body: RegenerarDefinitivoRequest):
     """Regenerar PedidoDefinitivo (Intermedio/Avanzado) — distinct from first Generar."""
-    from analytics_engine.core.generar_sencillo_api import run_regenerar_definitivo
+    from analytics_engine.core.generar_sencillo_api import (
+        attach_input_observability_meta,
+        run_regenerar_definitivo,
+    )
 
-    catalog = body.catalog
-    offers = body.market_offers
-    if catalog is None or offers is None:
-        try:
-            try:
-                from backend.services.generar_sencillo_loaders import (
-                    load_catalog_and_offers_from_db,
-                )
-            except ImportError:
-                from services.generar_sencillo_loaders import (  # type: ignore
-                    load_catalog_and_offers_from_db,
-                )
-
-            catalog, offers = load_catalog_and_offers_from_db(
-                categorias=body.categorias,
-                include_generics=body.include_generics,
-                include_brands=body.include_brands,
-            )
-        except Exception as exc:
-            logging.error("DB load for regenerar-definitivo failed: %s", exc, exc_info=True)
-            raise HTTPException(
-                status_code=503,
-                detail=f"No se pudo cargar catálogo/mercado: {exc}",
-            ) from exc
-
-    backorder_rows = body.backorder
-    if backorder_rows is None:
-        try:
-            try:
-                from backend.services.backorder_loader import load_backorder_from_db
-            except ImportError:
-                from services.backorder_loader import load_backorder_from_db  # type: ignore
-
-            backorder_rows = load_backorder_from_db()
-        except Exception as exc:
-            logging.warning("Backorder DB load skipped: %s", exc)
-            backorder_rows = []
+    catalog, offers, backorder_rows, load_ms, data_source = (
+        _load_catalog_offers_backorder(
+            categorias=body.categorias,
+            include_generics=body.include_generics,
+            include_brands=body.include_brands,
+            catalog=body.catalog,
+            market_offers=body.market_offers,
+            backorder=body.backorder,
+            log_label="regenerar-definitivo",
+        )
+    )
 
     try:
         payload = run_regenerar_definitivo(
@@ -192,4 +222,12 @@ async def regenerar_definitivo(body: RegenerarDefinitivoRequest):
         logging.error("regenerar-definitivo failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    attach_input_observability_meta(
+        payload,
+        catalog_rows=catalog,
+        market_offers_rows=offers,
+        backorder_rows=backorder_rows,
+        load_ms=load_ms,
+        data_source=data_source,
+    )
     return JSONResponse(payload)

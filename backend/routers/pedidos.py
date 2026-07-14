@@ -27,12 +27,12 @@ def load_query():
 async def get_categories():
     try:
         try:
-            from backend.services.categories_loader import load_categories_with_retry
+            from backend.services.categories_loader import load_categories_cached
         except ImportError:
-            from services.categories_loader import load_categories_with_retry  # type: ignore
+            from services.categories_loader import load_categories_cached  # type: ignore
 
-        categories = load_categories_with_retry(database.get_db_connection)
-        return {"categories": categories}
+        categories, cache_status = load_categories_cached(database.get_db_connection)
+        return {"categories": categories, "cache": cache_status}
     except Exception as e:
         logging.error(f"Error fetching categories: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

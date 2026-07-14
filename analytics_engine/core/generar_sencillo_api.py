@@ -28,6 +28,34 @@ def _rows_to_frame(rows: Optional[Sequence[Dict[str, Any]]]) -> Optional[pd.Data
     return pd.DataFrame(list(rows))
 
 
+def attach_input_observability_meta(
+    payload: Dict[str, Any],
+    *,
+    catalog_rows: Sequence[Dict[str, Any]],
+    market_offers_rows: Sequence[Dict[str, Any]],
+    backorder_rows: Optional[Sequence[Dict[str, Any]]] = None,
+    load_ms: Optional[int] = None,
+    data_source: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Enrich response meta with input sizes / load timing (ops observability)."""
+    meta = payload.setdefault("meta", {})
+    offers = list(market_offers_rows or [])
+    barras = {
+        str(r.get("barra")).strip()
+        for r in offers
+        if r.get("barra") is not None and str(r.get("barra")).strip()
+    }
+    meta["catalog_rows"] = len(catalog_rows or [])
+    meta["offers_rows"] = len(offers)
+    meta["offers_unique"] = len(barras)
+    meta["backorder_rows"] = len(backorder_rows or [])
+    if load_ms is not None:
+        meta["load_ms"] = int(load_ms)
+    if data_source is not None:
+        meta["data_source"] = data_source
+    return payload
+
+
 def build_perfil_sencillo(
     *,
     cobertura: int,
@@ -152,7 +180,12 @@ def run_generar_sencillo(
         if criterios_agrupacion
         else CRITERIOS_AGRUPACION_DEFAULT
     )
-    return payload
+    return attach_input_observability_meta(
+        payload,
+        catalog_rows=catalog_rows,
+        market_offers_rows=market_offers_rows,
+        backorder_rows=backorder_rows,
+    )
 
 
 def build_perfil_definitivo(
@@ -264,4 +297,9 @@ def run_regenerar_definitivo(
         if criterios_agrupacion
         else CRITERIOS_AGRUPACION_DEFAULT
     )
-    return payload
+    return attach_input_observability_meta(
+        payload,
+        catalog_rows=catalog_rows,
+        market_offers_rows=market_offers_rows,
+        backorder_rows=backorder_rows,
+    )

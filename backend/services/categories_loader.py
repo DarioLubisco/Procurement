@@ -3,15 +3,25 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# In-process TTL cache — SAINSTA changes rarely; cuts ODBC chatter on FE reload.
+CATEGORIES_CACHE_TTL_S = 45.0
+_categories_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 
 _SQL_SAINSTA = """
     SELECT CodInst, Descrip, InsPadre
     FROM dbo.SAINSTA
     ORDER BY Descrip
 """
+
+
+def clear_categories_cache() -> None:
+    """Test helper / admin: drop in-process categories cache."""
+    _categories_cache["ts"] = 0.0
+    _categories_cache["data"] = None
 
 
 def fetch_sainsta_categories(
@@ -93,3 +103,25 @@ def load_categories_with_retry(
                     pass
     assert last_exc is not None
     raise last_exc
+
+
+def load_categories_cached(
+    get_connection: Callable[[], Any],
+    *,
+    ttl_s: float = CATEGORIES_CACHE_TTL_S,
+    retries: int = 2,
+    retry_delay_s: float = 0.4,
+    now: Optional[Callable[[], float]] = None,
+) -> Tuple[List[Dict[str, str]], str]:
+    """Return (categories, cache_status) with 'hit' | 'miss'."""
+    clock = now or time.time
+    cached = _categories_cache.get("data")
+    ts = float(_categories_cache.get("ts") or 0.0)
+    if cached is not None and (clock() - ts) < float(ttl_s):
+        return list(cached), "hit"
+    data = load_categories_with_retry(
+        get_connection, retries=retries, retry_delay_s=retry_delay_s
+    )
+    _categories_cache["data"] = list(data)
+    _categories_cache["ts"] = clock()
+    return list(data), "miss"

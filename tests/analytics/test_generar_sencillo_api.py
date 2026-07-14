@@ -93,3 +93,19 @@ def test_default_criterios_when_empty_list():
     assert payload["meta"]["criterios_agrupacion_efectivos"] == list(
         CRITERIOS_AGRUPACION_DEFAULT
     )
+
+
+def test_observability_meta_counts_inputs():
+    catalog, offers = _fixture_catalog_and_offers()
+    payload = run_generar_sencillo(
+        cobertura=30,
+        catalog_rows=catalog,
+        market_offers_rows=offers,
+        backorder_rows=[{"barra": "111", "cantidad": 2}],
+        criterios_agrupacion=[],
+    )
+    meta = payload["meta"]
+    assert meta["catalog_rows"] == 1
+    assert meta["offers_rows"] == 2
+    assert meta["offers_unique"] == 1
+    assert meta["backorder_rows"] == 1

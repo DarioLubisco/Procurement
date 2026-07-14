@@ -55,6 +55,7 @@ def test_generar_sencillo_endpoint_returns_comparativa_and_propuesto():
                 "stock_proveedor": 1000,
             }
         ],
+        "backorder": [],
     }
     resp = client.post("/api/pedidos/generar-sencillo", json=body)
     assert resp.status_code == 200, resp.text
@@ -63,6 +64,12 @@ def test_generar_sencillo_endpoint_returns_comparativa_and_propuesto():
     assert data["pedido_propuesto"][0]["proveedor"] == "BARATO"
     assert data["meta"]["nivel"] == "Sencillo"
     assert data["meta"]["artifact_primary"] == "comparativa_propuesto"
+    assert data["meta"]["offers_unique"] == 1
+    assert data["meta"]["offers_rows"] == 1
+    assert data["meta"]["catalog_rows"] == 1
+    assert data["meta"]["backorder_rows"] == 0
+    assert data["meta"]["data_source"] == "injected"
+    assert "load_ms" in data["meta"]
 
 
 def test_regenerar_definitivo_endpoint_rejects_dead_knobs():
