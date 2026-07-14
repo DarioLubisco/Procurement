@@ -62,18 +62,24 @@ def _load_inputs(body: ValidarMinimosRequest):
             try:
                 from backend.services.proveedor_config_loader import (
                     load_minimos_usd_from_db,
+                    load_proveedor_config_from_db,
                 )
             except ImportError:
                 from services.proveedor_config_loader import (  # type: ignore
                     load_minimos_usd_from_db,
+                    load_proveedor_config_from_db,
                 )
 
             minimos = load_minimos_usd_from_db()
+            config_rows = load_proveedor_config_from_db()
         except Exception as exc:
             logging.warning("ProveedorConfig load failed: %s", exc)
             minimos = {}
+            config_rows = []
+    else:
+        config_rows = []
 
-    return catalog, offers, minimos
+    return catalog, offers, minimos, config_rows
 
 
 def _state_from_body(body: ValidarMinimosRequest):
@@ -123,8 +129,9 @@ async def validar_minimos(body: ValidarMinimosRequest):
     if not body.criterios_agrupacion:
         body.criterios_agrupacion = list(CRITERIOS_AGRUPACION_DEFAULT)
 
-    catalog, offers, minimos = _load_inputs(body)
+    catalog, offers, minimos, config_rows = _load_inputs(body)
     state = _state_from_body(body)
+    id_by_cod = {r["cod_prov"]: r["proveedor_id"] for r in config_rows}
 
     def _queue():
         return build_deficit_queue(state.pedido_propuesto, offers, minimos)
@@ -133,13 +140,24 @@ async def validar_minimos(body: ValidarMinimosRequest):
         minimo = minimos.get(prov)
         if minimo is None:
             return None
-        return build_decision_panel(
+        panel = build_decision_panel(
             proveedor=prov,
             state=state,
             catalog_rows=catalog,
             market_offers=offers,
             minimo_usd=float(minimo),
         )
+        panel["proveedor_id"] = id_by_cod.get(prov)
+        return panel
+
+    def _meta(**kwargs):
+        m = meta_validar_minimos(**kwargs)
+        for item in m.get("cola") or []:
+            item["proveedor_id"] = id_by_cod.get(item["proveedor"])
+        if m.get("activo"):
+            m["activo_proveedor_id"] = id_by_cod.get(m["activo"])
+        m["proveedores"] = config_rows
+        return m
 
     if action == "evaluar":
         queue = _queue()
@@ -154,7 +172,7 @@ async def validar_minimos(body: ValidarMinimosRequest):
             panel = _panel_for(activo)
         return _payload(
             state,
-            meta_validar_minimos(
+            _meta(
                 queue=queue,
                 activo=activo,
                 panel=panel,
@@ -180,7 +198,7 @@ async def validar_minimos(body: ValidarMinimosRequest):
             queue = _queue()
             return _payload(
                 state,
-                meta_validar_minimos(
+                _meta(
                     queue=queue,
                     activo=prov,
                     panel=_panel_for(prov),
@@ -200,12 +218,13 @@ async def validar_minimos(body: ValidarMinimosRequest):
         panel = _panel_for(prov) if still else None
         return _payload(
             state,
-            meta_validar_minimos(
+            _meta(
                 queue=queue,
                 activo=queue[0].proveedor if queue else None,
                 panel=panel,
                 intentos_recalc=state.intentos_recalc,
-                requiere_panel_antes_recalc=still and int(state.intentos_recalc.get(prov, 0)) >= 1,
+                requiere_panel_antes_recalc=still
+                and int(state.intentos_recalc.get(prov, 0)) >= 1,
                 decision="recalcular",
             ),
         )
@@ -214,13 +233,10 @@ async def validar_minimos(body: ValidarMinimosRequest):
         state = accept_subminimo(
             state, proveedor=prov, minimo_usd=float(minimo), market_offers=offers
         )
-        # Remove from further nagging by treating as resolved: drop from queue via
-        # temporarily clearing minimo in local map for response queue only —
-        # mark via meta decision; FE should skip accepted proveedores.
         queue = [d for d in _queue() if d.proveedor != prov]
         return _payload(
             state,
-            meta_validar_minimos(
+            _meta(
                 queue=queue,
                 activo=queue[0].proveedor if queue else None,
                 panel=_panel_for(queue[0].proveedor) if queue else None,
@@ -239,7 +255,7 @@ async def validar_minimos(body: ValidarMinimosRequest):
     queue = _queue()
     return _payload(
         state,
-        meta_validar_minimos(
+        _meta(
             queue=queue,
             activo=queue[0].proveedor if queue else None,
             panel=_panel_for(queue[0].proveedor) if queue else None,
