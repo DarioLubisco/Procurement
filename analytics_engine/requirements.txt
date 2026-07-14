@@ -1,0 +1,26 @@
+# Synapse Analytics Engine — Dependencies
+# Core
+fastapi>=0.111.0
+uvicorn>=0.30.0
+pydantic>=2.7.0
+
+# Data
+numpy>=2.0.0
+scipy>=1.13.0
+pandas>=2.2.0
+
+# Optimization
+pulp>=2.8.0
+
+# ML — Anomaly Detection + Imputation
+scikit-learn>=1.5.0
+joblib>=1.4.0
+
+# Scorecard
+scorecardpy>=0.1.9.6
+
+# Database
+pyodbc>=5.1.0
+
+# Utilities
+python-dotenv>=1.0.0

@@ -1,0 +1,1 @@
+import sys; sys.path.append('.'); import database; conn = database.get_db_connection(); cursor = conn.cursor(); cursor.execute('SELECT Id, NumeroD, Estado FROM EnterpriseAdmin_AMC.Procurement.Retenciones_IVA WHERE NumeroComprobante = ?', ('20260400000429',)); print(cursor.fetchall());

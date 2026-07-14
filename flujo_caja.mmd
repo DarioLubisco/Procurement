@@ -1,0 +1,50 @@
+flowchart TD
+    %% 1. Definición de Nodos
+    SAIPAVTA["SAIPAVTA\n(Todos los Pagos Electrónicos)"]
+    SATARJ["SATARJ"]
+    
+    Categorizacion{"Filtro por Categoría Madre\n(TipoIns)"}
+    
+    TotPOS["TotDispositivos_POS"]
+    TotRed["TotRed_Bancaria"]
+    TotIgn["Ignorados / Retenciones"]
+    
+    SisPOS["Panel Front:\nTotal Sistema Terminales (POS/Biopago)"]
+    SisRed["Panel Front:\nTotal Sistema Red Bancaria (PM/Transf)"]
+    
+    Conteo["Vendedor efectúa Conteo Manual"]
+    DecPOS["Declara ingresos por Terminal/POS"]
+    DecRed["Declara ingresos por Transferencias"]
+    
+    CuadrePOS{"Cuadre Dispositivos\nvs\nSistema"}
+    CuadreRed{"Cuadre Bancos/App\nvs\nSistema"}
+    
+    %% 2. Relaciones
+    SAIPAVTA -->| "JOIN CodTarj" | SATARJ
+    SATARJ --> Categorizacion
+    
+    Categorizacion -->| "TipoIns = 2\n(Tarjetas/Puntos/Biopago)" | TotPOS
+    Categorizacion -->| "TipoIns = 3\n(Transferencias/Pago Móvil)" | TotRed
+    Categorizacion -->| "TipoIns = 6, 7, 8..." | TotIgn
+    
+    TotPOS --> SisPOS
+    TotRed --> SisRed
+    
+    Conteo --> DecPOS
+    Conteo --> DecRed
+    
+    SisPOS -.-> CuadrePOS
+    SisRed -.-> CuadreRed
+    
+    DecPOS --> CuadrePOS
+    DecRed --> CuadreRed
+
+    %% 3. Definiciones de Estilo (classDef)
+    classDef bgGood fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#333;
+    classDef bgModern fill:#f8fafc,stroke:#3b82f6,stroke-width:2px,color:#1e293b;
+    classDef bgWarn fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#333;
+
+    %% 4. Aplicación de Clases
+    class TotPOS,TotRed,SisPOS,SisRed bgGood
+    class SAIPAVTA,SATARJ,Conteo bgModern
+    class CuadrePOS,CuadreRed bgWarn

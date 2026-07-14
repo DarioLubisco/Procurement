@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # ── Backend: El Músculo Python/FastAPI ──
+  synapse-api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: synapse-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # Expuesto temporalmente para desarrollo. En prod Nginx podría taparlo.
+    env_file:
+      - .env  # Lee credenciales desde .env (no hardcodeadas)
+
+  # ── Frontend: El Cuerpo Nginx ──
+  synapse-web:
+    image: nginx:alpine
+    container_name: synapse-web
+    restart: unless-stopped
+    ports:
+      - "8085:80"  # Entrarás a la IP de tu OMV por el puerto 8085 para ver la web
+    volumes:
+      # OMV leerá todo el código web (HTML/CSS) directamente de tu disco
+      - ./frontend:/usr/share/nginx/html:ro
+      # Reverse proxy config
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    deploy:
+      resources:
+        limits:
+          # Tal como tu ingeniero indicó, memoria restringida para preservar RAM de OMV
+          memory: 256M

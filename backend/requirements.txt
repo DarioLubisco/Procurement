@@ -1,0 +1,29 @@
+# =============================================================
+# requirements.txt - Versiones EXACTAS probadas y funcionales
+# Generado desde Python 3.13 local (la misma versión del Docker)
+# =============================================================
+
+fastapi
+uvicorn
+starlette
+pydantic
+pydantic-settings
+
+reportlab
+pandas<2.2.0
+numpy<2.0.0
+openpyxl
+python-multipart
+pyodbc
+python-dotenv
+
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+fpdf
+pulp
+httpx
+
+python-jose[cryptography]
+passlib[bcrypt]
+strawberry-graphql[fastapi]

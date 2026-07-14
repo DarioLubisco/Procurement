@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Synapse Suite — Calidad de Inventario</title>
+  <script>
+    (function() {
+        const theme = localStorage.getItem('synapse-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <link rel="stylesheet" href="css/style.css?v=2.4"/>
+
+</head>
+<body>
+<div class="app-container">
+
+  <aside class="sidebar" id="sidebar-container"></aside>
+
+  <main class="main-content">
+    <div class="header">
+      <div class="header-left">
+        <h1>Calidad de Inventario 🛡️</h1>
+        <p class="subtitle">Monitoreo proactivo de vencimientos y salud del stock</p>
+      </div>
+      <div class="header-right" style="display: flex; align-items: center;">
+      </div>
+    </div>
+
+    <!-- Panel de Salud -->
+    <div class="kpi-grid">
+      <div class="status-card" id="card-calidad">
+        <span class="status-label">Índice de Calidad</span>
+        <span class="status-value" id="kpi-calidad">--%</span>
+        <span style="font-size:0.75rem; color:var(--text-muted)">Stock > 6 meses</span>
+      </div>
+      <div class="status-card critical">
+        <span class="status-label">Vencimientos Críticos</span>
+        <span class="status-value" id="kpi-criticos" style="color: var(--danger);">--</span>
+        <span style="font-size:0.75rem; color:var(--text-muted)">< 30 días</span>
+      </div>
+      <div class="status-card warning">
+        <span class="status-label">Vencimientos Próximos</span>
+        <span class="status-value" id="kpi-proximos" style="color: var(--warning);">--</span>
+        <span style="font-size:0.75rem; color:var(--text-muted)">30 - 90 días</span>
+      </div>
+      <div class="status-card good">
+        <span class="status-label">Total Ítems en Stock</span>
+        <span class="status-value" id="kpi-total">--</span>
+        <span style="font-size:0.75rem; color:var(--text-muted)">Catálogo activo</span>
+      </div>
+    </div>
+
+    <section class="section-card" style="margin-bottom: 2rem;">
+      <div class="table-header">
+        <h3><i class="fas fa-network-wired"></i> Estado de Actualización (ETL Proveedores)</h3>
+        <button class="btn btn-secondary" onclick="loadFrescuraETL()">
+          <i class="fas fa-sync-alt"></i> Actualizar
+        </button>
+      </div>
+
+      <div class="table-responsive">
+        <table id="etlFrescuraTable" class="data-table">
+          <thead>
+            <tr>
+              <th>Proveedor</th>
+              <th>Protocolo</th>
+              <th>Última Sincronización</th>
+              <th>Horas Transcurridas</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="etlFrescuraBody">
+            <tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-secondary);"><div class="loader" style="margin: 0 auto 1rem;"></div>Cargando datos de ETL...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section-card">
+      <div class="table-header">
+        <h3><i class="fas fa-calendar-times"></i> Detalle de Vencimientos (Próximos 180 días)</h3>
+        <button class="btn btn-secondary" onclick="exportTableToCSV('vencimientos.csv')">
+          <i class="fas fa-file-csv"></i> Exportar CSV
+        </button>
+      </div>
+
+      <div class="table-responsive">
+        <table id="vencimientosTable" class="data-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Producto</th>
+              <th>Lote</th>
+              <th>Vencimiento</th>
+              <th>Días Restantes</th>
+              <th>Stock</th>
+              <th>Precio Venta</th>
+            </tr>
+          </thead>
+          <tbody id="vencimientosBody">
+            <tr><td colspan="7" style="text-align:center; padding: 2rem; color: var(--text-secondary);"><div class="loader" style="margin: 0 auto 1rem;"></div>Cargando datos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="js/sidebar.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/app_inventario.js"></script>
+<script>
+  lucide.createIcons();
+  
+  function exportTableToCSV(filename) {
+    let csv = [];
+    let rows = document.querySelectorAll("table tr");
+    for (let i = 0; i < rows.length; i++) {
+        let row = [], cols = rows[i].querySelectorAll("td, th");
+        for (let j = 0; j < cols.length; j++) 
+            row.push('"' + cols[j].innerText.replace(/"/g, '""') + '"');
+        csv.push(row.join(","));
+    }
+    let csvFile = new Blob([csv.join("\n")], {type: "text/csv"});
+    let downloadLink = document.createElement("a");
+    downloadLink.download = filename;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = "none";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  }
+</script>
+</body>
+</html>

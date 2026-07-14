@@ -1,0 +1,5268 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Synapse Business Suite API",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/caja/vendedores": {
+      "get": {
+        "summary": "Get Vendedores",
+        "operationId": "get_vendedores_caja_vendedores_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/puntos_venta": {
+      "get": {
+        "summary": "Get Puntos Venta",
+        "operationId": "get_puntos_venta_caja_puntos_venta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/tasa_del_dia": {
+      "get": {
+        "summary": "Get Tasa Del Dia",
+        "operationId": "get_tasa_del_dia_caja_tasa_del_dia_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/sistema/totales": {
+      "get": {
+        "summary": "Get Totales",
+        "operationId": "get_totales_caja_sistema_totales_get",
+        "parameters": [
+          {
+            "name": "vendedor_codigo",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Vendedor Codigo"
+            }
+          },
+          {
+            "name": "fecha",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha"
+            }
+          },
+          {
+            "name": "session_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Token"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/conciliar/guardar_borrador": {
+      "post": {
+        "summary": "Guardar Borrador",
+        "operationId": "guardar_borrador_caja_conciliar_guardar_borrador_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConciliarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/conciliar/finalizar": {
+      "post": {
+        "summary": "Finalizar Cuadre",
+        "operationId": "finalizar_cuadre_caja_conciliar_finalizar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConciliarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/reportes/lista": {
+      "get": {
+        "summary": "Listar Reportes",
+        "operationId": "listar_reportes_caja_reportes_lista_get",
+        "parameters": [
+          {
+            "name": "fecha_desde",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha Desde"
+            }
+          },
+          {
+            "name": "fecha_hasta",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha Hasta"
+            }
+          },
+          {
+            "name": "vendedor_codigo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Vendedor Codigo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/reportes/detalle/{cierre_id}": {
+      "get": {
+        "summary": "Detalle Reporte",
+        "operationId": "detalle_reporte_caja_reportes_detalle__cierre_id__get",
+        "parameters": [
+          {
+            "name": "cierre_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cierre Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/usuario/perfil": {
+      "get": {
+        "summary": "Get Perfil Usuario",
+        "description": "Consulta SSUSRS para obtener el perfil del usuario: \nsu nombre, nivel (1=admin, 4=vendedor), el c\u00f3digo de vendedor asociado,\ny si est\u00ed\u00a1 activo.",
+        "operationId": "get_perfil_usuario_caja_usuario_perfil_get",
+        "parameters": [
+          {
+            "name": "cod_usua",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cod Usua"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/admin/resumen_diario": {
+      "get": {
+        "summary": "Get Resumen Diario",
+        "description": "Vista exclusiva del Administrador:\n- Muestra todos los vendedores activos con ventas ese d\u00eda.\n- Indica si tienen un cierre FINALIZADO o BORRADOR o si est\u00ed\u00a1n PENDIENTES.\n- Incluye los totales del sistema (desde SAFACT) para cada uno.",
+        "operationId": "get_resumen_diario_caja_admin_resumen_diario_get",
+        "parameters": [
+          {
+            "name": "fecha",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/calculadora/guardar": {
+      "post": {
+        "summary": "Guardar Transaccion",
+        "description": "Persiste una transacci\u00f3n de la Calculadora Mixta.",
+        "operationId": "guardar_transaccion_caja_calculadora_guardar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuardarTransaccionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/calculadora/transaccion/{transaccion_id}": {
+      "delete": {
+        "summary": "Eliminar Transaccion Dolares",
+        "description": "Anula una transacci\u00f3n del registro hist\u00f3rico de la Calculadora Mixta. Requiere permisos Admin.",
+        "operationId": "eliminar_transaccion_dolares_caja_calculadora_transaccion__transaccion_id__delete",
+        "parameters": [
+          {
+            "name": "transaccion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Transaccion Id"
+            }
+          },
+          {
+            "name": "cod_usua",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cod Usua"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/calculadora/reporte": {
+      "get": {
+        "summary": "Reporte Dolares",
+        "description": "Retorna el resumen de d\u00f3lares del d\u00eda (o de la fecha indicada):\n- Total efectivo USD recibido\n- Total Zelle recibido\n- Total vuelto USD dado\n- Saldo neto USD en caja\n- \u00daltimas N transacciones\nFiltra opcionalmente por un vendedor en espec\u00edfico.",
+        "operationId": "reporte_dolares_caja_calculadora_reporte_get",
+        "parameters": [
+          {
+            "name": "fecha",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fecha"
+            }
+          },
+          {
+            "name": "vendedor_codigo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendedor Codigo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/reportes/{cierre_id}/pdf": {
+      "get": {
+        "summary": "Generar Pdf Cierre",
+        "description": "Genera un PDF del precierre o cierre de caja. Funciona para BORRADOR y FINALIZADO.",
+        "operationId": "generar_pdf_cierre_caja_reportes__cierre_id__pdf_get",
+        "parameters": [
+          {
+            "name": "cierre_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cierre Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/pagomovil/pendientes": {
+      "get": {
+        "summary": "Get Pagomovil Pendientes",
+        "description": "Retorna todos los registros de Procurement.CajaPagoMovil que a\u00fan no han sido\nprocesados (procesado = 0), opcionalmente filtrados por fecha.\nMuestra el id \u00ed\u00banico para trazabilidad.",
+        "operationId": "get_pagomovil_pendientes_caja_pagomovil_pendientes_get",
+        "parameters": [
+          {
+            "name": "fecha",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fecha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/pagomovil/capturar": {
+      "post": {
+        "summary": "Capturar Pagomovil",
+        "description": "Marca uno o m\u00ed\u00a1s registros de Procurement.CajaPagoMovil como procesados.\nRegistra el usuario que los captur\u00f3 (cod_usua) y el cierre_id si se provee.\nOpera de forma at\u00f3mica \u00e2\u20ac\u201d si alg\u00ed\u00ban registro ya fue procesado, ignora ese ID.\nRetorna la lista de registros efectivamente capturados para que el frontend\nlos agregue como tickets al cuadre activo.",
+        "operationId": "capturar_pagomovil_caja_pagomovil_capturar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapturarPagoMovilRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/admin/reparar-fechas": {
+      "post": {
+        "summary": "Reparar Fechas",
+        "operationId": "reparar_fechas_caja_admin_reparar_fechas_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepararFechasRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/reportes/ventas": {
+      "get": {
+        "summary": "Reporte Ventas",
+        "description": "Retorna KPIs globales + detalle por vendedor\u00d7fecha para el m\u00f3dulo de\nReporte de Ventas. Alimenta la pivot grid del frontend.\nCampos de descuento: Descto1 (cabecera dto1), Descto2 (cabecera dto2).\nLas Notas de Cr\u00e9dito (TipoFac='C') se restan del total cuando incluir_nc=True.",
+        "operationId": "reporte_ventas_caja_reportes_ventas_get",
+        "parameters": [
+          {
+            "name": "fecha_desde",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha Desde"
+            }
+          },
+          {
+            "name": "fecha_hasta",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha Hasta"
+            }
+          },
+          {
+            "name": "vendedor_codigo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendedor Codigo"
+            }
+          },
+          {
+            "name": "incluir_nc",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Incluir Nc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/reportes/devoluciones": {
+      "get": {
+        "summary": "Reporte Devoluciones",
+        "description": "Retorna listado de Notas de Cr\u00e9dito (TipoFac='C') con detalle\npara control de devoluciones en el cierre de caja.\nCada factura devuelta debe entregarse en f\u00edsico al supervisor.",
+        "operationId": "reporte_devoluciones_caja_reportes_devoluciones_get",
+        "parameters": [
+          {
+            "name": "fecha_desde",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha Desde"
+            }
+          },
+          {
+            "name": "fecha_hasta",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha Hasta"
+            }
+          },
+          {
+            "name": "vendedor_codigo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendedor Codigo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caja/reportes/ventas/detalle": {
+      "get": {
+        "summary": "Detalle Facturas",
+        "description": "Retorna facturas individuales para una fecha+vendedor.\nIncluye l\u00edneas de producto (SAITEMFAC) anidadas.\nUsado como drill-down desde la pivot grid.",
+        "operationId": "detalle_facturas_caja_reportes_ventas_detalle_get",
+        "parameters": [
+          {
+            "name": "fecha",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fecha"
+            }
+          },
+          {
+            "name": "vendedor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendedor"
+            }
+          },
+          {
+            "name": "tipo_fac",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "A",
+              "title": "Tipo Fac"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Settings",
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/bulk": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Update Settings Bulk",
+        "operationId": "update_settings_bulk_api_settings_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plan-pagos": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Planificar Pagos",
+        "operationId": "planificar_pagos_api_plan_pagos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanPagoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plan-pagos/unplan": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Unplan Pagos",
+        "operationId": "unplan_pagos_api_plan_pagos_unplan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cuentas-por-pagar": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Cuentas Por Pagar",
+        "operationId": "get_cuentas_por_pagar_api_cuentas_por_pagar_get",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Search term for NumeroD or Provider",
+              "default": "",
+              "title": "Search"
+            },
+            "description": "Search term for NumeroD or Provider"
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/compras": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Report Compras",
+        "operationId": "report_compras_api_reports_compras_get",
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/providers": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Provider Conditions",
+        "operationId": "get_provider_conditions_api_procurement_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/providers/{cod_prov}": {
+      "put": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Update Provider Condition",
+        "operationId": "update_provider_condition_api_procurement_providers__cod_prov__put",
+        "parameters": [
+          {
+            "name": "cod_prov",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cod Prov"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProveedorCondicion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/motivos-ajuste": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Motivos Ajuste",
+        "description": "Lista todos los motivos de ajuste contable.",
+        "operationId": "get_motivos_ajuste_api_procurement_motivos_ajuste_get",
+        "parameters": [
+          {
+            "name": "solo_activos",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Solo Activos"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Upsert Motivo Ajuste",
+        "description": "Crea o actualiza un motivo de ajuste contable.",
+        "operationId": "upsert_motivo_ajuste_api_procurement_motivos_ajuste_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/motivos-ajuste/{motivo_id}": {
+      "delete": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Delete Motivo Ajuste",
+        "description": "Inhabilita (soft-delete) un motivo de ajuste.",
+        "operationId": "delete_motivo_ajuste_api_procurement_motivos_ajuste__motivo_id__delete",
+        "parameters": [
+          {
+            "name": "motivo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Motivo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/abonos-batch": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Registrar Abonos Batch",
+        "description": "Register multiple payments in one transaction and send one consolidated email.",
+        "operationId": "registrar_abonos_batch_api_procurement_abonos_batch_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_registrar_abonos_batch_api_procurement_abonos_batch_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/abonos": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Registrar Abono",
+        "operationId": "registrar_abono_api_procurement_abonos_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_registrar_abono_api_procurement_abonos_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/invoice-settings": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Update Invoice Settings",
+        "operationId": "update_invoice_settings_api_procurement_invoice_settings_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_update_invoice_settings_api_procurement_invoice_settings_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/abonos/{id_abono}": {
+      "delete": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Eliminar Abono",
+        "description": "Elimina permanentemente un abono manual de la base de datos.",
+        "operationId": "eliminar_abono_api_procurement_abonos__id_abono__delete",
+        "parameters": [
+          {
+            "name": "id_abono",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Abono"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/send-email": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Send Email Only",
+        "description": "Send a payment notification email for an existing invoice WITHOUT inserting a new payment record.",
+        "operationId": "send_email_only_api_procurement_send_email_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_send_email_only_api_procurement_send_email_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cuentas-por-pagar/{numeroD}": {
+      "patch": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Editar Factura",
+        "description": "Update invoice fields and keep Saint tables fully aligned.\nFields: FechaE, FechaI, FechaV, SaldoAct (maps to SAACXP.Saldo + SAPROV.Saldo delta), MontoFacturaBS, MontoFacturaUSD, Notas10.\ncod_prov query param is required to correctly identify the SACOMP row.",
+        "operationId": "editar_factura_api_cuentas_por_pagar__numeroD__patch",
+        "parameters": [
+          {
+            "name": "numeroD",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Numerod"
+            }
+          },
+          {
+            "name": "cod_prov",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Cod Prov"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/cxp-status": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Cxp Status",
+        "operationId": "get_cxp_status_api_procurement_cxp_status_get",
+        "parameters": [
+          {
+            "name": "cod_prov",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cod Prov"
+            }
+          },
+          {
+            "name": "numero_d",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Numero D"
+            }
+          },
+          {
+            "name": "nro_unico",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Nro Unico"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/debit-notes": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Debit Notes",
+        "operationId": "get_debit_notes_api_procurement_debit_notes_get",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "estatus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/debit-notes/send-request": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Send Debit Note Requests",
+        "operationId": "send_debit_note_requests_api_procurement_debit_notes_send_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebitNoteActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/debit-notes/register": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Register Debit Note",
+        "operationId": "register_debit_note_api_procurement_debit_notes_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebitNoteRegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/debit-notes/{id_nd}": {
+      "patch": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Anular Debit Note",
+        "operationId": "anular_debit_note_api_procurement_debit_notes__id_nd__patch",
+        "parameters": [
+          {
+            "name": "id_nd",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Nd"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exchange-rate": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Exchange Rate",
+        "operationId": "get_exchange_rate_api_exchange_rate_get",
+        "parameters": [
+          {
+            "name": "fecha",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Fecha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/aging": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Report Aging",
+        "operationId": "report_aging_api_reports_aging_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/cashflow": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Report Cashflow",
+        "operationId": "report_cashflow_api_reports_cashflow_get",
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/dpo": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Report Dpo",
+        "operationId": "report_dpo_api_reports_dpo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/forecast-sales": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Report Forecast Sales",
+        "operationId": "report_forecast_sales_api_reports_forecast_sales_get",
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/forecast-consolidated": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Report Forecast Consolidated",
+        "operationId": "report_forecast_consolidated_api_reports_forecast_consolidated_get",
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Hasta"
+            }
+          },
+          {
+            "name": "fecha_arranque",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Fecha Arranque"
+            }
+          },
+          {
+            "name": "caja_usd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Caja Usd"
+            }
+          },
+          {
+            "name": "caja_bs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Caja Bs"
+            }
+          },
+          {
+            "name": "delay_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "title": "Delay Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/antigravity/run": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Run Antigravity Optimizer",
+        "operationId": "run_antigravity_optimizer_api_antigravity_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AntigravityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forecast-events": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Forecast Events",
+        "operationId": "get_forecast_events_api_forecast_events_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Add Forecast Event",
+        "operationId": "add_forecast_event_api_forecast_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForecastEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expense-templates": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Expense Templates",
+        "operationId": "get_expense_templates_api_expense_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Save Expense Template",
+        "operationId": "save_expense_template_api_expense_templates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expense-templates/{id}": {
+      "delete": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Delete Expense Template",
+        "operationId": "delete_expense_template_api_expense_templates__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expenses/generate-batch/{mes}/{anio}": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Expense Batch",
+        "description": "Simula qu\u00e9 deber\u00eda pagarse en base a las plantillas y el mes para que la UI lo verifique.",
+        "operationId": "get_expense_batch_api_expenses_generate_batch__mes___anio__get",
+        "parameters": [
+          {
+            "name": "mes",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Mes"
+            }
+          },
+          {
+            "name": "anio",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Anio"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expenses/batch": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Save Expense Batch",
+        "description": "Inserta o limpia el mes y guarda los gastos confirmados desde la interfaz.",
+        "operationId": "save_expense_batch_api_expenses_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchExpenseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expenses/programmed/single": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Save Single Expense",
+        "description": "Guarda un gasto variable on-the-fly directamente a la BD y lo marca como adhoc.",
+        "operationId": "save_single_expense_api_expenses_programmed_single_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgrammedExpense"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expenses/programmed": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Programmed Expenses",
+        "operationId": "get_programmed_expenses_api_expenses_programmed_get",
+        "parameters": [
+          {
+            "name": "mes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Mes"
+            }
+          },
+          {
+            "name": "anio",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Anio"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expenses/programmed/{id}": {
+      "delete": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Delete Programmed Expense",
+        "operationId": "delete_programmed_expense_api_expenses_programmed__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Patch Programmed Expense",
+        "operationId": "patch_programmed_expense_api_expenses_programmed__id__patch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forecast-events/{event_id}": {
+      "delete": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Delete Forecast Event",
+        "operationId": "delete_forecast_event_api_forecast_events__event_id__delete",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/{report_type}": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Export Xlsx",
+        "operationId": "export_xlsx_api_export__report_type__get",
+        "parameters": [
+          {
+            "name": "report_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Report Type"
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones/config": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Retenciones Config",
+        "operationId": "get_retenciones_config_api_retenciones_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Update Retenciones Config",
+        "operationId": "update_retenciones_config_api_retenciones_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Retenciones",
+        "operationId": "get_retenciones_api_retenciones_get",
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Crear Retencion",
+        "description": "Create retention records. Supports batch: {FechaRetencion, facturas: [{NumeroD, CodProv, ...}, ...]}",
+        "operationId": "crear_retencion_api_retenciones_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones/{id_ret}": {
+      "patch": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Anular Retencion",
+        "operationId": "anular_retencion_api_retenciones__id_ret__patch",
+        "parameters": [
+          {
+            "name": "id_ret",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Ret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones/by-invoice/{numero_d}/pdf": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Retencion Pdf By Invoice",
+        "operationId": "get_retencion_pdf_by_invoice_api_retenciones_by_invoice__numero_d__pdf_get",
+        "parameters": [
+          {
+            "name": "numero_d",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Numero D"
+            }
+          },
+          {
+            "name": "cod_prov",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cod Prov"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones-islr/by-invoice/{numero_d}/pdf": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Retencion Islr Pdf By Invoice",
+        "operationId": "get_retencion_islr_pdf_by_invoice_api_retenciones_islr_by_invoice__numero_d__pdf_get",
+        "parameters": [
+          {
+            "name": "numero_d",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Numero D"
+            }
+          },
+          {
+            "name": "cod_prov",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cod Prov"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones/{id_ret}/pdf": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Retencion Pdf",
+        "description": "Generate and return PDF preview of a retention comprobante.",
+        "operationId": "get_retencion_pdf_api_retenciones__id_ret__pdf_get",
+        "parameters": [
+          {
+            "name": "id_ret",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Ret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones/{id_ret}/send-email": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Send Retencion Email",
+        "description": "Send retention comprobante via email to the provider, with PDF + Excel attachments.",
+        "operationId": "send_retencion_email_api_retenciones__id_ret__send_email_post",
+        "parameters": [
+          {
+            "name": "id_ret",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Ret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones/export-txt": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Export Retenciones Txt",
+        "operationId": "export_retenciones_txt_api_retenciones_export_txt_get",
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/credit-notes": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Credit Notes",
+        "operationId": "get_credit_notes_api_procurement_credit_notes_get",
+        "parameters": [
+          {
+            "name": "cod_prov",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cod Prov"
+            }
+          },
+          {
+            "name": "estatus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Create Credit Note",
+        "operationId": "create_credit_note_api_procurement_credit_notes_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/credit-notes/pending/{cod_prov}": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Pending Credit Notes",
+        "operationId": "get_pending_credit_notes_api_procurement_credit_notes_pending__cod_prov__get",
+        "parameters": [
+          {
+            "name": "cod_prov",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cod Prov"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/credit-notes/{id_nc}/send": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Send Credit Note Email",
+        "operationId": "send_credit_note_email_api_procurement_credit_notes__id_nc__send_post",
+        "parameters": [
+          {
+            "name": "id_nc",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Nc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/credit-notes/{id_nc}": {
+      "patch": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Update Credit Note",
+        "operationId": "update_credit_note_api_procurement_credit_notes__id_nc__patch",
+        "parameters": [
+          {
+            "name": "id_nc",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Nc"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Delete Credit Note",
+        "operationId": "delete_credit_note_api_procurement_credit_notes__id_nc__delete",
+        "parameters": [
+          {
+            "name": "id_nc",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Nc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/procurement/settings": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Settings",
+        "operationId": "get_settings_api_procurement_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Update Settings",
+        "operationId": "update_settings_api_procurement_settings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones-islr": {
+      "get": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Get Retenciones Islr",
+        "operationId": "get_retenciones_islr_api_retenciones_islr_get",
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hasta"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Crear Retencion Islr",
+        "description": "Create ISLR retention records based on Decree 1808 (supports batching)",
+        "operationId": "crear_retencion_islr_api_retenciones_islr_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retenciones-islr/{id_ret}": {
+      "patch": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Anular Retencion Islr",
+        "operationId": "anular_retencion_islr_api_retenciones_islr__id_ret__patch",
+        "parameters": [
+          {
+            "name": "id_ret",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id Ret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cxp/admin/reparar-fechas-batch": {
+      "post": {
+        "tags": [
+          "CxP"
+        ],
+        "summary": "Reparar Fechas Batch",
+        "operationId": "reparar_fechas_batch_api_cxp_admin_reparar_fechas_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepararFechasBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pedidos/categories": {
+      "get": {
+        "tags": [
+          "Pedidos"
+        ],
+        "summary": "Get Categories",
+        "operationId": "get_categories_api_pedidos_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pedidos/generate": {
+      "post": {
+        "tags": [
+          "Pedidos"
+        ],
+        "summary": "Generate Report",
+        "operationId": "generate_report_api_pedidos_generate_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_generate_report_api_pedidos_generate_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventario/status": {
+      "get": {
+        "tags": [
+          "inventario"
+        ],
+        "summary": "Get Inventario Status",
+        "operationId": "get_inventario_status_inventario_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Inventario Status Inventario Status Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventario/vencimientos": {
+      "get": {
+        "tags": [
+          "inventario"
+        ],
+        "summary": "Get Vencimientos",
+        "operationId": "get_vencimientos_inventario_vencimientos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Vencimientos Inventario Vencimientos Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventario/frescura-etl": {
+      "get": {
+        "tags": [
+          "inventario"
+        ],
+        "summary": "Get Frescura Etl",
+        "operationId": "get_frescura_etl_inventario_frescura_etl_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Frescura Etl Inventario Frescura Etl Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhook/n8n": {
+      "post": {
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "Receive N8N Webhook",
+        "operationId": "receive_n8n_webhook_api_webhook_n8n_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/N8NPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orquestador/start": {
+      "post": {
+        "tags": [
+          "Orquestador"
+        ],
+        "summary": "Start Orquestador",
+        "operationId": "start_orquestador_api_orquestador_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationTask"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orquestador/status": {
+      "get": {
+        "tags": [
+          "Orquestador"
+        ],
+        "summary": "Get Orquestador Status",
+        "operationId": "get_orquestador_status_api_orquestador_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orquestador/chat": {
+      "post": {
+        "tags": [
+          "Orquestador"
+        ],
+        "summary": "Chat With Orquestador",
+        "operationId": "chat_with_orquestador_api_orquestador_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/debug/paths": {
+      "get": {
+        "summary": "Debug Paths",
+        "operationId": "debug_paths_debug_paths_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AntigravityRequest": {
+        "properties": {
+          "porcentaje_flujo": {
+            "type": "number",
+            "title": "Porcentaje Flujo",
+            "default": 0.9
+          },
+          "caja_usd": {
+            "type": "number",
+            "title": "Caja Usd",
+            "default": 0.0
+          },
+          "caja_bs": {
+            "type": "number",
+            "title": "Caja Bs",
+            "default": 0.0
+          },
+          "fecha_arranque": {
+            "type": "string",
+            "title": "Fecha Arranque"
+          },
+          "delay_days": {
+            "type": "integer",
+            "title": "Delay Days",
+            "default": 1
+          },
+          "wacc": {
+            "type": "number",
+            "title": "Wacc",
+            "default": 0.12
+          },
+          "max_credit": {
+            "type": "number",
+            "title": "Max Credit",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "AntigravityRequest"
+      },
+      "AutomationTask": {
+        "properties": {
+          "TriggerID": {
+            "type": "integer",
+            "title": "Triggerid"
+          },
+          "ActionCommand": {
+            "type": "string",
+            "title": "Actioncommand"
+          },
+          "IsActive": {
+            "type": "boolean",
+            "title": "Isactive"
+          },
+          "LastTriggered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasttriggered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "TriggerID",
+          "ActionCommand",
+          "IsActive"
+        ],
+        "title": "AutomationTask"
+      },
+      "BatchExpenseRequest": {
+        "properties": {
+          "mes": {
+            "type": "integer",
+            "title": "Mes"
+          },
+          "anio": {
+            "type": "integer",
+            "title": "Anio"
+          },
+          "gastos": {
+            "items": {
+              "$ref": "#/components/schemas/ProgrammedExpense"
+            },
+            "type": "array",
+            "title": "Gastos"
+          },
+          "descripcionesAEliminar": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcionesaeliminar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mes",
+          "anio",
+          "gastos"
+        ],
+        "title": "BatchExpenseRequest"
+      },
+      "BilletesItem": {
+        "properties": {
+          "denominacion": {
+            "type": "integer",
+            "title": "Denominacion"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "total": {
+            "type": "number",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "denominacion",
+          "cantidad",
+          "total"
+        ],
+        "title": "BilletesItem"
+      },
+      "Body_generate_report_api_pedidos_generate_post": {
+        "properties": {
+          "pedido_days": {
+            "type": "string",
+            "title": "Pedido Days"
+          },
+          "num_rows": {
+            "type": "integer",
+            "title": "Num Rows"
+          },
+          "categories": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categories"
+          },
+          "subtraction_files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "contentMediaType": "application/octet-stream"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtraction Files"
+          },
+          "umbral_rotacion": {
+            "type": "number",
+            "title": "Umbral Rotacion",
+            "default": 0.0
+          },
+          "forced_includes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forced Includes"
+          },
+          "preview_mode": {
+            "type": "string",
+            "title": "Preview Mode",
+            "default": "false"
+          },
+          "include_generics": {
+            "type": "string",
+            "title": "Include Generics",
+            "default": "true"
+          },
+          "include_brands": {
+            "type": "string",
+            "title": "Include Brands",
+            "default": "true"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pedido_days",
+          "num_rows"
+        ],
+        "title": "Body_generate_report_api_pedidos_generate_post"
+      },
+      "Body_registrar_abono_api_procurement_abonos_post": {
+        "properties": {
+          "NumeroD": {
+            "type": "string",
+            "title": "Numerod"
+          },
+          "CodProv": {
+            "type": "string",
+            "title": "Codprov"
+          },
+          "FechaAbono": {
+            "type": "string",
+            "title": "Fechaabono"
+          },
+          "MontoBsAbonado": {
+            "type": "number",
+            "title": "Montobsabonado"
+          },
+          "TasaCambioDiaAbono": {
+            "type": "number",
+            "title": "Tasacambiodiaabono"
+          },
+          "MontoUsdAbonado": {
+            "type": "number",
+            "title": "Montousdabonado"
+          },
+          "AplicaIndexacion": {
+            "type": "string",
+            "title": "Aplicaindexacion"
+          },
+          "Referencia": {
+            "type": "string",
+            "title": "Referencia",
+            "default": ""
+          },
+          "NotificarCorreo": {
+            "type": "boolean",
+            "title": "Notificarcorreo",
+            "default": false
+          },
+          "MontoTotalPagado": {
+            "type": "number",
+            "title": "Montototalpagado",
+            "default": 0.0
+          },
+          "force_send": {
+            "type": "boolean",
+            "title": "Force Send",
+            "default": false
+          },
+          "archivos": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Archivos"
+          },
+          "NroUnico": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nrounico"
+          },
+          "MontoAjusteBs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Montoajustebs"
+          },
+          "MotivoAjusteID": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivoajusteid"
+          },
+          "MontoDescuentoBs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Montodescuentobs"
+          },
+          "MotivoDescuentoID": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivodescuentoid"
+          },
+          "MontoDescuentoBaseBs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Montodescuentobasebs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "NumeroD",
+          "CodProv",
+          "FechaAbono",
+          "MontoBsAbonado",
+          "TasaCambioDiaAbono",
+          "MontoUsdAbonado",
+          "AplicaIndexacion"
+        ],
+        "title": "Body_registrar_abono_api_procurement_abonos_post"
+      },
+      "Body_registrar_abonos_batch_api_procurement_abonos_batch_post": {
+        "properties": {
+          "pagos_json": {
+            "type": "string",
+            "title": "Pagos Json"
+          },
+          "NotificarCorreo": {
+            "type": "boolean",
+            "title": "Notificarcorreo",
+            "default": false
+          },
+          "MontoTotalPagado": {
+            "type": "number",
+            "title": "Montototalpagado",
+            "default": 0.0
+          },
+          "archivos": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Archivos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pagos_json"
+        ],
+        "title": "Body_registrar_abonos_batch_api_procurement_abonos_batch_post"
+      },
+      "Body_send_email_only_api_procurement_send_email_post": {
+        "properties": {
+          "NumeroD": {
+            "type": "string",
+            "title": "Numerod"
+          },
+          "CodProv": {
+            "type": "string",
+            "title": "Codprov"
+          },
+          "archivos": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Archivos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "NumeroD",
+          "CodProv"
+        ],
+        "title": "Body_send_email_only_api_procurement_send_email_post"
+      },
+      "Body_update_invoice_settings_api_procurement_invoice_settings_post": {
+        "properties": {
+          "NumeroD": {
+            "type": "string",
+            "title": "Numerod"
+          },
+          "CodProv": {
+            "type": "string",
+            "title": "Codprov"
+          },
+          "AplicaIndexacion": {
+            "type": "boolean",
+            "title": "Aplicaindexacion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "NumeroD",
+          "CodProv",
+          "AplicaIndexacion"
+        ],
+        "title": "Body_update_invoice_settings_api_procurement_invoice_settings_post"
+      },
+      "CapturarPagoMovilRequest": {
+        "properties": {
+          "registros_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Registros Ids"
+          },
+          "cod_usua": {
+            "type": "string",
+            "title": "Cod Usua"
+          },
+          "cierre_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cierre Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "registros_ids",
+          "cod_usua"
+        ],
+        "title": "CapturarPagoMovilRequest"
+      },
+      "ChatMessage": {
+        "properties": {
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent",
+          "message"
+        ],
+        "title": "ChatMessage"
+      },
+      "ConciliarRequest": {
+        "properties": {
+          "vendedor_codigo": {
+            "type": "string",
+            "title": "Vendedor Codigo"
+          },
+          "vendedor_nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendedor Nombre"
+          },
+          "fecha_ini": {
+            "type": "string",
+            "title": "Fecha Ini"
+          },
+          "fecha_fin": {
+            "type": "string",
+            "title": "Fecha Fin"
+          },
+          "efectivo_desglose": {
+            "items": {
+              "$ref": "#/components/schemas/BilletesItem"
+            },
+            "type": "array",
+            "title": "Efectivo Desglose",
+            "default": []
+          },
+          "divisa_desglose": {
+            "items": {
+              "$ref": "#/components/schemas/BilletesItem"
+            },
+            "type": "array",
+            "title": "Divisa Desglose",
+            "default": []
+          },
+          "tarjeta_desglose": {
+            "items": {
+              "$ref": "#/components/schemas/TarjetaItem"
+            },
+            "type": "array",
+            "title": "Tarjeta Desglose",
+            "default": []
+          },
+          "diferencias": {
+            "items": {
+              "$ref": "#/components/schemas/DiferenciaItem"
+            },
+            "type": "array",
+            "title": "Diferencias",
+            "default": []
+          },
+          "manual_efectivo_bs": {
+            "type": "number",
+            "title": "Manual Efectivo Bs"
+          },
+          "manual_divisas": {
+            "type": "number",
+            "title": "Manual Divisas"
+          },
+          "manual_euros": {
+            "type": "number",
+            "title": "Manual Euros"
+          },
+          "manual_tdd": {
+            "type": "number",
+            "title": "Manual Tdd"
+          },
+          "manual_tdc": {
+            "type": "number",
+            "title": "Manual Tdc"
+          },
+          "manual_biopago": {
+            "type": "number",
+            "title": "Manual Biopago"
+          },
+          "manual_pago_movil": {
+            "type": "number",
+            "title": "Manual Pago Movil",
+            "default": 0.0
+          },
+          "manual_transferencia": {
+            "type": "number",
+            "title": "Manual Transferencia",
+            "default": 0.0
+          },
+          "session_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vendedor_codigo",
+          "fecha_ini",
+          "fecha_fin",
+          "manual_efectivo_bs",
+          "manual_divisas",
+          "manual_euros",
+          "manual_tdd",
+          "manual_tdc",
+          "manual_biopago"
+        ],
+        "title": "ConciliarRequest"
+      },
+      "DebitNoteActionRequest": {
+        "properties": {
+          "Invoices": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceReference"
+            },
+            "type": "array",
+            "title": "Invoices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "Invoices"
+        ],
+        "title": "DebitNoteActionRequest"
+      },
+      "DebitNoteRegisterRequest": {
+        "properties": {
+          "Invoices": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceReference"
+            },
+            "type": "array",
+            "title": "Invoices"
+          },
+          "NotaDebitoID": {
+            "type": "string",
+            "title": "Notadebitoid"
+          },
+          "ControlID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controlid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "Invoices",
+          "NotaDebitoID"
+        ],
+        "title": "DebitNoteRegisterRequest"
+      },
+      "DiferenciaItem": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "sistema": {
+            "type": "number",
+            "title": "Sistema"
+          },
+          "manual": {
+            "type": "number",
+            "title": "Manual"
+          },
+          "diferencia": {
+            "type": "number",
+            "title": "Diferencia"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "sistema",
+          "manual",
+          "diferencia"
+        ],
+        "title": "DiferenciaItem"
+      },
+      "ExpenseTemplateRequest": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "monto_estimado_usd": {
+            "type": "number",
+            "title": "Monto Estimado Usd"
+          },
+          "dia_mes_estimado": {
+            "type": "integer",
+            "title": "Dia Mes Estimado"
+          }
+        },
+        "type": "object",
+        "required": [
+          "descripcion",
+          "tipo",
+          "monto_estimado_usd",
+          "dia_mes_estimado"
+        ],
+        "title": "ExpenseTemplateRequest"
+      },
+      "ForecastEventRequest": {
+        "properties": {
+          "fecha": {
+            "type": "string",
+            "title": "Fecha"
+          },
+          "tipo_evento": {
+            "type": "string",
+            "title": "Tipo Evento"
+          },
+          "valor": {
+            "type": "number",
+            "title": "Valor",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "fecha",
+          "tipo_evento"
+        ],
+        "title": "ForecastEventRequest"
+      },
+      "GuardarTransaccionRequest": {
+        "properties": {
+          "vendedor_codigo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendedor Codigo"
+          },
+          "observacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observacion"
+          },
+          "tasa_bcv": {
+            "type": "number",
+            "title": "Tasa Bcv"
+          },
+          "factura_bs": {
+            "type": "number",
+            "title": "Factura Bs"
+          },
+          "factura_usd": {
+            "type": "number",
+            "title": "Factura Usd"
+          },
+          "rec_ef_usd": {
+            "type": "number",
+            "title": "Rec Ef Usd",
+            "default": 0.0
+          },
+          "rec_on_usd": {
+            "type": "number",
+            "title": "Rec On Usd",
+            "default": 0.0
+          },
+          "rec_ef_bs": {
+            "type": "number",
+            "title": "Rec Ef Bs",
+            "default": 0.0
+          },
+          "rec_pm_bs": {
+            "type": "number",
+            "title": "Rec Pm Bs",
+            "default": 0.0
+          },
+          "rec_bio_bs": {
+            "type": "number",
+            "title": "Rec Bio Bs",
+            "default": 0.0
+          },
+          "total_rec_usd": {
+            "type": "number",
+            "title": "Total Rec Usd",
+            "default": 0.0
+          },
+          "total_rec_bs": {
+            "type": "number",
+            "title": "Total Rec Bs",
+            "default": 0.0
+          },
+          "vuelto_usd": {
+            "type": "number",
+            "title": "Vuelto Usd",
+            "default": 0.0
+          },
+          "vuelto_bs": {
+            "type": "number",
+            "title": "Vuelto Bs",
+            "default": 0.0
+          },
+          "vuelto_pm_bs": {
+            "type": "number",
+            "title": "Vuelto Pm Bs",
+            "default": 0.0
+          },
+          "total_vuelto_usd": {
+            "type": "number",
+            "title": "Total Vuelto Usd",
+            "default": 0.0
+          },
+          "resultado": {
+            "type": "string",
+            "title": "Resultado",
+            "default": "EXACTO"
+          },
+          "diff_usd": {
+            "type": "number",
+            "title": "Diff Usd",
+            "default": 0.0
+          },
+          "diff_bs": {
+            "type": "number",
+            "title": "Diff Bs",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "tasa_bcv",
+          "factura_bs",
+          "factura_usd"
+        ],
+        "title": "GuardarTransaccionRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InvoiceReference": {
+        "properties": {
+          "CodProv": {
+            "type": "string",
+            "title": "Codprov"
+          },
+          "NumeroD": {
+            "type": "string",
+            "title": "Numerod"
+          },
+          "MontoRetencionBs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Montoretencionbs",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "CodProv",
+          "NumeroD"
+        ],
+        "title": "InvoiceReference"
+      },
+      "N8NPayload": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "audio_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Base64"
+          },
+          "image_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Base64"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "session_id"
+        ],
+        "title": "N8NPayload"
+      },
+      "PlanPagoRequest": {
+        "properties": {
+          "nros_unicos": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Nros Unicos"
+          },
+          "fecha_planificada": {
+            "type": "string",
+            "title": "Fecha Planificada"
+          },
+          "banco": {
+            "type": "string",
+            "title": "Banco"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nros_unicos",
+          "fecha_planificada",
+          "banco"
+        ],
+        "title": "PlanPagoRequest"
+      },
+      "ProgrammedExpense": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "monto_usd": {
+            "type": "number",
+            "title": "Monto Usd"
+          },
+          "fecha_proyectada": {
+            "type": "string",
+            "title": "Fecha Proyectada"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado",
+            "default": "Pendiente"
+          }
+        },
+        "type": "object",
+        "required": [
+          "descripcion",
+          "tipo",
+          "monto_usd",
+          "fecha_proyectada"
+        ],
+        "title": "ProgrammedExpense"
+      },
+      "ProveedorCondicion": {
+        "properties": {
+          "CodProv": {
+            "type": "string",
+            "title": "Codprov"
+          },
+          "DiasNoIndexacion": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diasnoindexacion",
+            "default": 0
+          },
+          "IndexaIVA": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexaiva",
+            "default": true
+          },
+          "BaseDiasCredito": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basediascredito",
+            "default": "EMISION"
+          },
+          "DiasVencimiento": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diasvencimiento",
+            "default": 0
+          },
+          "Descuentos": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ProveedorDescuento"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descuentos",
+            "default": []
+          },
+          "DescuentoBase_Pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descuentobase Pct",
+            "default": 0.0
+          },
+          "DescuentoBase_Condicion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descuentobase Condicion",
+            "default": "INDEPENDIENTE"
+          },
+          "DescuentoBase_DeduceIVA": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descuentobase Deduceiva",
+            "default": false
+          },
+          "Email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "TipoPersona": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipopersona"
+          },
+          "DecimalesTasa": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decimalestasa",
+            "default": 4
+          },
+          "PorctRet": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Porctret",
+            "default": 75.0
+          },
+          "EsReten": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Esreten",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "CodProv"
+        ],
+        "title": "ProveedorCondicion"
+      },
+      "ProveedorDescuento": {
+        "properties": {
+          "DiasDesde": {
+            "type": "integer",
+            "title": "Diasdesde"
+          },
+          "DiasHasta": {
+            "type": "integer",
+            "title": "Diashasta"
+          },
+          "Porcentaje": {
+            "type": "number",
+            "title": "Porcentaje"
+          },
+          "DeduceIVA": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deduceiva",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "DiasDesde",
+          "DiasHasta",
+          "Porcentaje"
+        ],
+        "title": "ProveedorDescuento"
+      },
+      "RepararFechasBatchRequest": {
+        "properties": {
+          "facturas": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Facturas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "facturas"
+        ],
+        "title": "RepararFechasBatchRequest"
+      },
+      "RepararFechasRequest": {
+        "properties": {
+          "fecha_inicio": {
+            "type": "string",
+            "title": "Fecha Inicio"
+          },
+          "fecha_fin": {
+            "type": "string",
+            "title": "Fecha Fin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fecha_inicio",
+          "fecha_fin"
+        ],
+        "title": "RepararFechasRequest"
+      },
+      "SettingsBulkRequest": {
+        "properties": {
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "settings"
+        ],
+        "title": "SettingsBulkRequest"
+      },
+      "TarjetaItem": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "punto_de_venta": {
+            "type": "string",
+            "title": "Punto De Venta"
+          },
+          "referencia": {
+            "type": "string",
+            "title": "Referencia"
+          },
+          "monto": {
+            "type": "number",
+            "title": "Monto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tipo",
+          "punto_de_venta",
+          "referencia",
+          "monto"
+        ],
+        "title": "TarjetaItem"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

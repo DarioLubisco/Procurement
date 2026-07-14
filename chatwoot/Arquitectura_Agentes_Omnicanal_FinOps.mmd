@@ -1,0 +1,33 @@
+graph TD
+    classDef external fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef n8n fill:#ff6666,stroke:#fff,color:#fff,stroke-width:2px;
+    classDef data fill:#3399ff,stroke:#fff,color:#fff,stroke-width:2px;
+    classDef ai fill:#00cc66,stroke:#fff,color:#fff,stroke-width:2px;
+
+    subgraph Capa de Ingesta Unificada
+        A[Evolution API - WhatsApp]:::external --> D(Chatwoot Hub):::external
+        B[Meta API - IG & FB]:::external --> D
+        C[Telegram API]:::external --> D
+    end
+
+    subgraph n8n Middleware FinOps
+        D -- Webhook --> E{Enrutador Semántico / Triage}:::n8n
+        E -- "FAQ / Saludo" --> F[Gemini Flash-Lite]:::ai
+        E -- "Ventas / Soporte Complejo" --> G[Agente Gemini 2.5 Flash]:::ai
+    end
+
+    subgraph Arquitectura Híbrida de Datos
+        G -.->|1. Tiempo Real| H[(PostgreSQL: SQL Stock)]:::data
+        G -.->|2. Catálogo| I[(PostgreSQL: pgvector RAG)]:::data
+        G -.->|3. Reglas Globales| J[Gemini Context Cache]:::data
+        G -.->|4. Sesión| K[(PostgreSQL: Chat Memory)]:::data
+    end
+
+    H --> G
+    I --> G
+    J --> G
+    K --> G
+    
+    G --> L[Chatwoot API Node]:::n8n
+    F --> L
+    L --> D

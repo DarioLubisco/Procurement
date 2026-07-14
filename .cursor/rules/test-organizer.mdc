@@ -1,0 +1,67 @@
+---
+description: "Reglas de organización de archivos de prueba. Todo script de prueba temporal, diagnóstico o experimento debe crearse dentro de la carpeta tests/ del proyecto. Prohibido crear scripts de prueba en la raíz o en carpetas de producción."
+globs: "*.py, *.js, *.ts, *.tsx, *.sql, *.sh"
+---
+
+# Cursor Test Rules — Organización de Archivos de Prueba
+
+Esta regla aplica automáticamente en Cursor IDE. El equivalente en ZCode CLI es el skill `cursor-test-rules` (invocar con `/cursor-test-rules`).
+
+## Regla Fundamental
+
+**TODO** script nuevo de prueba, diagnóstico, experimento o validación temporal debe crearse dentro de:
+
+```
+{project_root}/tests/
+```
+
+**PROHIBIDO** crear scripts de prueba en:
+- ❌ La raíz del proyecto (`{project_root}/`)
+- ❌ Carpetas de código de producción (`backend/`, `frontend/`, `analytics_engine/`, `dashboard-react/`, etc.)
+- ❌ Carpetas de configuración (`nginx/`, `sql/`, `docs/`, etc.)
+
+## Estructura Recomendada
+
+```
+{project_root}/tests/
+├── README.md              ← Documentación
+├── .gitkeep               ← Mantiene la carpeta en git
+├── backend/               ← Pruebas del backend FastAPI
+│   ├── test_conexion_bd.py
+│   └── check_api_health.py
+├── frontend/              ← Pruebas del frontend clásico
+├── dashboard/             ← Pruebas del dashboard React
+├── analytics/             ← Pruebas del motor de analítica
+├── sql/                   ← Pruebas de consultas SQL
+└── integracion/           ← Pruebas de integración entre módulos
+```
+
+## Instrucciones Detalladas
+
+### Al crear un nuevo script de prueba:
+
+1. **Identifica el módulo** que se va a probar
+2. **Usa la subcarpeta correspondiente** dentro de `tests/`
+3. **Nombre descriptivo:** que indique claramente qué se prueba
+   - ✅ `test_conexion_bd.py`
+   - ✅ `check_api_health.py`
+   - ❌ `test.py`
+4. **Añade un comentario/docstring** al inicio explicando el propósito
+
+### Al encontrar scripts de prueba fuera de `tests/`:
+
+1. **Identifica** los scripts fuera de lugar
+2. **Propón moverlos** a `tests/` con la estructura adecuada
+3. **Si son obsoletos**, propón moverlos a `Referencia_obsoleta/`
+
+### Excepciones:
+- Tests formales (`pytest`, `jest`, `unittest`) pueden ir en `tests/` o donde defina el framework
+- Scripts de producción NUNCA van en `tests/`
+- Datos de prueba (CSV, JSON, Excel) pueden ir en `tests/test_data/`
+
+## Referencia
+
+Los scripts antiguos que estaban dispersos en la raíz del proyecto fueron movidos a:
+`/home/synapse/source/Referencia_obsoleta/Synapse-Procurement/scripts-diagnostico-prueba-obsoletos/`
+
+No crear nuevos scripts allí. Usa siempre `tests/` del proyecto activo.

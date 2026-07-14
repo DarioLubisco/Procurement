@@ -1,0 +1,147 @@
+{
+  "name": "[PROD] Email Ingestion — Inventario Híbrido",
+  "nodes": [
+    {
+      "parameters": {
+        "postProcessAction": "nothing",
+        "downloadAttachments": true,
+        "options": {}
+      },
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "boolean": [
+            {
+              "name": "ENABLE_AI",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Configuración (Set AI)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Cambia ENABLE_AI a false para apagar la inteligencia y procesar de forma clásica sin errores."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json[\"ENABLE_AI\"]}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "¿Usar Inteligencia Artificial?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/scripts/droguerias/email_parser.py --use-ai --file /tmp/attachments/{{$json.attachment_name}}"
+      },
+      "name": "Procesar con IA (SSH)",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        650,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/scripts/droguerias/email_parser.py --legacy-mode --file /tmp/attachments/{{$json.attachment_name}}"
+      },
+      "name": "Procesar Modo Clásico (SSH)",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        650,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Email ETL falló: {{$json.error_detail}}"
+      },
+      "name": "Lanzar Error → Global Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Configuración (Set AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuración (Set AI)": {
+      "main": [
+        [
+          {
+            "node": "¿Usar Inteligencia Artificial?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Usar Inteligencia Artificial?": {
+      "main": [
+        [
+          {
+            "node": "Procesar con IA (SSH)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Procesar Modo Clásico (SSH)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "errorWorkflow": "zLtMDgsc7OSXyXrp"
+  },
+  "tags": [
+    "Producción",
+    "Proveedores-Híbridos",
+    "Email"
+  ]
+}
