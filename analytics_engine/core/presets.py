@@ -98,6 +98,70 @@ _ALIAS = {
     "w5_extension": "w5",
 }
 
+# FE labels / input types for Definitivo overrides (ticket 11 UX).
+_OVERRIDE_FIELD_META: Dict[str, Dict[str, Any]] = {
+    "amplifier_enabled": {
+        "label": "Amplificador de oportunidad",
+        "type": "boolean",
+        "hint": "Activa el boost por desvío de precio (F4).",
+    },
+    "amp_a": {"label": "Amplificador coeficiente A", "type": "number", "step": "0.01"},
+    "amp_b": {"label": "Amplificador coeficiente B", "type": "number", "step": "0.01"},
+    "amp_max_increment_pct": {
+        "label": "Tope amplificador (%)",
+        "type": "number",
+        "hint": "Máximo incremento porcentual del amplificador.",
+    },
+    "amp_floor_pct": {
+        "label": "Piso amplificador",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Umbral mínimo de desvío para amplificar.",
+    },
+    "ext_max_dias_extra": {
+        "label": "Días extra GapExtension (F5)",
+        "type": "number",
+        "hint": "Extensión máxima de cobertura cuando hay oferta fuerte.",
+    },
+    "f5_umbral": {
+        "label": "Umbral F5 (desvío)",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Desvío ≤ este valor dispara GapExtension.",
+    },
+    "opp_lambda": {
+        "label": "Lambda oportunidad",
+        "type": "number",
+        "step": "0.1",
+        "hint": "Peso de la señal de oportunidad de precio.",
+    },
+    "w1": {"label": "Peso w1 elasticidad", "type": "number", "step": "0.01"},
+    "w2": {"label": "Peso w2 demanda", "type": "number", "step": "0.01"},
+    "w3_posicionamiento": {
+        "label": "Peso w3 posicionamiento",
+        "type": "number",
+        "step": "0.01",
+    },
+    "w4": {"label": "Peso w4 oportunidad", "type": "number", "step": "0.01"},
+    "w5": {"label": "Peso w5 extensión", "type": "number", "step": "0.01"},
+    "lead_time_soft": {
+        "label": "Lead time soft",
+        "type": "select",
+        "options": ["low", "medium", "high"],
+        "hint": "Preferencia de velocidad vs precio en el scoring.",
+    },
+    "split_lead_time_enabled": {
+        "label": "Split LeadTime",
+        "type": "boolean",
+        "hint": "Parte mínimo al rápido y resto al barato cuando el stock no cubre LT.",
+    },
+    "monto_buffer_pct": {
+        "label": "Buffer presupuesto (%)",
+        "type": "number",
+        "step": "0.1",
+    },
+}
+
 
 def resolve_preset_knobs(preset: PresetSencillo) -> PresetKnobs:
     if preset is PresetSencillo.CONSERVADOR:
@@ -157,9 +221,14 @@ def living_override_schema(*, nivel: str = "Avanzado") -> Dict[str, Any]:
         keys = sorted(INTERMEDIO_OVERRIDE_KEYS - set(_ALIAS))
     else:
         keys = sorted(k for k in LIVING_OVERRIDE_KEYS if k not in _ALIAS)
+    fields_out: list[Dict[str, Any]] = []
+    for key in keys:
+        meta = dict(_OVERRIDE_FIELD_META.get(key, {"label": key, "type": "number"}))
+        fields_out.append({"key": key, **meta})
     return {
         "nivel": nivel,
         "living_keys": keys,
+        "fields": fields_out,
         "dead_keys_excluded": sorted(DEAD_OPTIMIZER_KEYS),
         "note": "Overrides map onto PresetKnobs / OptimizerConfig living fields only.",
     }

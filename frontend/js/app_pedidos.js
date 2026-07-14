@@ -351,13 +351,109 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function collectDefinitivoOverrides() {
         const overrides = {};
-        const amp = document.getElementById('ovAmpMax')?.value;
-        const ext = document.getElementById('ovExtDias')?.value;
-        const opp = document.getElementById('ovOppLambda')?.value;
-        if (amp !== undefined && amp !== '') overrides.amp_max_increment_pct = Number(amp);
-        if (ext !== undefined && ext !== '') overrides.ext_max_dias_extra = Number(ext);
-        if (opp !== undefined && opp !== '') overrides.opp_lambda = Number(opp);
+        document.querySelectorAll('#definitivoOverridesHost [data-override-key]').forEach((el) => {
+            const key = el.getAttribute('data-override-key');
+            if (!key) return;
+            const type = el.getAttribute('data-override-type') || 'number';
+            if (type === 'boolean') {
+                if (el.dataset.touched === '1' || el.checked) {
+                    // only send if user checked or explicitly toggled; unchecked default = omit
+                    if (el.dataset.touched === '1') overrides[key] = !!el.checked;
+                }
+                return;
+            }
+            const raw = (el.value || '').trim();
+            if (raw === '') return;
+            if (type === 'select') {
+                overrides[key] = raw;
+                return;
+            }
+            const num = Number(raw);
+            if (!Number.isNaN(num)) overrides[key] = num;
+        });
         return overrides;
+    }
+
+    function renderDefinitivoOverrideFields(schema) {
+        const host = document.getElementById('definitivoOverridesHost');
+        const note = document.getElementById('definitivoOverridesNote');
+        if (!host) return;
+        host.innerHTML = '';
+        const fields = schema.fields || [];
+        fields.forEach((field) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'input-group';
+            wrap.style.margin = '0';
+            const label = document.createElement('label');
+            label.textContent = field.label || field.key;
+            label.title = field.hint || field.key;
+            wrap.appendChild(label);
+
+            let input;
+            if (field.type === 'boolean') {
+                input = document.createElement('input');
+                input.type = 'checkbox';
+                input.style.height = '20px';
+                input.style.width = '20px';
+                input.style.marginTop = '10px';
+                input.addEventListener('change', () => { input.dataset.touched = '1'; });
+            } else if (field.type === 'select') {
+                input = document.createElement('select');
+                input.className = 'form-control';
+                input.style.height = '40px';
+                const blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = '(preset)';
+                input.appendChild(blank);
+                (field.options || []).forEach((opt) => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.textContent = opt;
+                    input.appendChild(o);
+                });
+            } else {
+                input = document.createElement('input');
+                input.type = 'number';
+                input.className = 'form-control';
+                input.style.height = '40px';
+                if (field.step) input.step = field.step;
+                input.placeholder = '(preset)';
+            }
+            input.setAttribute('data-override-key', field.key);
+            input.setAttribute('data-override-type', field.type || 'number');
+            input.id = `ov_${field.key}`;
+            wrap.appendChild(input);
+            if (field.hint) {
+                const hint = document.createElement('small');
+                hint.style.color = 'var(--text-secondary)';
+                hint.style.fontSize = '0.7rem';
+                hint.textContent = field.hint;
+                wrap.appendChild(hint);
+            }
+            host.appendChild(wrap);
+        });
+        if (note) {
+            const dead = (schema.dead_keys_excluded || []).join(', ');
+            note.textContent = `Nivel ${schema.nivel}: ${fields.length} knobs vivos. Excluidos: ${dead || '—'}.`;
+        }
+    }
+
+    async function loadDefinitivoOverrideSchema() {
+        const nivel = document.getElementById('nivelDefinitivo')?.value || 'Intermedio';
+        try {
+            const response = await fetch(`/api/pedidos/overrides-schema?nivel=${encodeURIComponent(nivel)}`);
+            if (!response.ok) throw new Error('schema');
+            const schema = await response.json();
+            renderDefinitivoOverrideFields(schema);
+        } catch (err) {
+            console.warn('overrides-schema unavailable', err);
+        }
+    }
+
+    const nivelDefinitivoEl = document.getElementById('nivelDefinitivo');
+    if (nivelDefinitivoEl) {
+        nivelDefinitivoEl.addEventListener('change', loadDefinitivoOverrideSchema);
+        loadDefinitivoOverrideSchema();
     }
 
     const btnRegenerarDefinitivo = document.getElementById('btnRegenerarDefinitivo');
@@ -374,11 +470,12 @@ document.addEventListener('DOMContentLoaded', () => {
             btnRegenerarDefinitivo.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Regenerando Definitivo...';
             try {
                 const base = buildSencilloPayload();
+                const overrides = collectDefinitivoOverrides();
                 const payload = {
                     ...base,
                     nivel: document.getElementById('nivelDefinitivo')?.value || 'Intermedio',
                     base_preset: document.getElementById('basePresetDefinitivo')?.value || 'Normal',
-                    overrides: collectDefinitivoOverrides(),
+                    overrides,
                 };
                 delete payload.preset;
                 const response = await fetch('/api/pedidos/regenerar-definitivo', {
@@ -392,8 +489,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const data = await response.json();
                 renderGenerarResult(data);
+                const applied = (data.meta?.overrides_applied || []).join(', ') || 'ninguno';
                 showAlert(
-                    `Pedido Definitivo regenerado (${data.meta?.nivel}). Comparativa y Propuesto actualizados juntos.`,
+                    `Pedido Definitivo regenerado (${data.meta?.nivel}). Overrides: ${applied}.`,
                     true
                 );
             } catch (error) {

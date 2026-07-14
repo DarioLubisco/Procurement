@@ -100,6 +100,17 @@ def test_living_schema_excludes_dead_knobs():
     assert "sust_kappa" in schema["dead_keys_excluded"]
 
 
+def test_living_schema_includes_labeled_fields_for_fe():
+    inter = living_override_schema(nivel="Intermedio")
+    adv = living_override_schema(nivel="Avanzado")
+    assert inter["fields"]
+    assert {f["key"] for f in inter["fields"]} == set(inter["living_keys"])
+    assert all("label" in f and "type" in f for f in inter["fields"])
+    assert len(adv["living_keys"]) >= len(inter["living_keys"])
+    assert "amp_a" in adv["living_keys"]
+    assert "amp_a" not in inter["living_keys"]
+
+
 def test_sencillo_meta_marks_forced_includes_and_excel_deprecated():
     catalog, offers = _fixture()
     payload = run_generar_sencillo(

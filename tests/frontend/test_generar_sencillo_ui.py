@@ -30,7 +30,11 @@ def test_fe_regenerar_definitivo_distinct_from_sencillo():
     assert "Regenerar Pedido Definitivo" in HTML
     assert 'id="btnRegenerarDefinitivo"' in HTML
     assert 'id="nivelDefinitivo"' in HTML
+    assert 'id="definitivoOverridesHost"' in HTML
     assert "/api/pedidos/regenerar-definitivo" in JS
+    assert "/api/pedidos/overrides-schema" in JS
+    assert "renderDefinitivoOverrideFields" in JS
+    assert "loadDefinitivoOverrideSchema" in JS
     assert "s4_enabled" in HTML  # documented as excluded
     assert "sust_kappa" in HTML
     assert "forced_includes" not in JS or "deprecated" in JS.lower()
