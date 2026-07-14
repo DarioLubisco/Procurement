@@ -50,6 +50,26 @@ def distribute_parcial(
     """
     cat = catalog.copy()
     cat["barra"] = cat["barra"].astype(str)
+    # Empty / failed market load (e.g. Mercado_Vivo timeout) → no columns
+    if (
+        market_offers is None
+        or market_offers.empty
+        or "barra" not in market_offers.columns
+    ):
+        return [
+            Allocation(
+                barra_baseline=line.barra,
+                desc_baseline=line.descripcion,
+                qty_baseline=line.cantidad,
+                barra_propuesto=line.barra,
+                desc_propuesto=line.descripcion,
+                qty_propuesto=line.cantidad,
+                proveedor="",
+                justificacion_delta="sin ofertas de mercado (Mercado_Vivo vacío o timeout)",
+            )
+            for line in baseline
+        ]
+
     offers = _enrich_offers_with_grupo(market_offers, cat, criterios)
 
     by_barra = {str(r.barra): r for _, r in cat.iterrows()}

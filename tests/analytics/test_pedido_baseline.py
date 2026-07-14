@@ -186,6 +186,87 @@ def test_criterios_agrupacion_missing_columns_fail_closed():
         )
 
 
+def test_blank_mdm_attrs_fall_back_to_sku_level_need():
+    """Empty CriteriosAgrupacion values must not mega-group the catalog."""
+    catalog = _catalog(
+        [
+            {
+                "barra": "LOW",
+                "descripcion": "Low need",
+                "rotacion_mensual": 10.0,
+                "existen": 0.0,
+                "principio_activo": "",
+                "forma_farmaceutica": "",
+                "es_generico": True,
+            },
+            {
+                "barra": "HIGH_STOCK",
+                "descripcion": "Stock kills mega-group",
+                "rotacion_mensual": 5.0,
+                "existen": 100.0,
+                "principio_activo": "",
+                "forma_farmaceutica": "",
+                "es_generico": True,
+            },
+        ]
+    )
+    lines = compute_pedido_baseline(
+        catalog,
+        cobertura_dias=30.0,
+        filtros=FiltrosOperativos(),
+        criterios_agrupacion=["principio_activo", "forma_farmaceutica"],
+    )
+    by_barra = {line.barra: line.cantidad for line in lines}
+    assert by_barra == {"LOW": 10}
+    assert "HIGH_STOCK" not in by_barra
+
+
+def test_partial_mdm_coverage_blank_rows_stay_sku_level():
+    """Products with MDM group together; unmatched blanks stay per-SKU."""
+    catalog = _catalog(
+        [
+            {
+                "barra": "A1",
+                "descripcion": "A1",
+                "rotacion_mensual": 10.0,
+                "existen": 0.0,
+                "principio_activo": "PA1",
+                "forma_farmaceutica": "TAB",
+                "es_generico": True,
+            },
+            {
+                "barra": "A2",
+                "descripcion": "A2",
+                "rotacion_mensual": 10.0,
+                "existen": 0.0,
+                "principio_activo": "PA1",
+                "forma_farmaceutica": "TAB",
+                "es_generico": True,
+            },
+            {
+                "barra": "ORPHAN",
+                "descripcion": "No MDM",
+                "rotacion_mensual": 7.0,
+                "existen": 0.0,
+                "principio_activo": "",
+                "forma_farmaceutica": "",
+                "es_generico": True,
+            },
+        ]
+    )
+    lines = compute_pedido_baseline(
+        catalog,
+        cobertura_dias=30.0,
+        filtros=FiltrosOperativos(),
+        criterios_agrupacion=["principio_activo", "forma_farmaceutica"],
+    )
+    by_barra = {line.barra: line.cantidad for line in lines}
+    # A1+A2 group: rot 20, stock 0 → qty 20 each
+    assert by_barra["A1"] == 20
+    assert by_barra["A2"] == 20
+    assert by_barra["ORPHAN"] == 7
+
+
 def test_baseline_has_no_motor_side_effects_on_output_shape():
 
     catalog = _catalog(

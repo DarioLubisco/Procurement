@@ -132,10 +132,18 @@ def load_catalog_and_offers_from_db(
                 ]
         catalog_rows = map_catalog_dataframe(catalog_df)
         barras = [r["barra"] for r in catalog_rows]
-        offers_df = pd.DataFrame()
+        offers_df = pd.DataFrame(
+            columns=[
+                "codigo_barras",
+                "proveedor",
+                "precio_unitario_final",
+                "stock_disponible",
+                "descripcion_producto",
+            ]
+        )
         if barras:
-            # Limit IN clause size — sample first 2000 barras for offer join
-            sample = barras[:2000]
+            # Cap IN-list size — large lists timeout ODBC against Mercado_Vivo
+            sample = barras[:200]
             placeholders = ",".join(["?"] * len(sample))
             try:
                 offers_df = pd.read_sql(
@@ -150,7 +158,15 @@ def load_catalog_and_offers_from_db(
                 )
             except Exception as exc:
                 logger.warning("Mercado_Vivo unavailable: %s", exc)
-                offers_df = pd.DataFrame()
+                offers_df = pd.DataFrame(
+                    columns=[
+                        "codigo_barras",
+                        "proveedor",
+                        "precio_unitario_final",
+                        "stock_disponible",
+                        "descripcion_producto",
+                    ]
+                )
         offers_rows = map_mercado_vivo_dataframe(offers_df)
         return catalog_rows, offers_rows
     finally:

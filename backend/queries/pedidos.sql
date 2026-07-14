@@ -11,6 +11,7 @@ WITH RotacionAgregada AS (
 ),
 RawCalculations AS (
   -- Esta CTE ahora usa los datos pre-agregados de RotacionAgregada.
+  -- MDM attrs: LEFT JOIN equivalencias por código de barras (IDs → varchar para agrupar).
   SELECT
     p.Descrip,
     p.CodProd,
@@ -22,6 +23,11 @@ RawCalculations AS (
     p.Maximo,
     COALESCE(r.RotacionMensual, 0) AS RotacionMensual,
     p.Existen,
+    CAST(eq.principio_activo AS VARCHAR(50)) AS principio_activo,
+    CAST(eq.forma_farmaceutica AS VARCHAR(50)) AS forma_farmaceutica,
+    CAST(eq.concentracion AS VARCHAR(50)) AS concentracion,
+    CAST(eq.cantidad_presentacion AS VARCHAR(50)) AS cantidad_presentacion,
+    CAST(eq.contenido_neto AS VARCHAR(50)) AS contenido_neto,
     (COALESCE(r.RotacionMensual, 0) * 9 / 30.0 - p.Existen) AS Pedido9_raw,
     (COALESCE(r.RotacionMensual, 0) * 14 / 30.0 - p.Existen) AS Pedido14_raw,
     (COALESCE(r.RotacionMensual, 0) * 21 / 30.0 - p.Existen) AS Pedido21_raw,
@@ -40,6 +46,8 @@ RawCalculations AS (
     dbo.SAPROD AS p
     LEFT JOIN RotacionAgregada AS r ON p.CodProd = r.CodItem -- Unimos con la CTE agregada
     LEFT JOIN dbo.SAINSTA AS i ON p.CodInst = i.CodInst
+    LEFT JOIN Procurement.por_aprobacion_equivalencias AS eq
+      ON p.CodProd = eq.codbarras
   WHERE
     p.Activo = 1
     /* PRODUCT_FILTER_PLACEHOLDER */
@@ -57,6 +65,11 @@ Calculated AS (
     Maximo,
     RotacionMensual,
     Existen,
+    principio_activo,
+    forma_farmaceutica,
+    concentracion,
+    cantidad_presentacion,
+    contenido_neto,
     DiaAut,
     CAST(ROUND(Pedido9_raw, 0) AS INT) AS Pedido9,
     CAST(ROUND(Pedido14_raw, 0) AS INT) AS Pedido14,

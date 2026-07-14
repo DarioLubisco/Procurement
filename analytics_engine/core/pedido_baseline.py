@@ -59,20 +59,41 @@ def compute_pedido_baseline(
             raise ValueError(
                 f"catalog missing CriteriosAgrupacion columns: {missing_attrs}"
             )
-        grouped = (
-            df.groupby(attrs, dropna=False)[["rotacion_mensual", "existen"]]
-            .sum()
-            .reset_index()
-            .rename(
-                columns={
-                    "rotacion_mensual": "_rot_grupo",
-                    "existen": "_stock_grupo",
-                }
+        # Drop attrs that are blank for the entire catalog (no discriminative power).
+        attrs = [
+            a
+            for a in attrs
+            if df[a].fillna("").astype(str).str.strip().ne("").any()
+        ]
+        if attrs:
+            for a in attrs:
+                df[a] = df[a].fillna("").astype(str).str.strip()
+            # Rows without MDM must not share one empty mega-key (stock_sum ≫ rot).
+            blank_rows = True
+            for a in attrs:
+                blank_rows = blank_rows & df[a].eq("")
+            df["_grp_key"] = [
+                ("__sku__", b) if blank else tuple(vals)
+                for blank, b, vals in zip(
+                    blank_rows.tolist(),
+                    df["barra"].tolist(),
+                    df[attrs].itertuples(index=False, name=None),
+                )
+            ]
+            grouped = (
+                df.groupby("_grp_key", dropna=False)[["rotacion_mensual", "existen"]]
+                .sum()
+                .reset_index()
+                .rename(
+                    columns={
+                        "rotacion_mensual": "_rot_grupo",
+                        "existen": "_stock_grupo",
+                    }
+                )
             )
-        )
-        df = df.merge(grouped, on=attrs, how="left")
-        rot = df["_rot_grupo"].fillna(df["rotacion_mensual"])
-        stock = df["_stock_grupo"].fillna(df["existen"])
+            df = df.merge(grouped, on="_grp_key", how="left").copy()
+            rot = df["_rot_grupo"].fillna(df["rotacion_mensual"])
+            stock = df["_stock_grupo"].fillna(df["existen"])
 
     df = df.assign(_rot_eff=rot, _stock_eff=stock)
     df["cantidad"] = (df["_rot_eff"] * float(cobertura_dias) / 30.0 - df["_stock_eff"]).round().astype(int)
