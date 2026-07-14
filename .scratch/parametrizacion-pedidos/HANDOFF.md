@@ -18,7 +18,7 @@
 | Tema | Notas |
 |------|--------|
 | **MOQ por proveedor** | No hay columna en Mercado_Vivo/Proveedores. ADR-0015: nullable; **no** usar `SAPROD.Minimo`. |
-| **Latencia Generar** | ~12–23s productivos (cuello Mercado_Vivo). Optimizar = **medium**. |
+| **Latencia Generar** | ~~12–23s~~ → **~2.5s** load (`OPENJSON` join a Mercado_Vivo; IN parametrizado era el cuello). |
 | **BorradorPedidos** | Existe; no es Backorder abierto. No cableado al Generar. |
 
 ## Smoke reciente (referencia)
@@ -33,5 +33,5 @@ Grill cerrado (Necesidad vs Pedido, Baseline sin motor, Comparativa grain B, F5,
 ## Próximo agente
 
 1. Si ops publica MOQ → mapear a `market_offers.moq` / `OfferLeg.moq`.
-2. Si piden velocidad → perfilar chunks Mercado_Vivo (**medium**).
+2. ~~Si piden velocidad → perfilar chunks Mercado_Vivo~~ — hecho: OPENJSON (~0.5s) + fallback full-scan.
 3. ~~Cache categories + meta `load_ms` / `offers_unique` / `backorder_rows`~~ — hecho 2026-07-14.

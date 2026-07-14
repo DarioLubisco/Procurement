@@ -105,3 +105,62 @@ def test_fetch_mercado_vivo_offers_continues_after_chunk_failure():
         read_sql=flaky_read_sql,
     )
     assert out["codigo_barras"].tolist() == ["B1"]
+
+
+def test_fetch_mercado_vivo_offers_openjson_primary_path():
+    class _Cur:
+        def __init__(self):
+            self.sql = None
+            self.params = None
+            self.description = [
+                ("codigo_barras",),
+                ("proveedor",),
+                ("precio_unitario_final",),
+                ("stock_disponible",),
+                ("descripcion_producto",),
+            ]
+
+        def execute(self, sql, params=None):
+            self.sql = sql
+            self.params = params
+
+        def fetchall(self):
+            return [("111", "P", 1.5, 10, "x")]
+
+    class _Conn:
+        def cursor(self):
+            return _Cur()
+
+    out = fetch_mercado_vivo_offers(conn=_Conn(), barras=["111", "111", "  "])
+    assert len(out) == 1
+    assert out.iloc[0]["codigo_barras"] == "111"
+
+
+def test_fetch_mercado_vivo_offers_falls_back_to_full_scan():
+    class _Cur:
+        def __init__(self):
+            self.description = [
+                ("codigo_barras",),
+                ("proveedor",),
+                ("precio_unitario_final",),
+                ("stock_disponible",),
+                ("descripcion_producto",),
+            ]
+
+        def execute(self, sql, params=None):
+            if "OPENJSON" in sql:
+                raise Exception("OPENJSON not supported")
+            self.sql = sql
+
+        def fetchall(self):
+            return [
+                ("KEEP", "P", 1.0, 1, "a"),
+                ("DROP", "P", 2.0, 1, "b"),
+            ]
+
+    class _Conn:
+        def cursor(self):
+            return _Cur()
+
+    out = fetch_mercado_vivo_offers(conn=_Conn(), barras=["KEEP"])
+    assert out["codigo_barras"].tolist() == ["KEEP"]

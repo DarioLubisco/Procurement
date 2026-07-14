@@ -1,9 +1,10 @@
 """Load catalog + market offers for Generar Sencillo (DB adapters)."""
 from __future__ import annotations
 
+import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import pandas as pd
 
@@ -13,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 QUERY_PATH = os.path.join(os.path.dirname(__file__), "..", "queries", "pedidos.sql")
 
-# ODBC times out on huge single IN lists against Mercado_Vivo; batch instead of truncating.
-MERCADO_VIVO_IN_CHUNK = 200
+# Legacy fallback only — parameterized IN against Mercado_Vivo (UNION view) is ~20s+.
+MERCADO_VIVO_IN_CHUNK = 2000
 
 _OFFERS_EMPTY = pd.DataFrame(
     columns=[
@@ -26,11 +27,25 @@ _OFFERS_EMPTY = pd.DataFrame(
     ]
 )
 
-_SQL_MERCADO_VIVO = """
+_SQL_MERCADO_VIVO_IN = """
     SELECT codigo_barras, proveedor, precio_unitario_final,
            stock_disponible, descripcion_producto
     FROM Analitica.Mercado_Vivo
     WHERE codigo_barras IN ({placeholders})
+"""
+
+_SQL_MERCADO_VIVO_OPENJSON = """
+    SELECT mv.codigo_barras, mv.proveedor, mv.precio_unitario_final,
+           mv.stock_disponible, mv.descripcion_producto
+    FROM Analitica.Mercado_Vivo mv
+    INNER JOIN OPENJSON(?) WITH (codigo_barras NVARCHAR(50) '$.b') AS j
+      ON CAST(mv.codigo_barras AS NVARCHAR(50)) = j.codigo_barras
+"""
+
+_SQL_MERCADO_VIVO_FULL = """
+    SELECT codigo_barras, proveedor, precio_unitario_final,
+           stock_disponible, descripcion_producto
+    FROM Analitica.Mercado_Vivo
 """
 
 
@@ -179,34 +194,69 @@ def prioritize_barras_for_offers(
     return primary
 
 
+def _normalize_barras(barras: Sequence[str]) -> List[str]:
+    out: List[str] = []
+    seen: set[str] = set()
+    for raw in barras:
+        b = str(raw or "").strip()
+        if not b or b in seen:
+            continue
+        seen.add(b)
+        out.append(b)
+    return out
+
+
+def _records_to_offers_df(cols: Sequence[str], rows: Sequence[Any]) -> pd.DataFrame:
+    if not rows:
+        return _OFFERS_EMPTY.copy()
+    return pd.DataFrame.from_records(rows, columns=list(cols))
+
+
 def _read_mercado_chunk_via_cursor(conn: Any, sql: str, chunk: Sequence[str]) -> pd.DataFrame:
     """Prefer raw cursor — avoids pandas/pyodbc 'Gaps in blk ref_locs' on some chunks."""
     cur = conn.cursor()
     cur.execute(sql, list(chunk))
     cols = [d[0] for d in cur.description]
     rows = cur.fetchall()
-    if not rows:
-        return _OFFERS_EMPTY.copy()
-    return pd.DataFrame.from_records(rows, columns=cols)
+    return _records_to_offers_df(cols, rows)
 
 
-def fetch_mercado_vivo_offers(
+def _fetch_mercado_via_openjson(conn: Any, barras: Sequence[str]) -> pd.DataFrame:
+    """JOIN Mercado_Vivo once via OPENJSON — ~0.5s vs ~20s for big IN lists."""
+    payload = json.dumps([{"b": b} for b in barras])
+    cur = conn.cursor()
+    cur.execute(_SQL_MERCADO_VIVO_OPENJSON, [payload])
+    cols = [d[0] for d in cur.description]
+    rows = cur.fetchall()
+    return _records_to_offers_df(cols, rows)
+
+
+def _fetch_mercado_via_full_scan_filter(
+    conn: Any, wanted: Set[str]
+) -> pd.DataFrame:
+    """Scan Mercado_Vivo (~65k rows, <1s) and filter barras in Python."""
+    cur = conn.cursor()
+    cur.execute(_SQL_MERCADO_VIVO_FULL)
+    cols = [d[0] for d in cur.description]
+    # codigo_barras is column 0 in the SELECT
+    rows = [r for r in cur.fetchall() if str(r[0]).strip() in wanted]
+    return _records_to_offers_df(cols, rows)
+
+
+def _fetch_mercado_via_chunked_in(
     conn: Any,
     barras: Sequence[str],
     *,
-    chunk_size: int = MERCADO_VIVO_IN_CHUNK,
+    chunk_size: int,
     read_sql=None,
 ) -> pd.DataFrame:
-    """Load Mercado_Vivo for selected barras via chunked IN lists (no hard truncations)."""
-    if not barras:
-        return _OFFERS_EMPTY.copy()
-
+    """Legacy path: chunked parameterized IN (slow against UNION view)."""
     chunks_out: List[pd.DataFrame] = []
     size = max(1, int(chunk_size))
     for i in range(0, len(barras), size):
         chunk = list(barras[i : i + size])
         placeholders = ",".join(["?"] * len(chunk))
-        sql = _SQL_MERCADO_VIVO.format(placeholders=placeholders)
+        sql = _SQL_MERCADO_VIVO_IN.format(placeholders=placeholders)
         try:
             if read_sql is not None:
                 part = read_sql(sql, conn, params=chunk)
@@ -228,6 +278,75 @@ def fetch_mercado_vivo_offers(
         return _OFFERS_EMPTY.copy()
     return pd.concat(chunks_out, ignore_index=True).copy()
 
+
+def fetch_mercado_vivo_offers(
+    conn: Any,
+    barras: Sequence[str],
+    *,
+    chunk_size: int = MERCADO_VIVO_IN_CHUNK,
+    read_sql=None,
+    strategy: Optional[str] = None,
+) -> pd.DataFrame:
+    """Load Mercado_Vivo for selected barras.
+
+    Default strategy order (live DB):
+      1) OPENJSON join (one scan of the view, ~0.5s)
+      2) full view scan + Python filter (~0.7s)
+      3) chunked IN (legacy; ~20s — last resort)
+
+    If ``read_sql`` is provided (unit tests), uses chunked IN only.
+    """
+    clean = _normalize_barras(barras)
+    if not clean:
+        return _OFFERS_EMPTY.copy()
+
+    if read_sql is not None or strategy == "chunked_in":
+        return _fetch_mercado_via_chunked_in(
+            conn, clean, chunk_size=chunk_size, read_sql=read_sql
+        )
+
+    if strategy in (None, "openjson", "auto"):
+        try:
+            out = _fetch_mercado_via_openjson(conn, clean)
+            logger.info(
+                "Mercado_Vivo via OPENJSON: barras=%s offer_rows=%s",
+                len(clean),
+                len(out),
+            )
+            return out
+        except Exception as exc:
+            if strategy == "openjson":
+                raise
+            logger.warning("Mercado_Vivo OPENJSON failed, trying full scan: %s", exc)
+
+    if strategy in (None, "full_scan", "auto"):
+        try:
+            out = _fetch_mercado_via_full_scan_filter(conn, set(clean))
+            logger.info(
+                "Mercado_Vivo via full-scan filter: barras=%s offer_rows=%s",
+                len(clean),
+                len(out),
+            )
+            return out
+        except Exception as exc:
+            if strategy == "full_scan":
+                raise
+            logger.warning("Mercado_Vivo full scan failed, falling back to IN: %s", exc)
+
+    return _fetch_mercado_via_chunked_in(
+        conn, clean, chunk_size=chunk_size, read_sql=None
+    )
+
+
+def _read_catalog_via_cursor(conn: Any, query: str) -> pd.DataFrame:
+    """Cursor path for pedidos.sql — avoids pandas Gaps-in-blk on large result."""
+    cur = conn.cursor()
+    cur.execute(query)
+    cols = [d[0] for d in cur.description]
+    rows = cur.fetchall()
+    if not rows:
+        return pd.DataFrame(columns=cols)
+    return pd.DataFrame.from_records(rows, columns=cols)
 
 
 def load_catalog_and_offers_from_db(
@@ -262,7 +381,7 @@ def load_catalog_and_offers_from_db(
 
     conn = database.get_db_connection()
     try:
-        catalog_df = pd.read_sql(query, conn)
+        catalog_df = _read_catalog_via_cursor(conn, query)
         if categorias:
             wanted = {str(c).strip() for c in categorias if str(c).strip()}
             if wanted and "Instancia" in catalog_df.columns:
