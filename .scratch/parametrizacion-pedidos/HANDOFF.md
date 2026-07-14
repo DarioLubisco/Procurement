@@ -17,7 +17,7 @@
 
 | Tema | Notas |
 |------|--------|
-| **MOQ por proveedor** | Fuente: `Procurement.ProveedorConfig.MontoMinimoPedidoUSD` (USD, nullable). Cableado al motor pendiente. |
+| **MOQ / mínimo USD** | Columna `MontoMinimoPedidoUSD` lista. Flujo ValidarMinimosProveedor: **ADR-0016** (grill cerrado; impl pendiente). |
 | **Latencia Generar** | ~~12–23s~~ → **~2.5s** load (`OPENJSON` join a Mercado_Vivo; IN parametrizado era el cuello). |
 | **BorradorPedidos** | Existe; no es Backorder abierto. No cableado al Generar. |
 

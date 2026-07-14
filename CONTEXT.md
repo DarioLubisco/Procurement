@@ -34,9 +34,17 @@ _Avoid_: Matriz de Decisión (no implementada)
 Atributo de producto en escala 0–5 (`elasticidad_demanda`) que indica cuánto puede ceder/reemplazarse demanda dentro del Grupo. Suele ser menor que 5, así que no hay sustitución total a un solo ganador. Es **un input más** del motor, no el árbitro único del Propuesto.
 _Avoid_: tratar elasticidad como única causa del delta; asumir elasticidad=5 como caso normal; gatillo S4 `elasticidad==0` como uso principal
 
-**MOQ:**
-Cantidad mínima de pedido **por proveedor** (por oferta). En SplitLeadTime: `mínimo_al_rápido = max(rot×LT, MOQ_proveedor)` si MOQ está cargado; si no, solo `rot×LT`. Ubicación física del dato se decide en P1; hasta entonces MOQ es nullable. **No** es `SAPROD.Minimo` del ERP.
-_Avoid_: inventar MOQ fantasma; bloquear P1 por falta de tabla MOQ; usar SAPROD.Minimo como sustituto sin decisión
+**MontoMinimoPedidoUSD:**
+Piso comercial en dólares por proveedor (`ProveedorConfig.MontoMinimoPedidoUSD`, nullable). No es `SAPROD.Minimo` ERP.
+_Avoid_: confundir con MOQ en unidades del SplitLeadTime
+
+**MOQ (unidades):**
+Cantidad mínima por oferta en SplitLeadTime: `max(rot×LT, MOQ)` si viene en la oferta; nullable. Distinto de MontoMinimoPedidoUSD.
+_Avoid_: usar SAPROD.Minimo; tratar el mínimo USD como uds sin conversión explícita
+
+**ValidarMinimosProveedor:**
+Paso explícito post-Generar. Proveedores bajo `MontoMinimoPedidoUSD` en **cola serie** (mayor déficit USD primero). Modal % extra (default +50%) → recálculo solo sus SKUs. Tras 1er fallo: panel (ahorro, costo rechazo, reemplazos Grupo) antes de más %; Aceptar / Rechazar / Probar otro % (ilimitado). Rechazo reasigna (barra→Grupo) o huérfano y **re-encola** destinos bajo mínimo. Trazas: `JustificacionDelta` por línea **y** `meta.validar_minimos`. `NULL` config = omitir.
+_Avoid_: mutar cobertura en el primer Generar; inventar qty para llegar a $; sin traza en Comparativa
 
 **LeadTime (LT):**
 Tiempo de despacho/entrega del proveedor (días/horas). Ver SplitLeadTime.
