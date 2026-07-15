@@ -15,8 +15,8 @@ Cantidades **solo con rotación × cobertura − stock**, **sin motor de scoring
 _Avoid_: Baseline en rotación SKU mientras Propuesto usa Grupo de 5 attrs; aplicar amplificador al Baseline; llamar “perfil Lineal v3.2” al Baseline
 
 **CriteriosAgrupacion:**
-Lista de atributos MDM que definen el Grupo (whitelist `RotacionGrupal`). Default de sistema: `principio_activo`, `forma_farmaceutica`, `concentracion`, `cantidad_presentacion`, `contenido_neto` — persistido en BD (perfil/config) y **sobreescribible** como preferencia de usuario en el FE; editable antes del primer Generar. Gobiernan **Baseline y Propuesto** en la misma corrida. El request siempre envía la lista efectiva al backend.
-_Avoid_: criterios_agrupamiento ignored del v3.2; solo PA+FF+conc; columna `cantidad` suelta; Baseline SKU vs Propuesto grupal; default solo en localStorage sin default de sistema
+Lista de atributos MDM que definen el Grupo (whitelist `ATRIBUTOS_VALIDOS` / `RotacionGrupal_Atributos`, 10 campos). Default de sistema: `principio_activo`, `forma_farmaceutica`, `concentracion`, `cantidad_presentacion`, `contenido_neto` — sobreescribible en el FE (subconjunto no vacío). El request siempre envía la lista efectiva; el catálogo carga los 10 attrs. Ver ADR-0008 + ADR-0020.
+_Avoid_: criterios_agrupamiento ignored del v3.2; mostrar attrs en FE sin columnas en catálogo; aceptar attrs fuera de whitelist; solo PA+FF+conc hardcodeado; Baseline SKU vs Propuesto grupal; default solo en localStorage sin default de sistema
 
 **PedidoPropuesto:**
 Primera salida del motor (mercado vivo, DistribucionParcial). Perfil **Sencillo**: preset + Cobertura + FiltrosOperativos + presupuesto opcional. Puede usar otras BARRAs del mismo Grupo. En el primer Generar se entrega **junto con** la ComparativaCantidades, con asignación a **proveedor**.

@@ -17,6 +17,13 @@ def test_fe_has_sencillo_controls_and_comparativa_tables():
     assert "Justificación" in HTML
     assert "Proveedor" in HTML
     assert "Generar (Sencillo)" in HTML
+    assert 'id="categoriesBar"' in HTML or 'id="btnEditCategories"' in HTML
+    assert 'id="categoriesModal"' in HTML
+    assert 'id="configBody"' in HTML
+    assert 'id="btnToggleConfig"' in HTML
+    assert "avanzadas-contingencia" in HTML or "Opciones avanzadas" in HTML
+    assert "pedidos-table-scroll" in HTML
+    assert "320px" not in HTML  # old sidebar column gone
 
 
 def test_fe_calls_unified_generar_sencillo_endpoint():
@@ -24,6 +31,10 @@ def test_fe_calls_unified_generar_sencillo_endpoint():
     assert "renderGenerarResult" in JS
     assert "criterios_agrupacion" in JS
     assert "buildSencilloPayload" in JS
+    assert "/api/rotacion-grupal/atributos" in JS
+    assert "fetchCriteriosAtributos" in JS
+    assert "openCategoriesModal" in JS
+    assert "setConfigCollapsed" in JS
 
 
 def test_fe_regenerar_definitivo_distinct_from_sencillo():

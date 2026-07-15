@@ -59,6 +59,7 @@ def _load_catalog_offers_backorder(
     market_offers: Optional[List[Dict[str, Any]]],
     backorder: Optional[List[Dict[str, Any]]],
     log_label: str,
+    criterios_agrupacion: Optional[List[str]] = None,
 ) -> Tuple[
     Sequence[Dict[str, Any]],
     Sequence[Dict[str, Any]],
@@ -88,6 +89,7 @@ def _load_catalog_offers_backorder(
                 categorias=categorias,
                 include_generics=include_generics,
                 include_brands=include_brands,
+                criterios_agrupacion=criterios_agrupacion,
             )
         except Exception as exc:
             logging.error("DB load for %s failed: %s", log_label, exc, exc_info=True)
@@ -134,6 +136,7 @@ async def generar_sencillo(body: GenerarSencilloRequest):
             market_offers=body.market_offers,
             backorder=body.backorder,
             log_label="generar-sencillo",
+            criterios_agrupacion=body.criterios_agrupacion,
         )
     )
 
@@ -196,6 +199,7 @@ async def regenerar_definitivo(body: RegenerarDefinitivoRequest):
             market_offers=body.market_offers,
             backorder=body.backorder,
             log_label="regenerar-definitivo",
+            criterios_agrupacion=body.criterios_agrupacion,
         )
     )
 

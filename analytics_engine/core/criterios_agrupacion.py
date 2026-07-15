@@ -1,10 +1,11 @@
-"""CriteriosAgrupacion — system default and DemandaGrupal aggregation."""
+"""CriteriosAgrupacion — system default, whitelist, and DemandaGrupal aggregation."""
 from __future__ import annotations
 
 from typing import List, Optional, Sequence
 
 import pandas as pd
 
+# Product default (ADR-0008) — checked in FE on load.
 CRITERIOS_AGRUPACION_DEFAULT: tuple[str, ...] = (
     "principio_activo",
     "forma_farmaceutica",
@@ -13,18 +14,68 @@ CRITERIOS_AGRUPACION_DEFAULT: tuple[str, ...] = (
     "contenido_neto",
 )
 
+# Whitelist aligned with Procurement.RotacionGrupal_Atributos / ATRIBUTOS_VALIDOS.
+ATRIBUTOS_VALIDOS: frozenset[str] = frozenset(
+    {
+        "principio_activo",
+        "concentracion",
+        "forma_farmaceutica",
+        "cantidad_presentacion",
+        "origen",
+        "fabricante",
+        "contenido_neto",
+        "generico",
+        "marca",
+        "blister",
+    }
+)
+
+# Stable order for catalog columns / FE fallback (es_base first, then id order).
+ATRIBUTOS_VALIDOS_ORDER: tuple[str, ...] = (
+    "principio_activo",
+    "concentracion",
+    "forma_farmaceutica",
+    "cantidad_presentacion",
+    "origen",
+    "fabricante",
+    "contenido_neto",
+    "generico",
+    "marca",
+    "blister",
+)
+
+
+class CriteriosAgrupacionInvalid(ValueError):
+    """Request criterios not ⊆ ATRIBUTOS_VALIDOS or empty after clean."""
+
 
 def resolve_criterios_agrupacion(
     requested: Optional[Sequence[str]],
 ) -> List[str]:
     """Effective CriteriosAgrupacion for a run.
 
-    None or empty → system default (5 attrs). Non-empty override wins.
-    This is the runtime authority for the unified Generar path (not hardcoded Molécula-3).
+    None or empty → system default (5 attrs). Non-empty override must be
+    non-empty after clean and ⊆ ATRIBUTOS_VALIDOS (grill layout 2026-07-15).
     """
-    if requested:
-        return list(requested)
-    return list(CRITERIOS_AGRUPACION_DEFAULT)
+    if not requested:
+        return list(CRITERIOS_AGRUPACION_DEFAULT)
+    cleaned: List[str] = []
+    seen: set[str] = set()
+    for raw in requested:
+        a = str(raw or "").strip()
+        if not a or a in seen:
+            continue
+        seen.add(a)
+        cleaned.append(a)
+    if not cleaned:
+        return list(CRITERIOS_AGRUPACION_DEFAULT)
+    invalid = sorted(a for a in cleaned if a not in ATRIBUTOS_VALIDOS)
+    if invalid:
+        raise CriteriosAgrupacionInvalid(
+            f"CriteriosAgrupacion no válidos: {', '.join(invalid)}. "
+            f"Válidos: {', '.join(ATRIBUTOS_VALIDOS_ORDER)}"
+        )
+    return cleaned
 
 
 def compute_demanda_grupal(

@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import pandas as pd
 
-from analytics_engine.core.criterios_agrupacion import CRITERIOS_AGRUPACION_DEFAULT
+from analytics_engine.core.criterios_agrupacion import (
+    ATRIBUTOS_VALIDOS_ORDER,
+    CRITERIOS_AGRUPACION_DEFAULT,
+    resolve_criterios_agrupacion,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +87,7 @@ def map_catalog_dataframe(df: pd.DataFrame) -> List[Dict[str, Any]]:
         out["existen"] = 0.0
     if "es_generico" not in out.columns:
         out["es_generico"] = True
-    for attr in CRITERIOS_AGRUPACION_DEFAULT:
+    for attr in ATRIBUTOS_VALIDOS_ORDER:
         if attr not in out.columns:
             out[attr] = ""
     cols = [
@@ -93,7 +97,7 @@ def map_catalog_dataframe(df: pd.DataFrame) -> List[Dict[str, Any]]:
         "existen",
         "es_generico",
         "categoria",
-        *CRITERIOS_AGRUPACION_DEFAULT,
+        *ATRIBUTOS_VALIDOS_ORDER,
     ]
     cols = [c for c in cols if c in out.columns]
     return out[cols].to_dict(orient="records")
@@ -132,6 +136,7 @@ def prioritize_barras_for_offers(
     cobertura_dias: float = 30.0,
     only_positive_need: bool = True,
     max_barras: Optional[int] = None,
+    criterios_agrupacion: Optional[Sequence[str]] = None,
 ) -> List[str]:
     """Unique barras for Mercado_Vivo lookup.
 
@@ -139,7 +144,7 @@ def prioritize_barras_for_offers(
     highest rotación first. Optionally expands to MDM siblings so sucedáneos
     remain visible without scanning the entire catalog.
     """
-    attrs = list(CRITERIOS_AGRUPACION_DEFAULT)
+    attrs = resolve_criterios_agrupacion(criterios_agrupacion)
     scored: List[Tuple[float, str, Dict[str, Any]]] = []
     for row in catalog_rows:
         barra = str(row.get("barra") or "").strip()
@@ -354,6 +359,7 @@ def load_catalog_and_offers_from_db(
     categorias: Optional[Sequence[str]] = None,
     include_generics: bool = True,
     include_brands: bool = True,
+    criterios_agrupacion: Optional[Sequence[str]] = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Load SAPROD rotation catalog + Mercado_Vivo offers (productive path)."""
     _ensure_analytics_path()
@@ -389,7 +395,10 @@ def load_catalog_and_offers_from_db(
                     catalog_df["Instancia"].astype(str).isin(wanted)
                 ]
         catalog_rows = map_catalog_dataframe(catalog_df)
-        barras = prioritize_barras_for_offers(catalog_rows)
+        barras = prioritize_barras_for_offers(
+            catalog_rows,
+            criterios_agrupacion=criterios_agrupacion,
+        )
         offers_df = fetch_mercado_vivo_offers(conn, barras)
         offers_rows = map_mercado_vivo_dataframe(offers_df)
         logger.info(

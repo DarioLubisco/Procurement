@@ -4,7 +4,10 @@ from __future__ import annotations
 import pandas as pd
 
 from analytics_engine.core.criterios_agrupacion import (
+    ATRIBUTOS_VALIDOS,
+    ATRIBUTOS_VALIDOS_ORDER,
     CRITERIOS_AGRUPACION_DEFAULT,
+    CriteriosAgrupacionInvalid,
     compute_demanda_grupal,
     resolve_criterios_agrupacion,
 )
@@ -65,6 +68,21 @@ def test_resolve_criterios_default_is_five_attrs():
 def test_resolve_criterios_override_wins():
     override = ["principio_activo", "forma_farmaceutica", "concentracion"]
     assert resolve_criterios_agrupacion(override) == override
+
+
+def test_resolve_criterios_rejects_unknown_attrs():
+    try:
+        resolve_criterios_agrupacion(["principio_activo", "no_existe"])
+        assert False, "expected CriteriosAgrupacionInvalid"
+    except CriteriosAgrupacionInvalid as exc:
+        assert "no_existe" in str(exc)
+
+
+def test_atributos_validos_covers_default_and_extras():
+    assert set(CRITERIOS_AGRUPACION_DEFAULT) <= ATRIBUTOS_VALIDOS
+    assert ATRIBUTOS_VALIDOS == set(ATRIBUTOS_VALIDOS_ORDER)
+    for extra in ("origen", "fabricante", "generico", "marca", "blister"):
+        assert extra in ATRIBUTOS_VALIDOS
 
 
 def test_generar_pedido_default_criterios_split_groups_by_presentation():

@@ -26,6 +26,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // ADR-0018: Guardar borrador only after Regenerar Definitivo; clear on Sencillo
     let definitivoReadyForBorrador = false;
     let lastDefinitivoParams = null;
+    let configCollapsed = false;
+
+    const CRITERIOS_DEFAULT = [
+        'principio_activo',
+        'forma_farmaceutica',
+        'concentracion',
+        'cantidad_presentacion',
+        'contenido_neto',
+    ];
+    const CRITERIOS_FALLBACK = [
+        { nombre_campo: 'principio_activo', etiqueta: 'Principio Activo', activo: true },
+        { nombre_campo: 'concentracion', etiqueta: 'Concentración', activo: true },
+        { nombre_campo: 'forma_farmaceutica', etiqueta: 'Forma Farmacéutica', activo: true },
+        { nombre_campo: 'cantidad_presentacion', etiqueta: 'Presentación', activo: true },
+        { nombre_campo: 'origen', etiqueta: 'Origen', activo: true },
+        { nombre_campo: 'fabricante', etiqueta: 'Fabricante', activo: true },
+        { nombre_campo: 'contenido_neto', etiqueta: 'Contenido Neto', activo: true },
+        { nombre_campo: 'generico', etiqueta: 'Genérico', activo: true },
+        { nombre_campo: 'marca', etiqueta: 'Marca', activo: true },
+        { nombre_campo: 'blister', etiqueta: 'Blister', activo: true },
+    ];
 
     function setDefinitivoReadyForBorrador(ready) {
         definitivoReadyForBorrador = !!ready;
@@ -242,9 +263,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateCategoryCount() {
         if (!categoryCount) return;
-        const total = Object.keys(categoryMap).length;
         const checkedCount = Object.values(categoryMap).filter(c => c.selected).length;
         categoryCount.textContent = `${checkedCount} Seleccionadas`;
+    }
+
+    function openCategoriesModal() {
+        const modal = document.getElementById('categoriesModal');
+        if (!modal) return;
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeCategoriesModal() {
+        const modal = document.getElementById('categoriesModal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function setConfigCollapsed(collapsed) {
+        configCollapsed = !!collapsed;
+        const body = document.getElementById('configBody');
+        const btn = document.getElementById('btnToggleConfig');
+        const label = document.getElementById('btnToggleConfigLabel');
+        if (body) body.classList.toggle('collapsed', configCollapsed);
+        if (btn) btn.style.display = 'inline-flex';
+        if (label) {
+            label.textContent = configCollapsed ? 'Editar configuración' : 'Ocultar configuración';
+        }
+        const icon = btn && btn.querySelector('i');
+        if (icon) {
+            icon.className = configCollapsed ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+        }
+    }
+
+    function renderCriteriosAgrupacion(atributos) {
+        const host = document.getElementById('criteriosAgrupacion');
+        if (!host) return;
+        const list = (atributos || []).filter(a => a && a.activo !== false && a.nombre_campo);
+        const effective = list.length ? list : CRITERIOS_FALLBACK;
+        const defaultSet = new Set(CRITERIOS_DEFAULT);
+        host.innerHTML = '';
+        effective.forEach(attr => {
+            const key = attr.nombre_campo;
+            const label = document.createElement('label');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'criterio-cb';
+            cb.value = key;
+            cb.checked = defaultSet.has(key);
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(' ' + (attr.etiqueta || key)));
+            host.appendChild(label);
+        });
+    }
+
+    async function fetchCriteriosAtributos() {
+        try {
+            const response = await fetch('/api/rotacion-grupal/atributos');
+            if (!response.ok) throw new Error('atributos HTTP ' + response.status);
+            const data = await response.json();
+            renderCriteriosAgrupacion(data.atributos || []);
+        } catch (err) {
+            console.warn('Fallback criterios whitelist:', err);
+            renderCriteriosAgrupacion(CRITERIOS_FALLBACK);
+        }
     }
 
     if (categorySearch) categorySearch.addEventListener('input', (e) => applySearch(e.target.value));
@@ -255,7 +339,25 @@ document.addEventListener('DOMContentLoaded', () => {
         categoryTree.forEach(root => handleCheckboxChange(root.id, false));
     });
 
+    const btnEditCategories = document.getElementById('btnEditCategories');
+    const btnCloseCategoriesModal = document.getElementById('btnCloseCategoriesModal');
+    const btnCloseCategoriesModalX = document.getElementById('btnCloseCategoriesModalX');
+    const categoriesModal = document.getElementById('categoriesModal');
+    if (btnEditCategories) btnEditCategories.addEventListener('click', openCategoriesModal);
+    if (btnCloseCategoriesModal) btnCloseCategoriesModal.addEventListener('click', closeCategoriesModal);
+    if (btnCloseCategoriesModalX) btnCloseCategoriesModalX.addEventListener('click', closeCategoriesModal);
+    if (categoriesModal) {
+        categoriesModal.addEventListener('click', (e) => {
+            if (e.target === categoriesModal) closeCategoriesModal();
+        });
+    }
+    const btnToggleConfig = document.getElementById('btnToggleConfig');
+    if (btnToggleConfig) {
+        btnToggleConfig.addEventListener('click', () => setConfigCollapsed(!configCollapsed));
+    }
+
     fetchCategories();
+    fetchCriteriosAtributos();
 
     // --- DRAG AND DROP FILE LOGIC ---
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -443,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         section.style.display = 'block';
+        setConfigCollapsed(true);
         section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 

@@ -20,25 +20,89 @@
   
   <link rel="stylesheet" href="css/style.css?v=2.4"/>
   <style>
-    /* ── Pedidos-specific overrides ─────────────────────────────── */
+    /* ── Pedidos layout (ADR-0020): full-width, categorías en modal ── */
     .pedidos-layout {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 1.5rem;
-      align-items: start;
-    }
-    
-    .sidebar-categories {
-      max-height: calc(100vh - 200px);
       display: flex;
       flex-direction: column;
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 100%;
     }
 
-    .categories-list-container {
+    .categories-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding: 0.85rem 1.25rem;
+    }
+
+    .categories-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .config-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .config-header-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    #configBody.collapsed {
+      display: none;
+    }
+
+    .criterios-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.35rem 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .criterios-grid label {
+      display: flex;
+      gap: 0.45rem;
+      align-items: center;
+      margin: 0;
+      font-size: 0.85rem;
+      font-weight: 400;
+    }
+
+    .pedidos-table-scroll {
+      max-height: min(60vh, 640px);
+      overflow: auto;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+    }
+
+    #categoriesModal .modal-content {
+      max-width: 640px;
+      width: 92%;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem 1.5rem;
+    }
+
+    #categoriesModal .categories-list-container {
       overflow-y: auto;
-      flex-grow: 1;
-      margin-top: 1rem;
-      padding-right: 0.5rem;
+      flex: 1 1 auto;
+      min-height: 200px;
+      max-height: 50vh;
+      margin-top: 0.75rem;
+      padding-right: 0.35rem;
     }
 
     .categories-list {
@@ -47,37 +111,13 @@
       margin: 0;
     }
 
-    .category-item {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.6rem 0.85rem;
-      border-radius: var(--radius-md);
-      transition: all var(--transition-fast);
-      cursor: pointer;
-      border: 1px solid transparent;
-      font-size: 0.9rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .category-item:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: var(--border-subtle);
-    }
-
-    .category-item.selected {
-      background: rgba(99, 102, 241, 0.1);
-      border-color: var(--primary-accent);
-      color: var(--primary-accent);
-    }
-
     .file-drop-area {
       position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 2.5rem;
+      padding: 1.5rem;
       border: 2px dashed var(--border-subtle);
       border-radius: var(--radius-xl);
       transition: all var(--transition-fast);
@@ -92,18 +132,18 @@
     }
 
     .upload-icon {
-      font-size: 2.5rem;
+      font-size: 1.75rem;
       color: var(--text-secondary);
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
     }
 
     .file-msg {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
     }
 
     .file-list-container {
-      margin-top: 1.5rem;
+      margin-top: 1rem;
       display: grid;
       gap: 0.75rem;
     }
@@ -125,7 +165,6 @@
       padding: 0.25rem;
     }
 
-    /* Badge */
     .badge {
       background: var(--primary-accent);
       color: white;
@@ -135,6 +174,24 @@
       font-weight: 600;
     }
 
+    details.avanzadas-contingencia {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 0.75rem 1rem;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    details.avanzadas-contingencia > summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      list-style: none;
+    }
+
+    details.avanzadas-contingencia > summary::-webkit-details-marker {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -155,45 +212,35 @@
     </div>
 
     <div class="pedidos-layout">
-        
-        <!-- Columna Izquierda: Filtros de Categorías -->
-        <aside class="section-card sidebar-categories">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+
+        <!-- Barra categorías (colapsada → modal) -->
+        <div class="section-card categories-bar" id="categoriesBar">
+            <div class="categories-bar-left">
                 <h3 style="margin:0; font-size: 1rem;"><i class="fas fa-tags"></i> Categorías</h3>
                 <span id="categoryCount" class="badge">0 Seleccionadas</span>
             </div>
-            
-            <div class="search-container" style="position: relative; margin-bottom: 1rem;">
-                <i data-lucide="search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 14px; color: var(--text-secondary);"></i>
-                <input type="text" id="categorySearch" class="form-control" placeholder="Filtrar categorías..." style="padding-left: 2.2rem; font-size: 0.85rem; height: 36px;">
+            <button type="button" id="btnEditCategories" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">
+                <i class="fas fa-pen"></i> Editar
+            </button>
+        </div>
+
+        <!-- Configuración (plegable post-Generar) -->
+        <section class="section-card" id="configSection">
+            <div class="config-header-row">
+                <h3 style="margin:0;"><i class="fas fa-cog"></i> Configuración del Pedido</h3>
+                <div class="config-header-actions">
+                    <button type="button" id="btnToggleConfig" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; display: none;">
+                        <i class="fas fa-chevron-down"></i> <span id="btnToggleConfigLabel">Editar configuración</span>
+                    </button>
+                    <button id="btnSaveDefaults" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                        <i class="fas fa-save"></i> Guardar por Defecto
+                    </button>
+                </div>
             </div>
 
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                <button id="btnSelectAll" class="btn btn-secondary" style="flex:1; padding: 0.3rem; font-size: 0.75rem;">Todas</button>
-                <button id="btnSelectNone" class="btn btn-secondary" style="flex:1; padding: 0.3rem; font-size: 0.75rem;">Ninguna</button>
-            </div>
+            <div id="configBody">
+            <form id="generateForm" style="display: grid; gap: 1.25rem; margin-top: 1.25rem;">
 
-            <div class="categories-list-container">
-                <ul id="categoriesList" class="categories-list">
-                    <li style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                        <div class="loader" style="margin: 0 auto 1rem;"></div>
-                        Cargando familias...
-                    </li>
-                </ul>
-            </div>
-        </aside>
-
-        <!-- Columna Derecha: Configuración y Generación -->
-        <section class="section-card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3><i class="fas fa-cog"></i> Configuración del Pedido</h3>
-                <button id="btnSaveDefaults" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
-                    <i class="fas fa-save"></i> Guardar por Defecto
-                </button>
-            </div>
-            
-            <form id="generateForm" style="display: grid; gap: 1.5rem; margin-top: 1.5rem;">
-                
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="input-group">
                         <label>Cobertura (días)</label>
@@ -209,54 +256,34 @@
                     </div>
                 </div>
 
-                <div class="input-group">
-                    <label>Preset Sencillo</label>
-                    <select id="presetSencillo" class="form-control" style="height: 48px;">
-                        <option value="Conservador" selected>Conservador</option>
-                        <option value="Normal">Normal</option>
-                        <option value="Agresivo">Agresivo</option>
-                    </select>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                        Primer Generar es nivel Sencillo. Intermedio/Avanzado se usan al regenerar.
-                    </p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="input-group">
+                        <label>Preset Sencillo</label>
+                        <select id="presetSencillo" class="form-control" style="height: 48px;">
+                            <option value="Conservador" selected>Conservador</option>
+                            <option value="Normal">Normal</option>
+                            <option value="Agresivo">Agresivo</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Umbral Mínimo de Rotación</label>
+                        <input type="number" id="umbralRotacion" class="form-control" value="0.5" step="0.1" min="0" style="height: 48px;"/>
+                    </div>
                 </div>
 
                 <div class="input-group">
-                    <label>Criterios de Agrupación (editables)</label>
-                    <div id="criteriosAgrupacion" style="display: grid; gap: 0.4rem; margin-top: 0.5rem;">
-                        <label style="display:flex; gap:0.5rem; align-items:center; margin:0;"><input type="checkbox" class="criterio-cb" value="principio_activo" checked> principio_activo</label>
-                        <label style="display:flex; gap:0.5rem; align-items:center; margin:0;"><input type="checkbox" class="criterio-cb" value="forma_farmaceutica" checked> forma_farmaceutica</label>
-                        <label style="display:flex; gap:0.5rem; align-items:center; margin:0;"><input type="checkbox" class="criterio-cb" value="concentracion" checked> concentracion</label>
-                        <label style="display:flex; gap:0.5rem; align-items:center; margin:0;"><input type="checkbox" class="criterio-cb" value="cantidad_presentacion" checked> cantidad_presentacion</label>
-                        <label style="display:flex; gap:0.5rem; align-items:center; margin:0;"><input type="checkbox" class="criterio-cb" value="contenido_neto" checked> contenido_neto</label>
+                    <label>Criterios de Agrupación</label>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0 0 0;">
+                        Whitelist MDM. Por defecto 5 attrs; puede añadir origen, fabricante, marca, etc.
+                    </p>
+                    <div id="criteriosAgrupacion" class="criterios-grid">
+                        <span style="color: var(--text-secondary); font-size: 0.85rem;">Cargando atributos…</span>
                     </div>
                 </div>
 
                 <div class="input-group">
                     <label>Presupuesto máximo (opcional)</label>
                     <input type="number" id="presupuestoMaximo" class="form-control" min="0" step="0.01" placeholder="Sin tope" style="height: 48px;"/>
-                </div>
-
-                <div class="input-group">
-                    <label>Umbral Mínimo de Rotación</label>
-                    <input type="number" id="umbralRotacion" class="form-control" value="0.5" step="0.1" min="0" style="height: 48px;"/>
-                </div>
-
-                <div class="input-group">
-                    <label>Archivos de Resta <span style="font-weight:400; color: var(--text-secondary);">(contingencia — no es el camino feliz)</span></label>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-                        Excel BARRA×CANTIDAD solo como soporte eventual. El Generar primario usa Backorder de tablas + Comparativa.
-                    </p>
-                    
-                    <div class="file-drop-area" id="dropArea">
-                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
-                        <span class="file-msg">Arrastra archivos .xlsx o haz clic aquí</span>
-                        <input type="file" id="subtractionFiles" multiple accept=".xlsx" style="display: none;"/>
-                    </div>
-
-                    <div id="fileListContainer" class="file-list-container">
-                        <!-- Listado de archivos cargados -->
-                    </div>
                 </div>
 
                 <div class="input-group" style="display: flex; flex-direction: column; gap: 0.75rem; background: rgba(99, 102, 241, 0.05); padding: 1rem; border-radius: var(--radius-lg); border: 1px solid var(--border-subtle);">
@@ -275,22 +302,41 @@
                     </div>
                 </div>
 
+                <details class="avanzadas-contingencia">
+                    <summary><i class="fas fa-ellipsis-h"></i> Opciones avanzadas / contingencia</summary>
+                    <div style="margin-top: 1rem;">
+                        <div class="input-group">
+                            <label>Archivos de Resta <span style="font-weight:400; color: var(--text-secondary);">(contingencia — no es el camino feliz)</span></label>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                                Excel BARRA×CANTIDAD solo como soporte eventual. El Generar primario usa Backorder de tablas + Comparativa.
+                            </p>
+                            <div class="file-drop-area" id="dropArea">
+                                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                <span class="file-msg">Arrastra archivos .xlsx o haz clic aquí</span>
+                                <input type="file" id="subtractionFiles" multiple accept=".xlsx" style="display: none;"/>
+                            </div>
+                            <div id="fileListContainer" class="file-list-container"></div>
+                        </div>
+                        <button type="button" id="btnLegacyExcel" class="btn btn-secondary" style="height: 44px; font-size: 0.9rem; width: 100%; margin-top: 0.75rem;">
+                            <i class="fas fa-file-excel"></i> Export Excel legacy (secundario)
+                        </button>
+                    </div>
+                </details>
+
                 <button type="submit" id="submitBtn" class="btn btn-primary" style="height: 56px; font-size: 1.1rem; font-weight: 700;">
                     <i class="fas fa-bolt"></i> <span id="btnText">Generar (Sencillo)</span>
                 </button>
 
-                <button type="button" id="btnLegacyExcel" class="btn btn-secondary" style="height: 44px; font-size: 0.9rem;">
-                    <i class="fas fa-file-excel"></i> Export Excel legacy (secundario)
-                </button>
-
             </form>
+            </div>
+        </section>
 
-            <div id="alertBox" class="alert" style="display:none; margin-top: 1.5rem; padding: 1rem; border-radius: var(--radius-lg);"></div>
+            <div id="alertBox" class="alert" style="display:none; margin-top: 0; padding: 1rem; border-radius: var(--radius-lg);"></div>
 
             <!-- Comparativa + Propuesto (salida primaria) -->
-            <div id="generarResultSection" style="display: none; margin-top: 1.5rem;">
+            <div id="generarResultSection" class="section-card" style="display: none;">
                 <h3 style="margin-bottom: 0.75rem;"><i class="fas fa-balance-scale"></i> Comparativa de Cantidades</h3>
-                <div style="max-height: 360px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+                <div class="pedidos-table-scroll" style="margin-bottom: 1.5rem;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
                         <thead style="background: rgba(0,0,0,0.2); position: sticky; top: 0;">
                             <tr>
@@ -308,7 +354,7 @@
                 </div>
 
                 <h3 style="margin-bottom: 0.75rem;"><i class="fas fa-truck"></i> Pedido Propuesto (con proveedor)</h3>
-                <div style="max-height: 360px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div class="pedidos-table-scroll">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
                         <thead style="background: rgba(0,0,0,0.2); position: sticky; top: 0;">
                             <tr>
@@ -385,10 +431,11 @@
                         Persiste el Pedido Definitivo por proveedor (BorradorPedidos). Requiere Regenerar Definitivo primero; se desactiva si vuelve a Generar Sencillo.
                     </p>
                 </div>
+
             </div>
 
             <!-- Sección de Excluidos (legacy Excel path) -->
-            <div id="excludedSection" style="display: none; margin-top: 1.5rem; border: 1px solid rgba(239, 68, 68, 0.3); padding: 1rem; border-radius: var(--radius-lg); background-color: rgba(239, 68, 68, 0.05);">
+            <div id="excludedSection" class="section-card" style="display: none; border: 1px solid rgba(239, 68, 68, 0.3); background-color: rgba(239, 68, 68, 0.05);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h3 style="margin:0; color: var(--danger);"><i class="fas fa-exclamation-triangle"></i> PRODUCTOS EXCLUIDOS POR BAJA ROTACIÓN</h3>
                 <span id="excludedCount" class="badge" style="background-color: var(--danger); color: white;">0 Productos</span>
@@ -397,7 +444,7 @@
                 Flujo legacy Excel (contingencia). El camino feliz de Generar no requiere forced_includes;
                 la salida primaria es Comparativa + Propuesto.
             </p>
-            
+
             <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; background-color: var(--surface);">
                 <table style="width: 100%; border-collapse: collapse; text-align: left; color: var(--text-primary);">
                     <thead style="background: rgba(0,0,0,0.2); position: sticky; top: 0;">
@@ -422,17 +469,45 @@
                     <i class="fas fa-file-excel"></i> Generar Excel Definitivo
                 </button>
             </div>
-        </section>
 
     </div>
 
   </main>
 </div>
 
+<!-- Modal categorías -->
+<div id="categoriesModal" class="modal" aria-hidden="true">
+  <div class="modal-content">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+      <h3 style="margin:0; font-size:1.1rem;"><i class="fas fa-tags"></i> Seleccionar categorías</h3>
+      <button type="button" id="btnCloseCategoriesModalX" class="btn btn-secondary" style="padding:0.3rem 0.6rem;" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="search-container" style="position: relative; margin-bottom: 0.75rem;">
+      <i data-lucide="search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 14px; color: var(--text-secondary);"></i>
+      <input type="text" id="categorySearch" class="form-control" placeholder="Filtrar categorías..." style="padding-left: 2.2rem; font-size: 0.85rem; height: 36px;">
+    </div>
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+      <button type="button" id="btnSelectAll" class="btn btn-secondary" style="flex:1; padding: 0.3rem; font-size: 0.75rem;">Todas</button>
+      <button type="button" id="btnSelectNone" class="btn btn-secondary" style="flex:1; padding: 0.3rem; font-size: 0.75rem;">Ninguna</button>
+    </div>
+    <div class="categories-list-container">
+      <ul id="categoriesList" class="categories-list">
+        <li style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+          <div class="loader" style="margin: 0 auto 1rem;"></div>
+          Cargando familias...
+        </li>
+      </ul>
+    </div>
+    <button type="button" id="btnCloseCategoriesModal" class="btn btn-primary" style="margin-top:1rem; width:100%; height:44px; font-weight:600;">
+      Listo
+    </button>
+  </div>
+</div>
+
 <!-- SCRIPTS -->
 <script src="js/sidebar.js"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260715-justificacion-factores"></script>
+<script src="js/app_pedidos.js?v=20260715-layout-fullwidth"></script>
 
 <script>
   // Inicializa Lucide Icons si hay alguno
