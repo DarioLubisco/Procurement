@@ -3,13 +3,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 
 from .backorder import normalize_backorder, subtract_backorder_from_baseline
 from .criterios_agrupacion import resolve_criterios_agrupacion
 from .distribucion_parcial import distribute_parcial
+from .justificacion_factores import JustificacionFactor, factors_to_dicts
 from .pedido_baseline import (
     BaselineLine,
     FiltrosOperativos,
@@ -42,6 +43,7 @@ class PropuestoLine:
     descripcion: str
     proveedor: str
     cantidad: int
+    precio: Optional[float] = None  # USD offer; ADR-0018 / Guardar borrador
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,7 @@ class ComparativaRow:
     desc_propuesto: str
     qty_propuesto: int
     justificacion_delta: str
+    justificacion_factores: Tuple[JustificacionFactor, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -137,6 +140,7 @@ def _propuesto_desde_knobs(
                 descripcion=alloc.desc_propuesto,
                 proveedor=alloc.proveedor,
                 cantidad=primary_qty,
+                precio=alloc.precio,
             )
         )
         for leg in alloc.extra_legs:
@@ -146,6 +150,7 @@ def _propuesto_desde_knobs(
                     descripcion=leg.descripcion,
                     proveedor=leg.proveedor,
                     cantidad=leg.cantidad,
+                    precio=leg.precio,
                 )
             )
         comparativa.append(
@@ -157,6 +162,7 @@ def _propuesto_desde_knobs(
                 desc_propuesto=alloc.desc_propuesto,
                 qty_propuesto=alloc.qty_propuesto,
                 justificacion_delta=alloc.justificacion_delta,
+                justificacion_factores=alloc.justificacion_factores,
             )
         )
     return propuesto, comparativa

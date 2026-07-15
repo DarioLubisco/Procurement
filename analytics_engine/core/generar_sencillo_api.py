@@ -11,6 +11,7 @@ from .generar_pedido import (
     PerfilPedido,
     generar_pedido,
 )
+from .justificacion_factores import factors_to_dicts
 from .pedido_baseline import FiltrosOperativos
 from .presets import (
     PresetSencillo,
@@ -110,6 +111,7 @@ def serialize_generar_result(result) -> Dict[str, Any]:
                 "descripcion": line.descripcion,
                 "proveedor": line.proveedor,
                 "cantidad": line.cantidad,
+                "precio": line.precio,
             }
             for line in result.pedido_propuesto
         ],
@@ -122,6 +124,9 @@ def serialize_generar_result(result) -> Dict[str, Any]:
                 "desc_propuesto": row.desc_propuesto,
                 "qty_propuesto": row.qty_propuesto,
                 "justificacion_delta": row.justificacion_delta,
+                "justificacion_factores": factors_to_dicts(
+                    getattr(row, "justificacion_factores", ()) or ()
+                ),
             }
             for row in result.comparativa_cantidades
         ],

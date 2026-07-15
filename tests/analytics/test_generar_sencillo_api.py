@@ -52,7 +52,11 @@ def test_run_generar_sencillo_returns_comparativa_and_propuesto_with_proveedor()
     prop = payload["pedido_propuesto"][0]
     assert prop["proveedor"] == "BARATO"
     assert "barra" in prop and "cantidad" in prop
+    assert prop.get("precio") == 5.0  # cheaper offer wins; ADR-0018
     row = payload["comparativa_cantidades"][0]
+    assert isinstance(row.get("justificacion_factores"), list)
+    assert row["justificacion_delta"]  # short summary C
+
     for key in (
         "barra_baseline",
         "desc_baseline",

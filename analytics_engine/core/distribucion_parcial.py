@@ -7,6 +7,12 @@ from typing import List, Optional, Sequence, Tuple
 import pandas as pd
 
 from .gap_extension import MiembroGrupo, compute_gap_extension_oferta
+from .justificacion_factores import (
+    JustificacionFactor,
+    append_factor,
+    factor,
+    finalize,
+)
 from .nonlinear import quadratic_ceiling
 from .pedido_baseline import BaselineLine
 from .presets import PresetKnobs, max_sustitucion_base_from_elasticidad
@@ -22,6 +28,7 @@ class PropuestoLeg:
     descripcion: str
     proveedor: str
     cantidad: int
+    precio: Optional[float] = None  # USD offer; None if unknown (ADR-0018)
 
 
 @dataclass(frozen=True)
@@ -36,6 +43,8 @@ class Allocation:
     justificacion_delta: str
     # Extra Propuesto lines when SplitLeadTime fires (same Baseline row)
     extra_legs: Tuple[PropuestoLeg, ...] = field(default_factory=tuple)
+    precio: Optional[float] = None  # USD of primary leg offer
+    justificacion_factores: Tuple[JustificacionFactor, ...] = field(default_factory=tuple)
 
 def distribute_parcial(
     baseline: Sequence[BaselineLine],
@@ -51,6 +60,14 @@ def distribute_parcial(
     """
     # Empty / schema-less catalog (filtered category, inject []) → no KeyError on barra
     if catalog is None or catalog.empty or "barra" not in catalog.columns:
+        resumen, facts = finalize(
+            [
+                factor(
+                    "sin_catalogo",
+                    "sin catálogo (vacío o sin columna barra)",
+                )
+            ]
+        )
         return [
             Allocation(
                 barra_baseline=line.barra,
@@ -60,7 +77,8 @@ def distribute_parcial(
                 desc_propuesto=line.descripcion,
                 qty_propuesto=line.cantidad,
                 proveedor="",
-                justificacion_delta="sin catálogo (vacío o sin columna barra)",
+                justificacion_delta=resumen,
+                justificacion_factores=facts,
             )
             for line in baseline
         ]
@@ -73,6 +91,14 @@ def distribute_parcial(
         or market_offers.empty
         or "barra" not in market_offers.columns
     ):
+        resumen, facts = finalize(
+            [
+                factor(
+                    "sin_oferta",
+                    "sin ofertas de mercado (Mercado_Vivo vacío o timeout)",
+                )
+            ]
+        )
         return [
             Allocation(
                 barra_baseline=line.barra,
@@ -82,7 +108,8 @@ def distribute_parcial(
                 desc_propuesto=line.descripcion,
                 qty_propuesto=line.cantidad,
                 proveedor="",
-                justificacion_delta="sin ofertas de mercado (Mercado_Vivo vacío o timeout)",
+                justificacion_delta=resumen,
+                justificacion_factores=facts,
             )
             for line in baseline
         ]
@@ -98,6 +125,9 @@ def distribute_parcial(
         candidates = _offers_for_group(offers, group_key, criterios) if group_key else pd.DataFrame()
 
         if candidates.empty:
+            resumen, facts = finalize(
+                [factor("sin_oferta", "sin ofertas para el Grupo de esta línea")]
+            )
             out.append(
                 Allocation(
                     barra_baseline=line.barra,
@@ -107,7 +137,8 @@ def distribute_parcial(
                     desc_propuesto=line.descripcion,
                     qty_propuesto=line.cantidad,
                     proveedor="",
-                    justificacion_delta="",
+                    justificacion_delta=resumen,
+                    justificacion_factores=facts,
                 )
             )
             continue
@@ -141,13 +172,59 @@ def distribute_parcial(
             out.append(kappa_alloc)
             continue
 
+        factors: List[JustificacionFactor] = []
+        if barra_p != str(line.barra):
+            factors.append(
+                factor(
+                    "sucedaneo",
+                    f"{line.barra}→{barra_p} (sucedáneo del Grupo)",
+                    datos={"barra_baseline": line.barra, "barra_propuesto": barra_p},
+                )
+            )
+        prov = str(chosen["proveedor"])
+        precio = _offer_precio(chosen)
+        score = None
+        if "_score" in chosen.index and pd.notna(chosen.get("_score")):
+            try:
+                score = float(chosen["_score"])
+            except (TypeError, ValueError):
+                score = None
+        if precio is not None or score is not None:
+            det_bits = [prov]
+            if precio is not None:
+                det_bits.append(f"${precio:g}")
+            if score is not None:
+                det_bits.append(f"score={score:.3f}")
+            factors.append(
+                factor(
+                    "oferta",
+                    " · ".join(det_bits),
+                    datos={
+                        "proveedor": prov,
+                        "precio": precio,
+                        "score": score,
+                    },
+                )
+            )
+
         qty = qty_baseline
-        qty = _apply_amplifier(qty, chosen, knobs)
+        qty, amp_f = _amplifier_factor(qty, chosen, knobs)
+        if amp_f is not None:
+            factors.append(amp_f)
         stock = chosen.get("stock_proveedor")
         if pd.notna(stock):
             qty = min(qty, int(stock))
 
-        justificacion = _justificacion(line, barra_p, line.cantidad, qty)
+        if qty != qty_baseline:
+            factors.append(
+                factor(
+                    "delta_qty",
+                    f"{qty_baseline}→{qty}",
+                    datos={"qty_baseline": qty_baseline, "qty_propuesto": qty},
+                )
+            )
+
+        resumen, facts = finalize(factors)
         out.append(
             Allocation(
                 barra_baseline=line.barra,
@@ -156,8 +233,10 @@ def distribute_parcial(
                 barra_propuesto=barra_p,
                 desc_propuesto=desc_p,
                 qty_propuesto=qty,
-                proveedor=str(chosen["proveedor"]),
-                justificacion_delta=justificacion,
+                proveedor=prov,
+                justificacion_delta=resumen,
+                precio=precio,
+                justificacion_factores=facts,
             )
         )
     if knobs.ext_max_dias_extra > 0:
@@ -215,13 +294,34 @@ def _apply_kappa_split_if_needed(
     if techo >= 1.0 - 1e-12:
         return None  # full substitute path (caller)
 
+    factors: List[JustificacionFactor] = [
+        factor(
+            "sucedaneo",
+            f"{line.barra}→{barra_p} (sucedáneo del Grupo)",
+            datos={"barra_baseline": line.barra, "barra_propuesto": barra_p},
+        ),
+        factor(
+            "kappa",
+            f"κ={kappa_f:g} base={base:.2f} desvío={desvio:.3f} techo={techo:.2f}",
+            datos={
+                "kappa": kappa_f,
+                "base": base,
+                "desvio": desvio,
+                "techo": techo,
+            },
+        ),
+    ]
+
     qty_sub = int(qty_baseline * techo)  # floor via int trunc toward 0 for positive
     if qty_sub <= 0:
-        # No substitute allowed — keep full baseline BARRA
-        just = (
-            f"techo κ={kappa_f:g} (base={base:.2f}, desvío={desvio:.3f}) → 0% sucedáneo; "
-            f"queda {line.barra}"
+        factors.append(
+            factor(
+                "delta_qty",
+                f"techo → 0% sucedáneo; queda {line.barra}",
+                datos={"qty_baseline": qty_baseline, "qty_propuesto": qty_baseline},
+            )
         )
+        resumen, facts = finalize(factors)
         return Allocation(
             barra_baseline=line.barra,
             desc_baseline=line.descripcion,
@@ -230,23 +330,43 @@ def _apply_kappa_split_if_needed(
             desc_propuesto=line.descripcion,
             qty_propuesto=qty_baseline,
             proveedor="",
-            justificacion_delta=just,
+            justificacion_delta=resumen,
+            justificacion_factores=facts,
         )
 
-    qty_sub = _apply_amplifier(qty_sub, chosen, knobs)
+    qty_sub, amp_f = _amplifier_factor(qty_sub, chosen, knobs)
+    if amp_f is not None:
+        factors.append(amp_f)
     stock = chosen.get("stock_proveedor")
     if pd.notna(stock):
         qty_sub = min(qty_sub, int(stock))
     qty_sub = max(0, qty_sub)
     qty_rest = max(0, qty_baseline - int(qty_baseline * techo))
-    # If amp/stock reduced sub below planned, rest still uses pre-amp remainder of baseline need
     pct = 100.0 * techo
-    just = (
-        f"techo κ={kappa_f:g} → {pct:.0f}% sucedáneo {barra_p}; "
-        f"resto {qty_rest} en baseline {line.barra}"
+    factors.append(
+        factor(
+            "delta_qty",
+            f"{pct:.0f}% sucedáneo ({qty_sub}); resto {qty_rest} en {line.barra}",
+            datos={
+                "qty_sub": qty_sub,
+                "qty_rest": qty_rest,
+                "qty_baseline": qty_baseline,
+                "pct_techo": pct,
+            },
+        )
     )
-    if barra_p != line.barra:
-        just = f"cambio de código {line.barra}→{barra_p} (sucedáneo del Grupo); {just}"
+    precio = _offer_precio(chosen)
+    if precio is not None:
+        factors.append(
+            factor(
+                "oferta",
+                f"{chosen['proveedor']} @ ${precio:g}",
+                datos={
+                    "proveedor": str(chosen["proveedor"]),
+                    "precio": precio,
+                },
+            )
+        )
 
     extras: Tuple[PropuestoLeg, ...] = ()
     if qty_rest > 0:
@@ -256,9 +376,11 @@ def _apply_kappa_split_if_needed(
                 descripcion=line.descripcion,
                 proveedor="",
                 cantidad=qty_rest,
+                precio=None,
             ),
         )
 
+    resumen, facts = finalize(factors)
     return Allocation(
         barra_baseline=line.barra,
         desc_baseline=line.descripcion,
@@ -267,8 +389,10 @@ def _apply_kappa_split_if_needed(
         desc_propuesto=desc_p,
         qty_propuesto=qty_sub + qty_rest,
         proveedor=str(chosen["proveedor"]),
-        justificacion_delta=just,
+        justificacion_delta=resumen,
         extra_legs=extras,
+        precio=precio,
+        justificacion_factores=facts,
     )
 
 
@@ -334,6 +458,13 @@ def _apply_f5_extension(
     just = a.justificacion_delta
     f5_note = f"F5 GapExtensionOferta f={ext.f:.3f} gap_ext={ext.gap_ext:.1f}"
     just = f"{just}; {f5_note}" if just else f5_note
+    f5_factor = factor(
+        "f5",
+        f"f={ext.f:.3f} gap_ext={ext.gap_ext:.1f} (+{extra} u)",
+        datos={"f": ext.f, "gap_ext": ext.gap_ext, "extra_units": extra},
+    )
+    facts = append_factor(a.justificacion_factores, f5_factor)
+    resumen, facts = finalize(facts)
     allocations = list(allocations)
     allocations[i0] = Allocation(
         barra_baseline=a.barra_baseline,
@@ -343,7 +474,10 @@ def _apply_f5_extension(
         desc_propuesto=a.desc_propuesto,
         qty_propuesto=new_qty,
         proveedor=a.proveedor,
-        justificacion_delta=just,
+        justificacion_delta=resumen,
+        extra_legs=a.extra_legs,
+        precio=a.precio,
+        justificacion_factores=facts,
     )
     return allocations
 
@@ -417,22 +551,60 @@ def _try_split_lead_time(
         return None
 
     primary = result.legs[0]
+    precio_by_key = {(o.proveedor, o.barra): o.precio for o in offer_list}
     extras = tuple(
         PropuestoLeg(
             barra=leg.barra,
             descripcion=leg.descripcion,
             proveedor=leg.proveedor,
             cantidad=leg.cantidad,
+            precio=precio_by_key.get((leg.proveedor, leg.barra)),
         )
         for leg in result.legs[1:]
         if leg.cantidad > 0
     )
     total_qty = sum(leg.cantidad for leg in result.legs)
-    just = result.justificacion
-    if primary.barra != line.barra:
-        just = (
-            f"cambio de código {line.barra}→{primary.barra} (sucedáneo del Grupo); {just}"
+    factors: List[JustificacionFactor] = [
+        factor(
+            "split_lead_time",
+            result.justificacion,
+            datos={
+                "legs": [
+                    {
+                        "proveedor": leg.proveedor,
+                        "barra": leg.barra,
+                        "cantidad": leg.cantidad,
+                        "rol": leg.rol,
+                    }
+                    for leg in result.legs
+                ]
+            },
         )
+    ]
+    if primary.barra != line.barra:
+        factors.insert(
+            0,
+            factor(
+                "sucedaneo",
+                f"{line.barra}→{primary.barra} (sucedáneo del Grupo)",
+                datos={
+                    "barra_baseline": line.barra,
+                    "barra_propuesto": primary.barra,
+                },
+            ),
+        )
+    if total_qty != int(line.cantidad):
+        factors.append(
+            factor(
+                "delta_qty",
+                f"{line.cantidad}→{total_qty}",
+                datos={
+                    "qty_baseline": int(line.cantidad),
+                    "qty_propuesto": total_qty,
+                },
+            )
+        )
+    resumen, facts = finalize(factors)
 
     return Allocation(
         barra_baseline=line.barra,
@@ -442,9 +614,26 @@ def _try_split_lead_time(
         desc_propuesto=primary.descripcion,
         qty_propuesto=total_qty,
         proveedor=primary.proveedor,
-        justificacion_delta=just,
+        justificacion_delta=resumen,
         extra_legs=extras,
+        precio=precio_by_key.get((primary.proveedor, primary.barra)),
+        justificacion_factores=facts,
     )
+
+
+def _offer_precio(chosen) -> Optional[float]:
+    """USD unit price from scored offer row; None if missing/invalid."""
+    if chosen is None:
+        return None
+    if "precio" not in getattr(chosen, "index", []):
+        return None
+    raw = chosen.get("precio")
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def _elasticidad(row) -> float:
@@ -534,6 +723,27 @@ def _apply_amplifier(qty: int, chosen: pd.Series, knobs: PresetKnobs) -> int:
     return max(0, int(round(qty * mult)))
 
 
+def _amplifier_factor(
+    qty: int, chosen: pd.Series, knobs: PresetKnobs
+) -> Tuple[int, Optional[JustificacionFactor]]:
+    before = int(qty)
+    after = _apply_amplifier(before, chosen, knobs)
+    if after == before:
+        return after, None
+    desvio = None
+    if "desvio" in chosen.index and pd.notna(chosen.get("desvio")):
+        try:
+            desvio = float(chosen["desvio"])
+        except (TypeError, ValueError):
+            desvio = None
+    return after, factor(
+        "amplificador",
+        f"{before}→{after}"
+        + (f" (desvío={desvio:.3f})" if desvio is not None else ""),
+        datos={"qty_antes": before, "qty_despues": after, "desvio": desvio},
+    )
+
+
 def _score_offers(
     candidates: pd.DataFrame, knobs: PresetKnobs, baseline_elasticidad: float
 ) -> pd.DataFrame:
@@ -574,6 +784,7 @@ def _score_offers(
 
 
 def _justificacion(line: BaselineLine, barra_propuesto: str, qty_base: int, qty_prop: int) -> str:
+    """Legacy one-liner; prefer structured factors + finalize()."""
     parts: List[str] = []
     if barra_propuesto != line.barra:
         parts.append(

@@ -57,6 +57,7 @@ def test_regenerar_intermedio_returns_propuesto_and_comparativa():
     assert payload["meta"]["ux_label"] == "Regenerar Definitivo"
     assert payload["meta"]["nivel"] == "Intermedio"
     assert payload["pedido_propuesto"]
+    assert payload["pedido_propuesto"][0].get("precio") == 5.0
     assert payload["comparativa_cantidades"]
     assert "amp_max_increment_pct" in payload["meta"]["overrides_applied"]
 

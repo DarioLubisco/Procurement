@@ -25,4 +25,4 @@ El botón productivo «Generar» entrega una **ComparativaCantidades** (primer p
 1. **ComparativaCantidades** (delta Baseline vs Propuesto + JustificacionDelta)
 2. **PedidoPropuesto** con **proveedor** (listo para revisar compra, no solo cantidades)
 
-El Definitivo regenera ambos tras Intermedio/Avanzado.
+El Definitivo regenera ambos tras Intermedio/Avanzado. Persistencia opcional del Definitivo → BorradorPedidos (ADR-0018); no es parte del primer Generar.

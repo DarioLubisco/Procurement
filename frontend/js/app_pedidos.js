@@ -23,6 +23,42 @@ document.addEventListener('DOMContentLoaded', () => {
     let vmIntentosRecalc = {};
     let vmActivoProveedor = null;
     let vmPanelAck = false;
+    // ADR-0018: Guardar borrador only after Regenerar Definitivo; clear on Sencillo
+    let definitivoReadyForBorrador = false;
+    let lastDefinitivoParams = null;
+
+    function setDefinitivoReadyForBorrador(ready) {
+        definitivoReadyForBorrador = !!ready;
+        const btn = document.getElementById('btnGuardarBorrador');
+        if (btn) {
+            btn.disabled = !definitivoReadyForBorrador;
+            btn.title = definitivoReadyForBorrador
+                ? 'Guardar Pedido Definitivo en BorradorPedidos'
+                : 'Disponible tras Regenerar Definitivo';
+        }
+        if (!definitivoReadyForBorrador) {
+            lastDefinitivoParams = null;
+        }
+    }
+
+    function buildDefinitivoParamsSnapshot(requestPayload, responseData) {
+        const meta = (responseData && responseData.meta) || {};
+        return {
+            nivel: requestPayload.nivel || meta.nivel || null,
+            base_preset: requestPayload.base_preset || meta.base_preset || null,
+            cobertura: requestPayload.cobertura ?? meta.cobertura ?? null,
+            criterios_agrupacion: requestPayload.criterios_agrupacion || meta.criterios_agrupacion_efectivos || [],
+            categorias: requestPayload.categorias || null,
+            include_generics: requestPayload.include_generics,
+            include_brands: requestPayload.include_brands,
+            umbral_rotacion: requestPayload.umbral_rotacion,
+            num_rows: requestPayload.num_rows,
+            presupuesto_maximo: requestPayload.presupuesto_maximo ?? null,
+            overrides: requestPayload.overrides || {},
+            overrides_applied: meta.overrides_applied || [],
+            phase: meta.phase || 'PedidoDefinitivo',
+        };
+    }
 
     // --- CONFIG DEFAULTS LOGIC ---
     const btnSaveDefaults = document.getElementById('btnSaveDefaults');
@@ -316,6 +352,36 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    function escapeHtml(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function factorsHoverText(factores) {
+        if (!factores || !factores.length) return '';
+        return factores.map(f => {
+            const t = f.titulo || f.codigo || '';
+            const d = f.detalle || '';
+            return d ? `${t}: ${d}` : t;
+        }).join('\n');
+    }
+
+    function renderFactoresAccordion(factores) {
+        if (!factores || !factores.length) {
+            return '<div style="padding:0.5rem 0.75rem; color:var(--text-secondary); font-size:0.8rem;">Sin factores de motor.</div>';
+        }
+        return '<ul style="margin:0; padding:0.5rem 0.75rem 0.75rem 1.25rem; font-size:0.8rem; line-height:1.4;">' +
+            factores.map(f => {
+                const t = escapeHtml(f.titulo || f.codigo || '');
+                const d = escapeHtml(f.detalle || '');
+                return `<li style="margin-bottom:0.35rem;"><strong>${t}</strong>${d ? ` — ${d}` : ''}</li>`;
+            }).join('') +
+            '</ul>';
+    }
+
     function renderGenerarResult(data) {
         const section = document.getElementById('generarResultSection');
         const compBody = document.getElementById('comparativaTableBody');
@@ -323,27 +389,54 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!section || !compBody || !propBody) return;
 
         compBody.innerHTML = '';
-        (data.comparativa_cantidades || []).forEach(row => {
+        let openJustRow = null;
+        (data.comparativa_cantidades || []).forEach((row, idx) => {
             const tr = document.createElement('tr');
+            tr.className = 'comparativa-main-row';
+            tr.dataset.justIdx = String(idx);
+            const resumen = row.justificacion_delta || '';
+            const factores = row.justificacion_factores || [];
+            const hover = factorsHoverText(factores) || resumen;
+            const hasDetail = factores.length > 0 || !!resumen;
             tr.innerHTML = `
-                <td style="padding:0.5rem; font-family:monospace;">${row.barra_baseline}</td>
-                <td style="padding:0.5rem;">${row.desc_baseline || ''}</td>
+                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_baseline)}</td>
+                <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}</td>
                 <td style="padding:0.5rem; text-align:right;">${row.qty_baseline}</td>
-                <td style="padding:0.5rem; font-family:monospace;">${row.barra_propuesto}</td>
-                <td style="padding:0.5rem;">${row.desc_propuesto || ''}</td>
+                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_propuesto)}</td>
+                <td style="padding:0.5rem;">${escapeHtml(row.desc_propuesto || '')}</td>
                 <td style="padding:0.5rem; text-align:right;">${row.qty_propuesto}</td>
-                <td style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary);">${row.justificacion_delta || ''}</td>
+                <td class="justificacion-cell" style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary); max-width:220px; cursor:${hasDetail ? 'pointer' : 'default'};">
+                    <span class="justificacion-resumen" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-bottom:${hasDetail ? '1px dotted var(--text-secondary)' : 'none'};" title="${escapeHtml(hover)}">${escapeHtml(resumen) || '—'}</span>
+                </td>
             `;
+            const detailTr = document.createElement('tr');
+            detailTr.className = 'comparativa-detail-row';
+            detailTr.style.display = 'none';
+            detailTr.innerHTML = `<td colspan="7" style="background:rgba(0,0,0,0.15); border-bottom:1px solid var(--border-subtle); padding:0;">${renderFactoresAccordion(factores)}</td>`;
+
+            if (hasDetail) {
+                tr.querySelector('.justificacion-cell').addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const opening = detailTr.style.display === 'none';
+                    if (openJustRow && openJustRow !== detailTr) {
+                        openJustRow.style.display = 'none';
+                    }
+                    detailTr.style.display = opening ? 'table-row' : 'none';
+                    openJustRow = opening ? detailTr : null;
+                });
+            }
+
             compBody.appendChild(tr);
+            compBody.appendChild(detailTr);
         });
 
         propBody.innerHTML = '';
         (data.pedido_propuesto || []).forEach(line => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td style="padding:0.5rem; font-family:monospace;">${line.barra}</td>
-                <td style="padding:0.5rem;">${line.descripcion || ''}</td>
-                <td style="padding:0.5rem; font-weight:600;">${line.proveedor || ''}</td>
+                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(line.barra)}</td>
+                <td style="padding:0.5rem;">${escapeHtml(line.descripcion || '')}</td>
+                <td style="padding:0.5rem; font-weight:600;">${escapeHtml(line.proveedor || '')}</td>
                 <td style="padding:0.5rem; text-align:right;">${line.cantidad}</td>
             `;
             propBody.appendChild(tr);
@@ -535,10 +628,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const wrap = document.createElement('div');
             wrap.className = 'input-group';
             wrap.style.margin = '0';
+            const labelRow = document.createElement('div');
+            labelRow.style.display = 'flex';
+            labelRow.style.alignItems = 'center';
+            labelRow.style.gap = '0.35rem';
+            labelRow.style.marginBottom = '0.25rem';
             const label = document.createElement('label');
             label.textContent = field.label || field.key;
-            label.title = field.hint || field.key;
-            wrap.appendChild(label);
+            label.style.margin = '0';
+            labelRow.appendChild(label);
+            const helpText = field.help || field.hint || '';
+            if (helpText) {
+                const info = document.createElement('button');
+                info.type = 'button';
+                info.className = 'btn-icon';
+                info.setAttribute('aria-label', 'Información');
+                info.title = helpText;
+                info.textContent = 'ⓘ';
+                info.style.cssText = 'border:none;background:transparent;color:var(--text-secondary);cursor:help;font-size:0.85rem;padding:0;line-height:1;';
+                labelRow.appendChild(info);
+            }
+            wrap.appendChild(labelRow);
 
             let input;
             if (field.type === 'boolean') {
@@ -574,16 +684,6 @@ document.addEventListener('DOMContentLoaded', () => {
             input.setAttribute('data-override-type', field.type || 'number');
             input.id = `ov_${field.key}`;
             wrap.appendChild(input);
-            if (field.help || field.hint) {
-                const hint = document.createElement('small');
-                hint.style.color = 'var(--text-secondary)';
-                hint.style.fontSize = '0.7rem';
-                hint.style.display = 'block';
-                hint.style.marginTop = '0.25rem';
-                hint.style.lineHeight = '1.3';
-                hint.textContent = field.help || field.hint;
-                wrap.appendChild(hint);
-            }
             if (field.default != null && field.type === 'number') {
                 input.placeholder = String(field.default);
             }
@@ -656,6 +756,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const data = await response.json();
                 stashGenerarResult(data, { resetVm: true });
+                lastDefinitivoParams = buildDefinitivoParamsSnapshot(payload, data);
+                setDefinitivoReadyForBorrador(true);
                 const applied = (data.meta?.overrides_applied || []).join(', ') || 'ninguno';
                 showAlert(
                     `Pedido Definitivo regenerado (${data.meta?.nivel}). Overrides: ${applied}.`,
@@ -666,6 +768,61 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 btnRegenerarDefinitivo.disabled = false;
                 btnRegenerarDefinitivo.innerHTML = original;
+            }
+        });
+    }
+
+    const btnGuardarBorrador = document.getElementById('btnGuardarBorrador');
+    if (btnGuardarBorrador) {
+        setDefinitivoReadyForBorrador(false);
+        btnGuardarBorrador.addEventListener('click', async () => {
+            hideAlert();
+            if (!definitivoReadyForBorrador) {
+                showAlert('Primero Regenerar Definitivo antes de Guardar borrador.', false);
+                return;
+            }
+            const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
+            if (!propuesto.length) {
+                showAlert('No hay líneas de Pedido Definitivo para guardar.', false);
+                return;
+            }
+            btnGuardarBorrador.disabled = true;
+            const original = btnGuardarBorrador.innerHTML;
+            btnGuardarBorrador.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Guardando borrador...';
+            try {
+                const response = await fetch('/api/pedidos/guardar-borrador', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pedido_propuesto: propuesto,
+                        parametros: lastDefinitivoParams || undefined,
+                    }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const detail = data.detail;
+                    const msg = typeof detail === 'string'
+                        ? detail
+                        : (detail && detail.message) || data.message || 'Error al guardar borrador';
+                    throw new Error(msg);
+                }
+                const meta = data.meta || {};
+                const nCab = (data.cabeceras || []).length || meta.cabeceras || 0;
+                const nOmitProv = (meta.proveedores_omitidos || []).length;
+                const nOmitSap = (meta.lineas_omitidas_saprod || []).length;
+                const ids = (data.cabeceras || [])
+                    .map(c => `#${c.propuesta_id} ${c.cod_prov}`)
+                    .join(', ');
+                showAlert(
+                    `Borrador guardado: ${nCab} cabecera(s)${ids ? ` (${ids})` : ''}. ` +
+                    `Omitidos: ${nOmitProv} proveedor(es), ${nOmitSap} línea(s) SAPROD.`,
+                    true
+                );
+            } catch (error) {
+                showAlert(error.message, false);
+            } finally {
+                btnGuardarBorrador.innerHTML = original;
+                setDefinitivoReadyForBorrador(definitivoReadyForBorrador);
             }
         });
     }
@@ -707,6 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const data = await response.json();
                 stashGenerarResult(data);
+                setDefinitivoReadyForBorrador(false);
                 const nComp = (data.comparativa_cantidades || []).length;
                 const nProp = (data.pedido_propuesto || []).length;
                 showAlert(`Generar Sencillo listo: ${nComp} filas Comparativa, ${nProp} líneas Propuesto (${data.meta?.preset || ''}).`, true);

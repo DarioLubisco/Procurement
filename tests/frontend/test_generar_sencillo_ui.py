@@ -39,3 +39,17 @@ def test_fe_regenerar_definitivo_distinct_from_sencillo():
     assert "sucedáneos" in HTML or "κ" in HTML  # κ opt-in copy ADR-0017
     assert "field.help" in JS or "field.hint" in JS
     assert "forced_includes" not in JS or "deprecated" in JS.lower()
+    assert "justificacion-resumen" in JS or "justificacion_factores" in JS
+    assert "comparativa-detail-row" in JS
+    assert "ⓘ" in JS or "aria-label', 'Información'" in JS or 'Información' in JS
+
+
+def test_fe_guardar_borrador_after_definitivo():
+    assert 'id="btnGuardarBorrador"' in HTML
+    assert "Guardar borrador" in HTML
+    assert "/api/pedidos/guardar-borrador" in JS
+    assert "setDefinitivoReadyForBorrador" in JS
+    assert "definitivoReadyForBorrador" in JS
+    assert "lastDefinitivoParams" in JS
+    assert "buildDefinitivoParamsSnapshot" in JS
+    assert "guardar-borrador" in HTML or "BorradorPedidos" in HTML

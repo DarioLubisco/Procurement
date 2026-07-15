@@ -110,57 +110,153 @@ _OVERRIDE_FIELD_META: Dict[str, Dict[str, Any]] = {
     "amplifier_enabled": {
         "label": "Amplificador de oportunidad",
         "type": "boolean",
-        "hint": "Activa el boost por desvío de precio (F4).",
+        "hint": "Boost por desvío de precio (F4).",
+        "help": (
+            "Si está activo, cuando una oferta tiene desvío de precio favorable "
+            "(más barata vs histórico), el motor puede subir la cantidad pedida "
+            "de esa línea. Si está apagado, la qty sigue el Baseline/cobertura "
+            "sin ese boost."
+        ),
     },
-    "amp_a": {"label": "Amplificador coeficiente A", "type": "number", "step": "0.01"},
-    "amp_b": {"label": "Amplificador coeficiente B", "type": "number", "step": "0.01"},
+    "amp_a": {
+        "label": "Amplificador coeficiente A",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Curva del amplificador.",
+        "help": (
+            "Parámetro A de la curva exponencial del amplificador. "
+            "Junto con B define cuánto crece la cantidad cuando el desvío es fuerte. "
+            "Solo aplica si el amplificador está activo."
+        ),
+    },
+    "amp_b": {
+        "label": "Amplificador coeficiente B",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Curva del amplificador.",
+        "help": (
+            "Parámetro B de la curva exponencial del amplificador. "
+            "Calibrado con A; no suele tocarse fuera de Avanzado."
+        ),
+    },
     "amp_max_increment_pct": {
         "label": "Tope amplificador (%)",
         "type": "number",
-        "hint": "Máximo incremento porcentual del amplificador.",
+        "hint": "Máximo incremento %.",
+        "help": (
+            "Tope del incremento porcentual que el amplificador puede aplicar "
+            "sobre la cantidad. Evita sobre-comprar ante desvíos extremos."
+        ),
     },
     "amp_floor_pct": {
         "label": "Piso amplificador",
         "type": "number",
         "step": "0.01",
-        "hint": "Umbral mínimo de desvío para amplificar.",
+        "hint": "Desvío mínimo para amplificar.",
+        "help": (
+            "Umbral de desvío: por debajo de este piso el amplificador no dispara. "
+            "Sirve para ignorar ahorros de precio muy chicos."
+        ),
     },
     "ext_max_dias_extra": {
         "label": "Días extra GapExtension (F5)",
         "type": "number",
-        "hint": "Extensión máxima de cobertura cuando hay oferta fuerte.",
+        "hint": "Extensión máx. de cobertura en oferta.",
+        "help": (
+            "Cuando hay ofertas fuertes (desvío bajo el umbral F5), el motor puede "
+            "añadir unidades extra solo a productos en oferta, como si extendiera "
+            "la cobertura unos días. 0 = F5 apagado."
+        ),
     },
     "f5_umbral": {
         "label": "Umbral F5 (desvío)",
         "type": "number",
         "step": "0.01",
-        "hint": "Desvío ≤ este valor dispara GapExtension.",
+        "hint": "Desvío ≤ valor dispara F5.",
+        "help": (
+            "Desvío de precio (negativo = más barato) a partir del cual una oferta "
+            "cuenta como 'fuerte' para GapExtension (F5). Ejemplo: -0.10 = 10% bajo "
+            "la referencia histórica."
+        ),
     },
     "opp_lambda": {
         "label": "Lambda oportunidad",
         "type": "number",
         "step": "0.1",
-        "hint": "Peso de la señal de oportunidad de precio.",
+        "hint": "Peso de oportunidad de precio.",
+        "help": (
+            "Intensifica cuánto pesa la señal de oportunidad de precio en el score "
+            "al elegir proveedor/código dentro del Grupo."
+        ),
     },
-    "w1": {"label": "Peso w1 elasticidad", "type": "number", "step": "0.01"},
-    "w2": {"label": "Peso w2 demanda", "type": "number", "step": "0.01"},
+    "w1": {
+        "label": "Peso w1 elasticidad",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Peso elasticidad en score.",
+        "help": (
+            "Peso de la elasticidad de demanda en el scoring de ofertas. "
+            "En la práctica el motor usa elasticidad sobre todo como tope de "
+            "sustitución (κ / mapa), no como único árbitro."
+        ),
+    },
+    "w2": {
+        "label": "Peso w2 demanda",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Peso demanda en score.",
+        "help": "Peso del factor demanda/rotación en el score de ofertas del Grupo.",
+    },
     "w3_posicionamiento": {
         "label": "Peso w3 posicionamiento",
         "type": "number",
         "step": "0.01",
+        "hint": "Peso precio (barato gana).",
+        "help": (
+            "Peso del posicionamiento de precio: ofertas más baratas dentro del "
+            "Grupo puntúan más. Es el peso principal en Conservador/Normal."
+        ),
     },
-    "w4": {"label": "Peso w4 oportunidad", "type": "number", "step": "0.01"},
-    "w5": {"label": "Peso w5 extensión", "type": "number", "step": "0.01"},
+    "w4": {
+        "label": "Peso w4 oportunidad",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Peso oportunidad (desvío).",
+        "help": (
+            "Peso de la oportunidad por desvío histórico (cuánto más barata está "
+            "la oferta vs su media). Alto = persigue más las liquidaciones."
+        ),
+    },
+    "w5": {
+        "label": "Peso w5 extensión",
+        "type": "number",
+        "step": "0.01",
+        "hint": "Peso extensión/oportunidad.",
+        "help": (
+            "Peso adicional ligado a la extensión de oportunidad (interactúa con "
+            "lambda y F5). Subirlo favorece ofertas que también disparan extensión."
+        ),
+    },
     "lead_time_soft": {
         "label": "Lead time soft",
         "type": "select",
         "options": ["low", "medium", "high"],
-        "hint": "Preferencia de velocidad vs precio en el scoring.",
+        "hint": "Velocidad vs precio en scoring.",
+        "help": (
+            "Cuánto penaliza el score un lead time largo. low = casi no importa "
+            "(prioriza precio); high = prefiere proveedores rápidos aunque cuesten más. "
+            "No parte cantidades: eso es Split LeadTime."
+        ),
     },
     "split_lead_time_enabled": {
         "label": "Split LeadTime",
         "type": "boolean",
-        "hint": "Parte mínimo al rápido y resto al barato cuando el stock no cubre LT.",
+        "hint": "Parte rápido + resto barato.",
+        "help": (
+            "Si el stock actual no cubre rotación×LT del proveedor más rápido, "
+            "compra un mínimo al rápido (MOQ/stock) y el resto al más barato con "
+            "peor LT. Genera dos líneas (mismo producto, dos proveedores)."
+        ),
     },
     "sust_kappa": {
         "label": "Límite de reemplazo por sucedáneos (κ)",
@@ -190,6 +286,11 @@ _OVERRIDE_FIELD_META: Dict[str, Dict[str, Any]] = {
         "label": "Buffer presupuesto (%)",
         "type": "number",
         "step": "0.1",
+        "hint": "Holgura sobre presupuesto máx.",
+        "help": (
+            "Si hay presupuesto máximo, este % añade holgura antes de cortar líneas. "
+            "0 = respeta el tope estricto."
+        ),
     },
 }
 

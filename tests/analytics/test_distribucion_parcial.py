@@ -119,7 +119,9 @@ def test_sucedaneo_changes_barra_and_justificacion_declares_codigo():
     row_a1 = next(r for r in result.comparativa_cantidades if r.barra_baseline == "A1")
     assert row_a1.barra_propuesto == "S3"
     assert row_a1.barra_propuesto != row_a1.barra_baseline
-    assert "código" in row_a1.justificacion_delta.lower() or "codigo" in row_a1.justificacion_delta.lower()
+    codes = {f.codigo for f in row_a1.justificacion_factores}
+    assert "sucedaneo" in codes
+    assert "Sucedáneo" in row_a1.justificacion_delta
     prop = next(p for p in result.pedido_propuesto if p.barra == "S3")
     assert prop.proveedor == "P_S3"
     assert prop.cantidad > 0

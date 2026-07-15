@@ -29,6 +29,33 @@ def _upper(s: Any) -> str:
     return str(s or "").strip().upper()
 
 
+def _annotate_vm_factor(
+    row: Dict[str, Any],
+    note: str,
+    *,
+    datos: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Append validar_minimos factor and rebuild short summary (grill)."""
+    from .justificacion_factores import (
+        append_factor,
+        factor,
+        factors_from_dicts,
+        factors_to_dicts,
+        finalize,
+    )
+
+    r = dict(row)
+    facts = factors_from_dicts(r.get("justificacion_factores"))
+    facts_t = append_factor(
+        facts,
+        factor("validar_minimos", note, datos=datos or {}),
+    )
+    resumen, tup = finalize(facts_t)
+    r["justificacion_factores"] = factors_to_dicts(tup)
+    r["justificacion_delta"] = resumen
+    return r
+
+
 def resolve_group(
     proveedor: str,
     groups: Optional[Sequence[Dict[str, Any]]],
@@ -326,8 +353,11 @@ def apply_qty_boost(
         )
         if prop_line is not None and bp in boost_qtys:
             r["qty_propuesto"] = int(boost_qtys[bp])
-            prev = (r.get("justificacion_delta") or "").strip()
-            r["justificacion_delta"] = f"{prev}; {note}".strip("; ")
+            r = _annotate_vm_factor(
+                r,
+                note,
+                datos={"accion": "recalcular", "qty": int(boost_qtys[bp])},
+            )
         new_comp.append(r)
 
     intentos = dict(state.intentos_recalc)
@@ -544,8 +574,7 @@ def accept_subminimo(
             str(p.get("barra") or "").strip() == bp and line_in_cod_set(p, cods)
             for p in state.pedido_propuesto
         ):
-            prev = (r.get("justificacion_delta") or "").strip()
-            r["justificacion_delta"] = f"{prev}; {note}".strip("; ")
+            r = _annotate_vm_factor(r, note, datos={"accion": "aceptar"})
         new_comp.append(r)
     return ValidarMinimosState(
         pedido_propuesto=[dict(x) for x in state.pedido_propuesto],
@@ -627,8 +656,15 @@ def reject_proveedor(
             r["barra_propuesto"] = info["barra"]
             r["desc_propuesto"] = info["descripcion"]
             r["qty_propuesto"] = info["cantidad"]
-            prev = (r.get("justificacion_delta") or "").strip()
-            r["justificacion_delta"] = f"{prev}; {info['note']}".strip("; ")
+            r = _annotate_vm_factor(
+                r,
+                info["note"],
+                datos={
+                    "accion": "rechazar",
+                    "barra": info["barra"],
+                    "cantidad": info["cantidad"],
+                },
+            )
         new_comp.append(r)
 
     return (

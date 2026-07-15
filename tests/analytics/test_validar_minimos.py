@@ -97,7 +97,10 @@ def test_apply_boost_updates_propuesto_and_comparativa():
     new = apply_qty_boost(state, proveedor="CHEAP", boost_qtys=boost, pct_extra=50.0)
     assert new.pedido_propuesto[0]["cantidad"] == 45
     assert new.comparativa_cantidades[0]["qty_propuesto"] == 45
-    assert "ValidarMinimos" in new.comparativa_cantidades[0]["justificacion_delta"]
+    assert "Validar mínimos" in new.comparativa_cantidades[0]["justificacion_delta"]
+    facts = new.comparativa_cantidades[0].get("justificacion_factores") or []
+    vm = next(f for f in facts if f["codigo"] == "validar_minimos")
+    assert "ValidarMinimos" in vm["detalle"]
     assert new.intentos_recalc["CHEAP"] == 1
 
 
@@ -134,7 +137,10 @@ def test_reject_reasigns_same_barra_second_best():
     assert orphans == []
     assert new.pedido_propuesto[0]["proveedor"] == "EXPENSIVE"
     assert new.pedido_propuesto[0]["barra"] == "A"
-    assert "rechazó CHEAP" in new.comparativa_cantidades[0]["justificacion_delta"]
+    assert "Validar mínimos" in new.comparativa_cantidades[0]["justificacion_delta"]
+    facts = new.comparativa_cantidades[0].get("justificacion_factores") or []
+    vm = next(f for f in facts if f["codigo"] == "validar_minimos")
+    assert "rechazó CHEAP" in vm["detalle"]
 
 
 def test_reject_orphan_when_no_alternative():
@@ -212,7 +218,10 @@ def test_accept_subminimo_annotates_justificacion():
     new = accept_subminimo(
         state, proveedor="CHEAP", minimo_usd=50.0, market_offers=_offers()
     )
-    assert "aceptó submínimo" in new.comparativa_cantidades[0]["justificacion_delta"]
+    assert "Validar mínimos" in new.comparativa_cantidades[0]["justificacion_delta"]
+    facts = new.comparativa_cantidades[0].get("justificacion_factores") or []
+    vm = next(f for f in facts if f["codigo"] == "validar_minimos")
+    assert "aceptó submínimo" in vm["detalle"]
 
 
 def test_totals_by_proveedor():

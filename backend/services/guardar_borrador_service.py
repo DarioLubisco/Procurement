@@ -1,0 +1,156 @@
+"""Persist GuardarBorradorPlan into Procurement.BorradorPedidos* — ADR-0018."""
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, List, Optional, Sequence, Set
+
+from analytics_engine.core.guardar_borrador import (
+    BorradorCabeceraPlan,
+    GuardarBorradorPlan,
+)
+
+logger = logging.getLogger(__name__)
+
+_SQL_SAPROD_EXISTS = """
+SELECT LTRIM(RTRIM(CodProd)) AS CodProd
+FROM dbo.SAPROD
+WHERE Activo = 1
+  AND LTRIM(RTRIM(CodProd)) IN ({placeholders})
+"""
+
+_SQL_DELETE_LINEAS = """
+DELETE FROM Procurement.BorradorPedidosLineas
+WHERE PropuestaID IN (
+    SELECT PropuestaID FROM Procurement.BorradorPedidosCabecera
+    WHERE Estado = 'BORRADOR'
+      AND UPPER(LTRIM(RTRIM(CodProv))) = UPPER(LTRIM(RTRIM(?)))
+)
+"""
+
+_SQL_DELETE_CAB = """
+DELETE FROM Procurement.BorradorPedidosCabecera
+WHERE Estado = 'BORRADOR'
+  AND UPPER(LTRIM(RTRIM(CodProv))) = UPPER(LTRIM(RTRIM(?)))
+"""
+
+_SQL_INSERT_CAB = """
+INSERT INTO Procurement.BorradorPedidosCabecera
+    (CodProv, FechaGeneracion, TotalLineas, TotalUnidades, MontoTotalUSD, TasaCambioBCV, Estado, ParametrosJson)
+OUTPUT INSERTED.PropuestaID
+VALUES (?, SYSUTCDATETIME(), ?, ?, ?, NULL, 'BORRADOR', ?)
+"""
+
+_SQL_INSERT_LINEA = """
+INSERT INTO Procurement.BorradorPedidosLineas
+    (PropuestaID, CodProd, Descrip, CantidadPropuesta, CostoBaseBs, CostoCalculadoUSD,
+     InventarioActual, Minimo, Maximo)
+VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL, NULL)
+"""
+
+
+def fetch_saprod_codprods(conn: Any, barras: Sequence[str]) -> Set[str]:
+    """Return CodProd values that exist (Activo=1) among the requested barras."""
+    clean = sorted({str(b).strip() for b in barras if str(b).strip()})
+    if not clean:
+        return set()
+    out: Set[str] = set()
+    # Chunk to stay under parameter limits
+    size = 500
+    cur = conn.cursor()
+    for i in range(0, len(clean), size):
+        chunk = clean[i : i + size]
+        placeholders = ", ".join("?" for _ in chunk)
+        sql = _SQL_SAPROD_EXISTS.format(placeholders=placeholders)
+        cur.execute(sql, chunk)
+        for row in cur.fetchall():
+            cod = str(row[0] or "").strip()
+            if cod:
+                out.add(cod)
+    return out
+
+
+def _replace_one(cur: Any, cab: BorradorCabeceraPlan) -> int:
+    cur.execute(_SQL_DELETE_LINEAS, (cab.cod_prov,))
+    cur.execute(_SQL_DELETE_CAB, (cab.cod_prov,))
+    monto = cab.monto_total_usd
+    cur.execute(
+        _SQL_INSERT_CAB,
+        (
+            cab.cod_prov,
+            cab.total_lineas,
+            cab.total_unidades,
+            monto,
+            cab.parametros_json,
+        ),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise RuntimeError(f"INSERT cabecera sin PropuestaID para {cab.cod_prov}")
+    propuesta_id = int(row[0])
+    for lin in cab.lineas:
+        cur.execute(
+            _SQL_INSERT_LINEA,
+            (
+                propuesta_id,
+                lin.cod_prod,
+                (lin.descrip or "")[:150],
+                lin.cantidad_propuesta,
+                lin.costo_calculado_usd,
+            ),
+        )
+    return propuesta_id
+
+
+def persist_borradores(conn: Any, plan: GuardarBorradorPlan) -> List[Dict[str, Any]]:
+    """All-or-nothing write of prepared cabeceras. Caller must commit/rollback."""
+    if not plan.cabeceras:
+        raise ValueError("no_cabeceras_utiles")
+    cur = conn.cursor()
+    written: List[Dict[str, Any]] = []
+    for cab in plan.cabeceras:
+        pid = _replace_one(cur, cab)
+        written.append(
+            {
+                "propuesta_id": pid,
+                "cod_prov": cab.cod_prov,
+                "proveedor_id": cab.proveedor_id,
+                "total_lineas": cab.total_lineas,
+                "total_unidades": cab.total_unidades,
+                "monto_total_usd": cab.monto_total_usd,
+            }
+        )
+    return written
+
+
+def guardar_borradores_from_db(
+    plan: GuardarBorradorPlan,
+    *,
+    conn: Optional[Any] = None,
+) -> List[Dict[str, Any]]:
+    """Open pool connection if needed; commit on success, rollback on failure."""
+    import database
+
+    owns = conn is None
+    if owns:
+        conn = database.get_db_connection()
+    try:
+        written = persist_borradores(conn, plan)
+        conn.commit()
+        logger.info(
+            "Guardar borrador OK: %s cabeceras %s",
+            len(written),
+            [w["cod_prov"] for w in written],
+        )
+        return written
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        if owns:
+            try:
+                conn.close()
+            except Exception:
+                pass

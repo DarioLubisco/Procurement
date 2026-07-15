@@ -63,8 +63,8 @@ Artefacto de primer pase (grano: fila por BARRA Baseline). Convive en el mismo G
 _Avoid_: Matriz de Decisión; Excel solo BARRA×CANTIDAD; primer Generar sin ver proveedor; delta monocausal
 
 **JustificacionDelta:**
-Explica el delta Baseline vs Propuesto: misma BARRA con otra cantidad, o **reemplazo** por otra BARRA del Grupo, más PriceOpportunity, cobertura, presupuesto, etc.
-_Avoid_: texto que no declare cambio de código cuando hubo sucedáneo
+Explica el delta Baseline vs Propuesto con **factores estructurados** (`justificacion_factores`) + resumen corto en celda (`justificacion_delta`). Hover/acordeón muestran detalle. Ver ADR-0019.
+_Avoid_: texto que no declare cambio de código cuando hubo sucedáneo; concatenar ValidarMinimos al string sin factor
 
 **Grupo:**
 Conjunto de productos equivalentes según **CriteriosAgrupacion** activos. Mercado vivo puede ofertar sucedáneos del mismo Grupo; Baseline y Propuesto no tienen por qué compartir BARRA.
@@ -80,7 +80,11 @@ _Avoid_: forced_includes (deprecado); subtraction_files como requisito de parida
 
 **Backorder:**
 Cantidades ya comprometidas / en tránsito / pendientes desde **tablas dedicadas en el backend**. Se resta en **Baseline y Propuesto** por igual (mismo dato), para que la ComparativaCantidades no mezcle tránsito con efecto del motor.
-_Avoid_: subtraction_files como fuente primaria; restar backorder solo a un lado de la Comparativa
+_Avoid_: subtraction_files como fuente primaria; restar backorder solo a un lado de la Comparativa; confundir con BorradorPedidos
+
+**BorradorPedidos:**
+Persistencia explícita del **PedidoDefinitivo** en `BorradorPedidosCabecera`/`Lineas` (1 cabecera por CodProv canónico), con snapshot de knobs/params en `ParametrosJson`. No resta necesidad ni alimenta Generar. Ver ADR-0018.
+_Avoid_: usar Borrador como Backorder; auto-guardar en cada Regenerar; Guardar desde Sencillo; olvidar parametros/knobs del Definitivo
 
 **SubtractionFiles:**
 _(Soporte eventual / secundario.)_ Upload Excel `BARRA`×`CANTIDAD` del Motor B legacy. Queda como mecanismo de contingencia si hace falta; el camino feliz es Backorder desde tablas dedicadas.

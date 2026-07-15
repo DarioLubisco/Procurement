@@ -106,7 +106,10 @@ def test_kappa_caps_substitute_and_keeps_baseline_rest():
     assert primary == 48
     assert out[0].extra_legs[0].barra == "A1"
     assert out[0].extra_legs[0].cantidad == 52
-    assert "techo κ=5" in out[0].justificacion_delta
+    codes = {f.codigo for f in out[0].justificacion_factores}
+    assert "kappa" in codes and "sucedaneo" in codes
+    kappa_f = next(f for f in out[0].justificacion_factores if f.codigo == "kappa")
+    assert kappa_f.datos.get("kappa") == 5.0
 
 
 def test_same_barra_ignores_kappa():
@@ -129,7 +132,9 @@ def test_override_max_sustitucion_base_forces_zero_sub():
     )
     assert out[0].barra_propuesto == "A1"
     assert out[0].qty_propuesto == 100
-    assert "0% sucedáneo" in out[0].justificacion_delta
+    codes = {f.codigo for f in out[0].justificacion_factores}
+    assert "kappa" in codes
+    assert any("0%" in f.detalle for f in out[0].justificacion_factores)
 
 
 def test_sust_kappa_living_not_dead():

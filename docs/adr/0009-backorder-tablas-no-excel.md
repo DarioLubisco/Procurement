@@ -9,4 +9,5 @@ El backorder (cantidades ya pedidas / en tránsito / pendientes) se toma de **ta
 - FiltrosOperativos = categorías, genéricos/marcas, umbral, tope de líneas (+ Cobertura / CriteriosAgrupacion aparte).
 - Integrar lectura de tablas de backorder; **restar en Baseline y Propuesto** (mismo dato).
 - Tablas productivas: `Procurement.BackorderPedidosCabecera` + `BackorderPedidosLineas` (loader 2026-07-14).
+- Distinto de `BorradorPedidos*` (propuesta a persistir tras Definitivo; ADR-0018) — no restan tránsito.
 - Enmiendas que listaban subtraction_files como contrato operativo quedan parcialmente obsoletas en ese punto.
