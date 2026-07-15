@@ -7,10 +7,13 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 @dataclass(frozen=True)
 class ProveedorDeficit:
-    proveedor: str
+    proveedor: str  # canonical CodProv (stable key for activo / intentos)
     total_usd: float
     minimo_usd: float
     deficit_usd: float
+    proveedor_id: Optional[int] = None
+    nombre_corto: Optional[str] = None
+    aliases: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -20,6 +23,49 @@ class ReplacementOption:
     proveedor: str
     precio: float
     ahorro_usd_vs_actual: float  # positive = cheaper than current line
+
+
+def _upper(s: Any) -> str:
+    return str(s or "").strip().upper()
+
+
+def resolve_group(
+    proveedor: str,
+    groups: Optional[Sequence[Dict[str, Any]]],
+) -> Optional[Dict[str, Any]]:
+    """Find commercial group by canonical or any alias (case-insensitive)."""
+    if not groups:
+        return None
+    u = _upper(proveedor)
+    if not u:
+        return None
+    for g in groups:
+        if _upper(g.get("cod_prov")) == u:
+            return g
+        for a in g.get("aliases") or []:
+            if _upper(a) == u:
+                return g
+    return None
+
+
+def group_cod_set(group: Optional[Dict[str, Any]], fallback: str = "") -> Set[str]:
+    """Upper-cased CodProv set for a group (aliases + canonical)."""
+    if group is None:
+        f = _upper(fallback)
+        return {f} if f else set()
+    out: Set[str] = set()
+    for a in group.get("aliases") or []:
+        u = _upper(a)
+        if u:
+            out.add(u)
+    u = _upper(group.get("cod_prov"))
+    if u:
+        out.add(u)
+    return out
+
+
+def line_in_cod_set(line: Dict[str, Any], cods: Set[str]) -> bool:
+    return _upper(line.get("proveedor")) in cods
 
 
 @dataclass
@@ -79,6 +125,7 @@ def totals_by_proveedor(
     propuesto: Sequence[Dict[str, Any]],
     market_offers: Sequence[Dict[str, Any]],
 ) -> Dict[str, float]:
+    """Sum USD keyed by exact CodProv string (pre-alias / diagnostics)."""
     prices = _price_index(market_offers)
     totals: Dict[str, float] = {}
     for line in propuesto:
@@ -89,14 +136,75 @@ def totals_by_proveedor(
     return totals
 
 
+def totals_by_group(
+    propuesto: Sequence[Dict[str, Any]],
+    market_offers: Sequence[Dict[str, Any]],
+    groups: Sequence[Dict[str, Any]],
+) -> Dict[str, float]:
+    """Sum USD keyed by canonical CodProv (aliases aggregated)."""
+    prices = _price_index(market_offers)
+    idx = {_upper(a): g for g in groups for a in (g.get("aliases") or [g["cod_prov"]])}
+    for g in groups:
+        idx[_upper(g.get("cod_prov"))] = g
+    totals: Dict[str, float] = {}
+    for line in propuesto:
+        raw = str(line.get("proveedor") or "").strip()
+        if not raw:
+            continue
+        g = idx.get(_upper(raw))
+        key = str(g["cod_prov"]).strip() if g else raw
+        totals[key] = totals.get(key, 0.0) + line_usd(line, prices)
+    return totals
+
+
 def build_deficit_queue(
     propuesto: Sequence[Dict[str, Any]],
     market_offers: Sequence[Dict[str, Any]],
     minimos_usd: Dict[str, Optional[float]],
+    *,
+    groups: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> List[ProveedorDeficit]:
-    """Proveedores under minimum, largest deficit first. NULL minimo → skip."""
+    """Commercial entities under minimum, largest deficit first. NULL/0 minimo → skip."""
+    if groups:
+        totals = totals_by_group(propuesto, market_offers, groups)
+        by_can = {str(g["cod_prov"]).strip(): g for g in groups}
+        out: List[ProveedorDeficit] = []
+        for can, total in totals.items():
+            g = by_can.get(can)
+            if g is not None:
+                minimo = g.get("monto_minimo_pedido_usd")
+            else:
+                minimo = minimos_usd.get(can)
+                if minimo is None:
+                    # try any casing key in flat map
+                    minimo = next(
+                        (v for k, v in minimos_usd.items() if _upper(k) == _upper(can)),
+                        None,
+                    )
+            if minimo is None:
+                continue
+            minimo_f = float(minimo)
+            if minimo_f <= 0:
+                continue
+            if total + 1e-9 >= minimo_f:
+                continue
+            aliases = tuple(g.get("aliases") or [can]) if g else (can,)
+            out.append(
+                ProveedorDeficit(
+                    proveedor=can,
+                    total_usd=round(total, 2),
+                    minimo_usd=round(minimo_f, 2),
+                    deficit_usd=round(minimo_f - total, 2),
+                    proveedor_id=int(g["proveedor_id"]) if g and g.get("proveedor_id") is not None else None,
+                    nombre_corto=(g.get("nombre_corto") if g else None) or can,
+                    aliases=aliases,
+                )
+            )
+        out.sort(key=lambda d: d.deficit_usd, reverse=True)
+        return out
+
     totals = totals_by_proveedor(propuesto, market_offers)
-    out: List[ProveedorDeficit] = []
+    out = []
     for prov, total in totals.items():
         minimo = minimos_usd.get(prov)
         if minimo is None:
@@ -112,6 +220,8 @@ def build_deficit_queue(
                 total_usd=round(total, 2),
                 minimo_usd=round(minimo_f, 2),
                 deficit_usd=round(minimo_f - total, 2),
+                nombre_corto=prov,
+                aliases=(prov,),
             )
         )
     out.sort(key=lambda d: d.deficit_usd, reverse=True)
@@ -119,13 +229,16 @@ def build_deficit_queue(
 
 
 def barras_of_proveedor(
-    propuesto: Sequence[Dict[str, Any]], proveedor: str
+    propuesto: Sequence[Dict[str, Any]],
+    proveedor: str,
+    *,
+    groups: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> List[str]:
-    prov = str(proveedor).strip()
+    cods = group_cod_set(resolve_group(proveedor, groups), fallback=proveedor)
     seen: Set[str] = set()
     out: List[str] = []
     for line in propuesto:
-        if str(line.get("proveedor") or "").strip() != prov:
+        if not line_in_cod_set(line, cods):
             continue
         b = str(line.get("barra") or "").strip()
         if b and b not in seen:
@@ -180,16 +293,19 @@ def apply_qty_boost(
     proveedor: str,
     boost_qtys: Dict[str, int],
     pct_extra: float,
+    groups: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> ValidarMinimosState:
-    """Update propuesto + comparativa qty for lines of this proveedor."""
-    prov = str(proveedor).strip()
+    """Update propuesto + comparativa qty for all CodProv aliases of this group."""
+    group = resolve_group(proveedor, groups)
+    can = str(group["cod_prov"]).strip() if group else str(proveedor).strip()
+    cods = group_cod_set(group, fallback=proveedor)
     note = (
-        f"ValidarMinimos: +{pct_extra:g}% cobertura en SKUs de {prov}"
+        f"ValidarMinimos: +{pct_extra:g}% cobertura en SKUs de {can}"
     )
     new_prop: List[Dict[str, Any]] = []
     for line in state.pedido_propuesto:
         row = dict(line)
-        if str(row.get("proveedor") or "").strip() == prov:
+        if line_in_cod_set(row, cods):
             b = str(row.get("barra") or "").strip()
             if b in boost_qtys:
                 row["cantidad"] = int(boost_qtys[b])
@@ -198,15 +314,13 @@ def apply_qty_boost(
     new_comp: List[Dict[str, Any]] = []
     for row in state.comparativa_cantidades:
         r = dict(row)
-        # Match by propuesto barra when line was assigned to this proveedor
         bp = str(r.get("barra_propuesto") or "").strip()
-        # Find proveedor for this propuesto barra in new_prop
         prop_line = next(
             (
                 p
                 for p in new_prop
                 if str(p.get("barra") or "").strip() == bp
-                and str(p.get("proveedor") or "").strip() == prov
+                and line_in_cod_set(p, cods)
             ),
             None,
         )
@@ -217,7 +331,7 @@ def apply_qty_boost(
         new_comp.append(r)
 
     intentos = dict(state.intentos_recalc)
-    intentos[prov] = int(intentos.get(prov, 0)) + 1
+    intentos[can] = int(intentos.get(can, 0)) + 1
 
     return ValidarMinimosState(
         pedido_propuesto=new_prop,
@@ -251,18 +365,27 @@ def second_best_for_line(
     catalog_by_barra: Dict[str, Dict[str, Any]],
     market_offers: Sequence[Dict[str, Any]],
     criterios: Sequence[str],
+    exclude_cod_provs: Optional[Set[str]] = None,
 ) -> Optional[ReplacementOption]:
-    """Prefer same barra other proveedor; else same Grupo MDM (ADR-0016 Q8=C)."""
+    """Prefer same barra other proveedor; else same Grupo MDM (ADR-0016 Q8=C).
+
+    exclude_cod_provs: upper-cased CodProvs treated as the same commercial entity
+    (sibling aliases must not count as a valid 2nd supplier).
+    """
     prices = _price_index(market_offers)
     actual = str(proveedor_actual).strip()
+    excluded = set(exclude_cod_provs or ())
+    excluded.add(_upper(actual))
     b = str(barra).strip()
+
+    def _excluded(op: str) -> bool:
+        return _upper(op) in excluded
 
     # Same barra
     same_barra: List[ReplacementOption] = []
     for (ob, op), precio in prices.items():
-        if ob != b or op == actual:
+        if ob != b or _excluded(op):
             continue
-        ahorro = (precio_actual - precio) * 1.0  # per unit; caller scales by qty
         desc = ""
         row = catalog_by_barra.get(b)
         if row:
@@ -291,7 +414,7 @@ def second_best_for_line(
     for o in market_offers:
         ob = str(o.get("barra") or "").strip()
         op = str(o.get("proveedor") or "").strip()
-        if not ob or not op or op == actual:
+        if not ob or not op or _excluded(op):
             continue
         crow = catalog_by_barra.get(ob)
         if crow is None:
@@ -323,17 +446,16 @@ def build_decision_panel(
     catalog_rows: Sequence[Dict[str, Any]],
     market_offers: Sequence[Dict[str, Any]],
     minimo_usd: float,
+    groups: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Savings vs 2nd, replacements, orphan risk — for post-1st-fail panel."""
     prices = _price_index(market_offers)
     cat = _catalog_index(catalog_rows)
     criterios = state.criterios_agrupacion
-    prov = str(proveedor).strip()
-    lines = [
-        dict(l)
-        for l in state.pedido_propuesto
-        if str(l.get("proveedor") or "").strip() == prov
-    ]
+    group = resolve_group(proveedor, groups)
+    can = str(group["cod_prov"]).strip() if group else str(proveedor).strip()
+    cods = group_cod_set(group, fallback=proveedor)
+    lines = [dict(l) for l in state.pedido_propuesto if line_in_cod_set(l, cods)]
     total = sum(line_usd(l, prices) for l in lines)
     replacements: List[Dict[str, Any]] = []
     ahorro_total = 0.0
@@ -341,15 +463,17 @@ def build_decision_panel(
 
     for line in lines:
         b = str(line.get("barra") or "").strip()
+        line_prov = str(line.get("proveedor") or "").strip()
         qty = _f(line.get("cantidad"))
-        precio_act = prices.get((b, prov), 0.0)
+        precio_act = prices.get((b, line_prov), 0.0)
         alt = second_best_for_line(
             barra=b,
-            proveedor_actual=prov,
+            proveedor_actual=line_prov,
             precio_actual=precio_act,
             catalog_by_barra=cat,
             market_offers=market_offers,
             criterios=criterios,
+            exclude_cod_provs=cods,
         )
         if alt is None:
             huerfanos_si_rechaza.append(
@@ -376,14 +500,17 @@ def build_decision_panel(
         )
 
     return {
-        "proveedor": prov,
+        "proveedor": can,
+        "proveedor_id": int(group["proveedor_id"]) if group and group.get("proveedor_id") is not None else None,
+        "nombre_corto": (group.get("nombre_corto") if group else None) or can,
+        "aliases": list(group.get("aliases") or [can]) if group else [can],
         "total_usd": round(total, 2),
         "minimo_usd": round(float(minimo_usd), 2),
         "deficit_usd": round(max(0.0, float(minimo_usd) - total), 2),
         "ahorro_vs_segundo_usd": round(ahorro_total, 2),
         "reemplazos": replacements,
         "huerfanos_si_rechaza": huerfanos_si_rechaza,
-        "intentos_recalc": int(state.intentos_recalc.get(prov, 0)),
+        "intentos_recalc": int(state.intentos_recalc.get(can, 0)),
         "pct_extra_sugerido": 50.0,
     }
 
@@ -394,16 +521,19 @@ def accept_subminimo(
     proveedor: str,
     minimo_usd: float,
     market_offers: Sequence[Dict[str, Any]],
+    groups: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> ValidarMinimosState:
     prices = _price_index(market_offers)
-    prov = str(proveedor).strip()
+    group = resolve_group(proveedor, groups)
+    can = str(group["cod_prov"]).strip() if group else str(proveedor).strip()
+    cods = group_cod_set(group, fallback=proveedor)
     total = sum(
         line_usd(l, prices)
         for l in state.pedido_propuesto
-        if str(l.get("proveedor") or "").strip() == prov
+        if line_in_cod_set(l, cods)
     )
     note = (
-        f"ValidarMinimos: aceptó submínimo {prov} "
+        f"ValidarMinimos: aceptó submínimo {can} "
         f"(total ${total:.2f} < mín ${float(minimo_usd):.2f})"
     )
     new_comp = []
@@ -411,8 +541,7 @@ def accept_subminimo(
         r = dict(row)
         bp = str(r.get("barra_propuesto") or "").strip()
         if any(
-            str(p.get("barra") or "").strip() == bp
-            and str(p.get("proveedor") or "").strip() == prov
+            str(p.get("barra") or "").strip() == bp and line_in_cod_set(p, cods)
             for p in state.pedido_propuesto
         ):
             prev = (r.get("justificacion_delta") or "").strip()
@@ -434,46 +563,51 @@ def reject_proveedor(
     proveedor: str,
     catalog_rows: Sequence[Dict[str, Any]],
     market_offers: Sequence[Dict[str, Any]],
+    groups: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> Tuple[ValidarMinimosState, List[str]]:
-    """Reassign lines to 2nd best (barra→Grupo) or orphan (proveedor='').
+    """Reassign all group lines to 2nd best (barra→Grupo) or orphan (proveedor='').
 
+    Sibling aliases of the same ProveedorID are never treated as a valid 2nd supplier.
     Returns (new_state, orphan_barras).
     """
     prices = _price_index(market_offers)
     cat = _catalog_index(catalog_rows)
     criterios = state.criterios_agrupacion
-    prov = str(proveedor).strip()
+    group = resolve_group(proveedor, groups)
+    can = str(group["cod_prov"]).strip() if group else str(proveedor).strip()
+    cods = group_cod_set(group, fallback=proveedor)
     orphans: List[str] = []
 
-    # old_barra_propuesto → new line fields + note
     reassignments: Dict[str, Dict[str, Any]] = {}
     new_prop: List[Dict[str, Any]] = []
 
     for line in state.pedido_propuesto:
         row = dict(line)
-        if str(row.get("proveedor") or "").strip() != prov:
+        if not line_in_cod_set(row, cods):
             new_prop.append(row)
             continue
         old_b = str(row.get("barra") or "").strip()
-        precio_act = prices.get((old_b, prov), 0.0)
+        line_prov = str(row.get("proveedor") or "").strip()
+        precio_act = prices.get((old_b, line_prov), 0.0)
         alt = second_best_for_line(
             barra=old_b,
-            proveedor_actual=prov,
+            proveedor_actual=line_prov,
             precio_actual=precio_act,
             catalog_by_barra=cat,
             market_offers=market_offers,
             criterios=criterios,
+            exclude_cod_provs=cods,
         )
         if alt is None:
             row["proveedor"] = ""
             orphans.append(old_b)
-            note = f"ValidarMinimos: rechazó {prov} → huérfano (sin 2º)"
+            note = f"ValidarMinimos: rechazó {can} → huérfano (sin 2º)"
         else:
             row["barra"] = alt.barra
             row["descripcion"] = alt.descripcion or row.get("descripcion")
             row["proveedor"] = alt.proveedor
             note = (
-                f"ValidarMinimos: rechazó {prov} → {alt.proveedor}/{alt.barra}"
+                f"ValidarMinimos: rechazó {can} → {alt.proveedor}/{alt.barra}"
             )
         reassignments[old_b] = {
             "barra": row["barra"],
@@ -514,6 +648,9 @@ def serialize_queue(queue: Sequence[ProveedorDeficit]) -> List[Dict[str, Any]]:
     return [
         {
             "proveedor": d.proveedor,
+            "proveedor_id": d.proveedor_id,
+            "nombre_corto": d.nombre_corto or d.proveedor,
+            "aliases": list(d.aliases),
             "total_usd": d.total_usd,
             "minimo_usd": d.minimo_usd,
             "deficit_usd": d.deficit_usd,

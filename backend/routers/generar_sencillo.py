@@ -171,7 +171,7 @@ async def generar_sencillo(body: GenerarSencilloRequest):
 
 @router.get("/overrides-schema")
 async def overrides_schema(nivel: str = "Avanzado"):
-    """Living OptimizerConfig knobs for Definitivo UI (excludes dead S4/kappa)."""
+    """Living OptimizerConfig knobs for Definitivo UI (S4 dead; κ living ADR-0017)."""
     from analytics_engine.core.presets import living_override_schema
 
     if nivel not in ("Intermedio", "Avanzado"):

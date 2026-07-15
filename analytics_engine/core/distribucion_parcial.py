@@ -1,14 +1,15 @@
-"""DistribucionParcial multi-factor within Grupo (ADR-0006)."""
+"""DistribucionParcial multi-factor within Grupo (ADR-0006) + kappa ceiling (ADR-0017)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 
 from .gap_extension import MiembroGrupo, compute_gap_extension_oferta
+from .nonlinear import quadratic_ceiling
 from .pedido_baseline import BaselineLine
-from .presets import PresetKnobs
+from .presets import PresetKnobs, max_sustitucion_base_from_elasticidad
 from .split_lead_time import OfferCandidate, compute_split_lead_time
 
 # Desvío threshold for F5 trigger (Normal default ADR-0011)
@@ -48,6 +49,22 @@ def distribute_parcial(
     Not winner-takes-all: each Baseline BARRA keeps its own qty as the quota ceiling
     (before optional F5 reinforcement to offers only).
     """
+    # Empty / schema-less catalog (filtered category, inject []) → no KeyError on barra
+    if catalog is None or catalog.empty or "barra" not in catalog.columns:
+        return [
+            Allocation(
+                barra_baseline=line.barra,
+                desc_baseline=line.descripcion,
+                qty_baseline=line.cantidad,
+                barra_propuesto=line.barra,
+                desc_propuesto=line.descripcion,
+                qty_propuesto=line.cantidad,
+                proveedor="",
+                justificacion_delta="sin catálogo (vacío o sin columna barra)",
+            )
+            for line in baseline
+        ]
+
     cat = catalog.copy()
     cat["barra"] = cat["barra"].astype(str)
     # Empty / failed market load (e.g. Mercado_Vivo timeout) → no columns
@@ -102,11 +119,7 @@ def distribute_parcial(
 
         scored = _score_offers(candidates, knobs, baseline_elasticidad=_elasticidad(row))
         chosen = scored.iloc[0]
-        qty = int(line.cantidad)
-        qty = _apply_amplifier(qty, chosen, knobs)
-        stock = chosen.get("stock_proveedor")
-        if pd.notna(stock):
-            qty = min(qty, int(stock))
+        qty_baseline = int(line.cantidad)
 
         barra_p = str(chosen["barra"])
         desc_p = line.descripcion
@@ -114,6 +127,25 @@ def distribute_parcial(
             desc_p = str(chosen["descripcion"])
         elif barra_p in by_barra:
             desc_p = str(by_barra[barra_p]["descripcion"])
+
+        kappa_alloc = _apply_kappa_split_if_needed(
+            line=line,
+            row=row,
+            chosen=chosen,
+            barra_p=barra_p,
+            desc_p=desc_p,
+            qty_baseline=qty_baseline,
+            knobs=knobs,
+        )
+        if kappa_alloc is not None:
+            out.append(kappa_alloc)
+            continue
+
+        qty = qty_baseline
+        qty = _apply_amplifier(qty, chosen, knobs)
+        stock = chosen.get("stock_proveedor")
+        if pd.notna(stock):
+            qty = min(qty, int(stock))
 
         justificacion = _justificacion(line, barra_p, line.cantidad, qty)
         out.append(
@@ -133,6 +165,111 @@ def distribute_parcial(
             out, baseline, cat, offers, criterios, by_barra, knobs.f5_umbral
         )
     return out
+
+
+def _apply_kappa_split_if_needed(
+    *,
+    line: BaselineLine,
+    row,
+    chosen: pd.Series,
+    barra_p: str,
+    desc_p: str,
+    qty_baseline: int,
+    knobs: PresetKnobs,
+) -> Optional[Allocation]:
+    """ADR-0017: when κ active and sucedáneo wins, cap substitute qty; rest on baseline BARRA.
+
+    Returns None when kappa is off, same BARRA, techo≥1 (full path), or techo yields 0 sub.
+    """
+    kappa = knobs.sust_kappa
+    if kappa is None:
+        return None
+    try:
+        kappa_f = float(kappa)
+    except (TypeError, ValueError):
+        return None
+    if barra_p == str(line.barra):
+        return None
+
+    if knobs.max_sustitucion_base is not None:
+        try:
+            base = float(knobs.max_sustitucion_base)
+        except (TypeError, ValueError):
+            base = max_sustitucion_base_from_elasticidad(_elasticidad(row))
+    else:
+        base = max_sustitucion_base_from_elasticidad(_elasticidad(row))
+
+    desvio = 0.0
+    if "desvio" in chosen.index and pd.notna(chosen.get("desvio")):
+        try:
+            desvio = float(chosen["desvio"])
+        except (TypeError, ValueError):
+            desvio = 0.0
+
+    techo = quadratic_ceiling(
+        max_sustitucion_base=base,
+        desvio_sucedaneo=desvio,
+        kappa=kappa_f,
+        amplificador_sucedaneo=1.0,
+    )
+    if techo >= 1.0 - 1e-12:
+        return None  # full substitute path (caller)
+
+    qty_sub = int(qty_baseline * techo)  # floor via int trunc toward 0 for positive
+    if qty_sub <= 0:
+        # No substitute allowed — keep full baseline BARRA
+        just = (
+            f"techo κ={kappa_f:g} (base={base:.2f}, desvío={desvio:.3f}) → 0% sucedáneo; "
+            f"queda {line.barra}"
+        )
+        return Allocation(
+            barra_baseline=line.barra,
+            desc_baseline=line.descripcion,
+            qty_baseline=line.cantidad,
+            barra_propuesto=line.barra,
+            desc_propuesto=line.descripcion,
+            qty_propuesto=qty_baseline,
+            proveedor="",
+            justificacion_delta=just,
+        )
+
+    qty_sub = _apply_amplifier(qty_sub, chosen, knobs)
+    stock = chosen.get("stock_proveedor")
+    if pd.notna(stock):
+        qty_sub = min(qty_sub, int(stock))
+    qty_sub = max(0, qty_sub)
+    qty_rest = max(0, qty_baseline - int(qty_baseline * techo))
+    # If amp/stock reduced sub below planned, rest still uses pre-amp remainder of baseline need
+    pct = 100.0 * techo
+    just = (
+        f"techo κ={kappa_f:g} → {pct:.0f}% sucedáneo {barra_p}; "
+        f"resto {qty_rest} en baseline {line.barra}"
+    )
+    if barra_p != line.barra:
+        just = f"cambio de código {line.barra}→{barra_p} (sucedáneo del Grupo); {just}"
+
+    extras: Tuple[PropuestoLeg, ...] = ()
+    if qty_rest > 0:
+        extras = (
+            PropuestoLeg(
+                barra=line.barra,
+                descripcion=line.descripcion,
+                proveedor="",
+                cantidad=qty_rest,
+            ),
+        )
+
+    return Allocation(
+        barra_baseline=line.barra,
+        desc_baseline=line.descripcion,
+        qty_baseline=line.cantidad,
+        barra_propuesto=barra_p,
+        desc_propuesto=desc_p,
+        qty_propuesto=qty_sub + qty_rest,
+        proveedor=str(chosen["proveedor"]),
+        justificacion_delta=just,
+        extra_legs=extras,
+    )
 
 
 def _apply_f5_extension(
@@ -364,15 +501,18 @@ def _offers_for_group(
 ) -> pd.DataFrame:
     if offers.empty:
         return offers
-    mask = pd.Series([True] * len(offers))
+    offers = offers.reset_index(drop=True)
+    mask = pd.Series([True] * len(offers), index=offers.index)
     for c, val in zip(criterios, group_key):
         if c not in offers.columns:
-            return offers.iloc[0:0]
+            return offers.iloc[0:0].copy()
         mask &= offers[c].astype(str) == val
-    matched = offers[mask].copy()
+    matched = offers.loc[mask].copy()
     # Exclude zero-stock offers when stock known
-    if "stock_proveedor" in matched.columns:
-        matched = matched[matched["stock_proveedor"].isna() | (matched["stock_proveedor"] > 0)]
+    if "stock_proveedor" in matched.columns and not matched.empty:
+        matched = matched[
+            matched["stock_proveedor"].isna() | (matched["stock_proveedor"] > 0)
+        ].copy()
     return matched
 
 

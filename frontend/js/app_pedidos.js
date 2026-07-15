@@ -397,18 +397,23 @@ document.addEventListener('DOMContentLoaded', () => {
             colaEl.innerHTML = '<strong>Cola (mayor déficit primero):</strong><ul style="margin:0.4rem 0 0 1.2rem;">' +
             cola.map(d => {
                 const id = d.proveedor_id != null ? `#${d.proveedor_id} ` : '';
-                return `<li>${id}<code>${d.proveedor}</code> total $${d.total_usd} / mín $${d.minimo_usd} (déficit $${d.deficit_usd})</li>`;
+                const label = d.nombre_corto || d.proveedor;
+                return `<li>${id}<strong>${label}</strong> <code>${d.proveedor}</code> total $${d.total_usd} / mín $${d.minimo_usd} (déficit $${d.deficit_usd})</li>`;
             }).join('') +
             '</ul>';
         const p = vm.panel;
         if (p) {
             const idLabel = p.proveedor_id != null ? `#${p.proveedor_id} ` : '';
+            const name = p.nombre_corto || p.proveedor;
+            const aliases = (p.aliases || []).length
+                ? ` <span style="color:var(--text-secondary);font-size:0.8em;">[${(p.aliases || []).join(', ')}]</span>`
+                : '';
             const reps = (p.reemplazos || []).slice(0, 8).map(r =>
                 `${r.barra_actual}→${r.proveedor_alt}/${r.barra_alternativa} (ahorro línea $${r.ahorro_usd})`
             ).join('<br>');
             const huerf = (p.huerfanos_si_rechaza || []).map(h => h.barra).join(', ') || 'ninguno';
             detEl.innerHTML = `
-                <div><strong>Activo:</strong> ${idLabel}${p.proveedor} — total $${p.total_usd}, mín $${p.minimo_usd}, déficit $${p.deficit_usd}</div>
+                <div><strong>Activo:</strong> ${idLabel}${name} <code>${p.proveedor}</code>${aliases} — total $${p.total_usd}, mín $${p.minimo_usd}, déficit $${p.deficit_usd}</div>
                 <div><strong>Ahorro vs 2º (barra→Grupo):</strong> $${p.ahorro_vs_segundo_usd}</div>
                 <div style="margin-top:0.4rem;"><strong>Reemplazos:</strong><br>${reps || '—'}</div>
                 <div style="margin-top:0.4rem;"><strong>Huérfanos si rechaza:</strong> ${huerf}</div>
@@ -569,18 +574,25 @@ document.addEventListener('DOMContentLoaded', () => {
             input.setAttribute('data-override-type', field.type || 'number');
             input.id = `ov_${field.key}`;
             wrap.appendChild(input);
-            if (field.hint) {
+            if (field.help || field.hint) {
                 const hint = document.createElement('small');
                 hint.style.color = 'var(--text-secondary)';
                 hint.style.fontSize = '0.7rem';
-                hint.textContent = field.hint;
+                hint.style.display = 'block';
+                hint.style.marginTop = '0.25rem';
+                hint.style.lineHeight = '1.3';
+                hint.textContent = field.help || field.hint;
                 wrap.appendChild(hint);
+            }
+            if (field.default != null && field.type === 'number') {
+                input.placeholder = String(field.default);
             }
             host.appendChild(wrap);
         });
         if (note) {
             const dead = (schema.dead_keys_excluded || []).join(', ');
-            note.textContent = `Nivel ${schema.nivel}: ${fields.length} knobs vivos. Excluidos: ${dead || '—'}.`;
+            note.textContent = schema.note
+                || `Nivel ${schema.nivel}: ${fields.length} knobs vivos. Excluidos: ${dead || '—'}.`;
         }
     }
 

@@ -373,7 +373,7 @@
                         <!-- Populated from GET /api/pedidos/overrides-schema -->
                     </div>
                     <p id="definitivoOverridesNote" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-                        Knobs vivos según nivel. No se exponen: s4_enabled, s4_porcentaje_base, sust_kappa, monto_days_reduction_pct.
+                        Knobs vivos según nivel. Si no ajusta el límite de reemplazo (κ), no se limita el cambio a sucedáneos. No se exponen: s4_enabled, s4_porcentaje_base, monto_days_reduction_pct.
                     </p>
                     <button type="button" id="btnRegenerarDefinitivo" class="btn btn-primary" style="height: 48px; width: 100%; font-weight: 700;">
                         <i class="fas fa-sync"></i> Regenerar Definitivo
@@ -426,7 +426,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260714-validar-minimos"></script>
+<script src="js/app_pedidos.js?v=20260715-kappa-techo"></script>
 
 <script>
   // Inicializa Lucide Icons si hay alguno

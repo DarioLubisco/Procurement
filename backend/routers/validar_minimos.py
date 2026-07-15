@@ -1,4 +1,4 @@
-"""ValidarMinimosProveedor API — ADR-0016."""
+"""ValidarMinimosProveedor API — ADR-0016 (+ ProveedorID aliases)."""
 from __future__ import annotations
 
 import logging
@@ -33,6 +33,7 @@ class ValidarMinimosRequest(BaseModel):
     catalog: Optional[List[Dict[str, Any]]] = None
     market_offers: Optional[List[Dict[str, Any]]] = None
     minimos_usd: Optional[Dict[str, Optional[float]]] = None
+    proveedor_groups: Optional[List[Dict[str, Any]]] = None
 
 
 def _load_inputs(body: ValidarMinimosRequest):
@@ -56,30 +57,39 @@ def _load_inputs(body: ValidarMinimosRequest):
                 status_code=503, detail=f"No se pudo cargar catálogo/mercado: {exc}"
             ) from exc
 
-    minimos = body.minimos_usd
-    if minimos is None:
-        try:
-            try:
-                from backend.services.proveedor_config_loader import (
-                    load_minimos_usd_from_db,
-                    load_proveedor_config_from_db,
-                )
-            except ImportError:
-                from services.proveedor_config_loader import (  # type: ignore
-                    load_minimos_usd_from_db,
-                    load_proveedor_config_from_db,
-                )
+    try:
+        from backend.services.proveedor_config_loader import (
+            groups_from_flat_minimos,
+            load_proveedor_groups_from_db,
+            minimos_usd_from_groups,
+        )
+    except ImportError:
+        from services.proveedor_config_loader import (  # type: ignore
+            groups_from_flat_minimos,
+            load_proveedor_groups_from_db,
+            minimos_usd_from_groups,
+        )
 
-            minimos = load_minimos_usd_from_db()
-            config_rows = load_proveedor_config_from_db()
-        except Exception as exc:
-            logging.warning("ProveedorConfig load failed: %s", exc)
-            minimos = {}
-            config_rows = []
+    if body.proveedor_groups is not None:
+        groups = list(body.proveedor_groups)
+        minimos = (
+            body.minimos_usd
+            if body.minimos_usd is not None
+            else minimos_usd_from_groups(groups)
+        )
+    elif body.minimos_usd is not None:
+        minimos = body.minimos_usd
+        groups = groups_from_flat_minimos(minimos)
     else:
-        config_rows = []
+        try:
+            groups = load_proveedor_groups_from_db()
+            minimos = minimos_usd_from_groups(groups)
+        except Exception as exc:
+            logging.warning("ProveedorConfig/aliases load failed: %s", exc)
+            groups = []
+            minimos = {}
 
-    return catalog, offers, minimos, config_rows
+    return catalog, offers, minimos, groups
 
 
 def _state_from_body(body: ValidarMinimosRequest):
@@ -104,6 +114,17 @@ def _payload(state, meta_vm: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _minimo_for_canonical(prov: str, groups: List[Dict[str, Any]], minimos: Dict):
+    from analytics_engine.core.validar_minimos import resolve_group
+
+    g = resolve_group(prov, groups)
+    if g is not None and g.get("monto_minimo_pedido_usd") is not None:
+        return float(g["monto_minimo_pedido_usd"]), g
+    if prov in minimos and minimos[prov] is not None:
+        return float(minimos[prov]), g
+    return None, g
+
+
 @router.post("/validar-minimos")
 async def validar_minimos(body: ValidarMinimosRequest):
     """Post-Generar step: evaluate / recalc % / accept / reject supplier minimums."""
@@ -117,6 +138,7 @@ async def validar_minimos(body: ValidarMinimosRequest):
         build_deficit_queue,
         meta_validar_minimos,
         reject_proveedor,
+        resolve_group,
     )
 
     action = (body.action or "").strip().lower()
@@ -129,34 +151,35 @@ async def validar_minimos(body: ValidarMinimosRequest):
     if not body.criterios_agrupacion:
         body.criterios_agrupacion = list(CRITERIOS_AGRUPACION_DEFAULT)
 
-    catalog, offers, minimos, config_rows = _load_inputs(body)
+    catalog, offers, minimos, groups = _load_inputs(body)
     state = _state_from_body(body)
-    id_by_cod = {r["cod_prov"]: r["proveedor_id"] for r in config_rows}
 
     def _queue():
-        return build_deficit_queue(state.pedido_propuesto, offers, minimos)
+        return build_deficit_queue(
+            state.pedido_propuesto, offers, minimos, groups=groups
+        )
 
     def _panel_for(prov: str) -> Optional[Dict[str, Any]]:
-        minimo = minimos.get(prov)
+        minimo, _g = _minimo_for_canonical(prov, groups, minimos)
         if minimo is None:
             return None
-        panel = build_decision_panel(
+        return build_decision_panel(
             proveedor=prov,
             state=state,
             catalog_rows=catalog,
             market_offers=offers,
             minimo_usd=float(minimo),
+            groups=groups,
         )
-        panel["proveedor_id"] = id_by_cod.get(prov)
-        return panel
 
     def _meta(**kwargs):
         m = meta_validar_minimos(**kwargs)
-        for item in m.get("cola") or []:
-            item["proveedor_id"] = id_by_cod.get(item["proveedor"])
         if m.get("activo"):
-            m["activo_proveedor_id"] = id_by_cod.get(m["activo"])
-        m["proveedores"] = config_rows
+            g = resolve_group(m["activo"], groups)
+            if g is not None:
+                m["activo_proveedor_id"] = g.get("proveedor_id")
+                m["activo_nombre_corto"] = g.get("nombre_corto")
+        m["proveedores"] = groups
         return m
 
     if action == "evaluar":
@@ -168,7 +191,6 @@ async def validar_minimos(body: ValidarMinimosRequest):
             panel = _panel_for(activo)
             requiere = True
         elif activo:
-            # First contact: light panel with suggested pct (no force)
             panel = _panel_for(activo)
         return _payload(
             state,
@@ -181,11 +203,13 @@ async def validar_minimos(body: ValidarMinimosRequest):
             ),
         )
 
-    prov = (body.proveedor or "").strip()
-    if not prov:
+    prov_raw = (body.proveedor or "").strip()
+    if not prov_raw:
         raise HTTPException(status_code=400, detail="proveedor required for this action")
 
-    minimo = minimos.get(prov)
+    g = resolve_group(prov_raw, groups)
+    prov = str(g["cod_prov"]).strip() if g else prov_raw
+    minimo, _ = _minimo_for_canonical(prov, groups, minimos)
     if minimo is None:
         raise HTTPException(
             status_code=400,
@@ -206,12 +230,18 @@ async def validar_minimos(body: ValidarMinimosRequest):
                     requiere_panel_antes_recalc=True,
                 ),
             )
-        barras = barras_of_proveedor(state.pedido_propuesto, prov)
+        barras = barras_of_proveedor(
+            state.pedido_propuesto, prov, groups=groups
+        )
         boost = boost_qtys_for_barras(
             catalog, barras, cobertura=body.cobertura, pct_extra=body.pct_extra
         )
         state = apply_qty_boost(
-            state, proveedor=prov, boost_qtys=boost, pct_extra=body.pct_extra
+            state,
+            proveedor=prov,
+            boost_qtys=boost,
+            pct_extra=body.pct_extra,
+            groups=groups,
         )
         queue = _queue()
         still = any(d.proveedor == prov for d in queue)
@@ -231,7 +261,11 @@ async def validar_minimos(body: ValidarMinimosRequest):
 
     if action == "aceptar":
         state = accept_subminimo(
-            state, proveedor=prov, minimo_usd=float(minimo), market_offers=offers
+            state,
+            proveedor=prov,
+            minimo_usd=float(minimo),
+            market_offers=offers,
+            groups=groups,
         )
         queue = [d for d in _queue() if d.proveedor != prov]
         return _payload(
@@ -245,12 +279,12 @@ async def validar_minimos(body: ValidarMinimosRequest):
             ),
         )
 
-    # rechazar
     state, orphans = reject_proveedor(
         state,
         proveedor=prov,
         catalog_rows=catalog,
         market_offers=offers,
+        groups=groups,
     )
     queue = _queue()
     return _payload(

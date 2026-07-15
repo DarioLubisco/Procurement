@@ -1,6 +1,6 @@
 # MOQ / mínimo por proveedor (no SAPROD.Minimo)
 
-El mínimo de compra es **por proveedor**, no `SAPROD.Minimo` ERP.
+El mínimo de compra es **por proveedor comercial**, no `SAPROD.Minimo` ERP.
 
 **Status:** accepted — comportamiento de validación en **ADR-0016**
 
@@ -10,17 +10,26 @@ Tabla: `[Procurement].[ProveedorConfig]`
 
 | Campo | Rol |
 |-------|-----|
-| **`ProveedorID`** `INT IDENTITY` UNIQUE | Identificador numérico estable (uso preferido en UI/API) |
-| **`CodProv`** `VARCHAR` PK | Alias operativo = `Mercado_Vivo.proveedor` (y FKs legacy: Horario, Backorder, Scorecard) |
-| **`MontoMinimoPedidoUSD`** | Mínimo comercial en dólares (nullable / 0 = no aplica) |
+| **`ProveedorID`** `INT IDENTITY` UNIQUE | Identificador numérico de la **entidad comercial** (UI/API, agregación MOQ) |
+| **`CodProv`** `VARCHAR` PK | Join a `Mercado_Vivo.proveedor` + FKs legacy (Horario, Backorder, Scorecard, BRNS) |
+| **`MontoMinimoPedidoUSD`** | Mínimo comercial en dólares (nullable / 0 = no aplica); solo filas **Activo=1** |
 
-Migraciones: `sql/008_…`, `sql/009_proveedor_config_proveedor_id.sql`.
+Aliases de mercado → mismo comercial:
 
-**No hay FK a `dbo.SAPROV`** (CodProv fiscal `J-…` ≠ CodProv corto). Join del Generar: `CodProv` ↔ mercado.
+Tabla: `[Procurement].[ProveedorCodProvAlias]` (`CodProv` → `ProveedorID`)
+
+- Varios strings de `Mercado_Vivo` (p.ej. `INSUAMINCA_G` / `_M`, `MASTRANTO_C`) mapean al mismo `ProveedorID`.
+- Filas no-canónicas en `ProveedorConfig` quedan `Activo=0` (FKs intactas); el mínimo se lee del canónico Activo.
+- Match de alias **case-insensitive** en el loader / ValidarMinimos.
+
+Migraciones: `sql/008_…`, `sql/009_proveedor_config_proveedor_id.sql`, `sql/010_proveedor_cod_prov_alias.sql`.
+
+**No hay FK a `dbo.SAPROV`** (CodProv fiscal `J-…` ≠ CodProv corto). Join del Generar: string mercado ↔ CodProv/alias.
 
 `SAPROD.Minimo` / `ManejoStock.Minimo` siguen **prohibidos**.
 
 ## Consequences
 
-- Identificar proveedores por **`ProveedorID`**; `CodProv`/`NombreCorto` son etiquetas de join/display.
-- Flujo ValidarMinimos: **ADR-0016** (match de ofertas sigue por string `proveedor` del mercado = `CodProv`).
+- Identificar entidades comerciales por **`ProveedorID`**; `CodProv`/`NombreCorto` son etiquetas de join/display.
+- ValidarMinimos agrega USD y encola **por `ProveedorID`** (un mínimo por lab), no por cada string de mercado.
+- Flujo ValidarMinimos: **ADR-0016**.

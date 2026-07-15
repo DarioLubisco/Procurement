@@ -15,3 +15,4 @@ Tras Generar, un paso explícito **ValidarMinimosProveedor** compara `sum(qty×p
 - Cablear loader `ProveedorConfig` + endpoint/UI “Validar mínimos”.
 - Actualiza semántica de ADR-0015 (fuente USD ya existe; falta implementación del paso).
 - kappa / techo cuadrático sigue fuera de este flujo (sesión aparte si se reactiva).
+- Aliases `ProveedorCodProvAlias`: cola/boost/rechazo por entidad comercial; el 2º precio **excluye** CodProvs del mismo `ProveedorID`.

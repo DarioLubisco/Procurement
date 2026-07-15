@@ -12,7 +12,7 @@ El comprador depreca `forced_includes`. Los FiltrosOperativos definen el **muest
 
 ## Consequences
 
-- `kappa` / `quadratic_ceiling` siguen muertos hasta calibración explícita; “puede reemplazar” no implica reactivar ese knob.
+- `kappa` / `quadratic_ceiling` en Definitivo: **ADR-0017** (opt-in). Sencillo sigue sin κ.
 - Paridad P1: Baseline vs Motor B sobre el muestreo filtrado; Propuesto no se exige 1:1 en BARRA.
 - JustificacionDelta debe declarar cambio de código cuando el Propuesto no usa la BARRA del Baseline.
 - El módulo `substitution_engine` puede alimentar el Propuesto o quedar como implementación detrás del mismo concepto Grupo; ya no se trata como dominio ajeno al Pedido.

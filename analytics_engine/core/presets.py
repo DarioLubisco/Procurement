@@ -37,16 +37,17 @@ LIVING_OVERRIDE_KEYS = frozenset(
         "lead_time_soft",
         "split_lead_time_enabled",
         "monto_buffer_pct",
+        "sust_kappa",  # ADR-0017 Definitivo opt-in
+        "kappa",  # alias → sust_kappa
+        "max_sustitucion_base",  # Avanzado only
     }
 )
 
-# Dead knobs — must never be exposed or applied (ticket 11).
+# Dead knobs — must never be exposed or applied (ticket 11 / ADR-0017).
 DEAD_OPTIMIZER_KEYS = frozenset(
     {
         "s4_enabled",
         "s4_porcentaje_base",
-        "sust_kappa",
-        "kappa",
         "monto_days_reduction_pct",
     }
 )
@@ -67,6 +68,8 @@ INTERMEDIO_OVERRIDE_KEYS = frozenset(
         "w5",
         "lead_time_soft",
         "split_lead_time_enabled",
+        "sust_kappa",
+        "kappa",
     }
 )
 
@@ -88,6 +91,9 @@ class PresetKnobs:
     f5_umbral: float = -0.10
     opp_lambda: float = 1.0
     split_lead_time_enabled: bool = False
+    # ADR-0017: None = kappa off (Sencillo / Definitivo without override)
+    sust_kappa: Optional[float] = None
+    max_sustitucion_base: Optional[float] = None
 
 
 _ALIAS = {
@@ -96,6 +102,7 @@ _ALIAS = {
     "w2_demanda": "w2",
     "w4_oportunidad": "w4",
     "w5_extension": "w5",
+    "kappa": "sust_kappa",
 }
 
 # FE labels / input types for Definitivo overrides (ticket 11 UX).
@@ -154,6 +161,30 @@ _OVERRIDE_FIELD_META: Dict[str, Dict[str, Any]] = {
         "label": "Split LeadTime",
         "type": "boolean",
         "hint": "Parte mínimo al rápido y resto al barato cuando el stock no cubre LT.",
+    },
+    "sust_kappa": {
+        "label": "Límite de reemplazo por sucedáneos (κ)",
+        "type": "number",
+        "step": "0.1",
+        "default": 5.0,
+        "help": (
+            "Si no ajusta este valor, no se limita el reemplazo por sucedáneos. "
+            "Con un valor (p. ej. 5), cuando el motor elige otro código del mismo grupo "
+            "más barato, solo una fracción del pedido de esa línea puede cambiar de código; "
+            "el resto se queda en el producto original. Más alto = permite más cambio "
+            "cuando el ahorro de precio es grande."
+        ),
+        "hint": "Opt-in: vacío = sin tope; tipico 5.",
+    },
+    "max_sustitucion_base": {
+        "label": "Tope base de sustitución (0–1)",
+        "type": "number",
+        "step": "0.05",
+        "help": (
+            "Solo Avanzado. Fracción base sustituible antes de expandir con κ "
+            "(si vacío, se deriva de la elasticidad del producto: menos elástico = menos reemplazo)."
+        ),
+        "hint": "Opcional; si vacío usa mapa por elasticidad.",
     },
     "monto_buffer_pct": {
         "label": "Buffer presupuesto (%)",
@@ -216,7 +247,7 @@ def resolve_preset_knobs(preset: PresetSencillo) -> PresetKnobs:
 
 
 def living_override_schema(*, nivel: str = "Avanzado") -> Dict[str, Any]:
-    """Describe living knobs for FE (excludes dead S4/kappa)."""
+    """Describe living knobs for FE (excludes dead S4; ADR-0017 exposes sust_kappa)."""
     if nivel == "Intermedio":
         keys = sorted(INTERMEDIO_OVERRIDE_KEYS - set(_ALIAS))
     else:
@@ -230,7 +261,10 @@ def living_override_schema(*, nivel: str = "Avanzado") -> Dict[str, Any]:
         "living_keys": keys,
         "fields": fields_out,
         "dead_keys_excluded": sorted(DEAD_OPTIMIZER_KEYS),
-        "note": "Overrides map onto PresetKnobs / OptimizerConfig living fields only.",
+        "note": (
+            "Si no ajusta el límite de reemplazo (κ), no se limita el cambio a sucedáneos. "
+            "S4 sigue excluido."
+        ),
     }
 
 
@@ -250,7 +284,7 @@ def apply_living_overrides(
         if raw_key in DEAD_OPTIMIZER_KEYS:
             raise ValueError(
                 f"override muerto rechazado: {raw_key} "
-                "(S4/kappa/monto_days_reduction no expuestos)"
+                "(S4/monto_days_reduction no expuestos)"
             )
         key = _ALIAS.get(raw_key, raw_key)
         if raw_key not in allowed and key not in allowed:
@@ -267,3 +301,20 @@ def apply_living_overrides(
     if not updates:
         return base
     return replace(base, **updates)
+
+
+def max_sustitucion_base_from_elasticidad(elasticidad: float) -> float:
+    """ADR-0017 default map: less elastic → lower substitutable fraction."""
+    try:
+        e = int(round(float(elasticidad)))
+    except (TypeError, ValueError):
+        e = 0
+    if e <= 0:
+        return 0.0
+    if e == 1:
+        return 0.2
+    if e == 2:
+        return 0.4
+    if e == 3:
+        return 0.6
+    return 0.8

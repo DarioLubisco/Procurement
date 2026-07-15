@@ -4,4 +4,7 @@
 
 **Status:** superseded by ADR-0005
 
-> **2026-07-11:** El flujo de ComparativaCantidades requiere que el PedidoPropuesto pueda reemplazar BARRAs por sucedáneos del mismo **Grupo** (mercado vivo). Eso reabre la integración de sustitución en el Pedido. Lo que **sigue vigente** de este ADR: no reactivar `kappa` / techo cuadrático sin caso de uso calibrado.
+> **2026-07-11:** El flujo de ComparativaCantidades requiere que el PedidoPropuesto pueda reemplazar BARRAs por sucedáneos del mismo **Grupo** (mercado vivo). Eso reabre la integración de sustitución en el Pedido.
+>
+> **2026-07-15:** κ / techo cuadrático se reactiva solo en Definitivo (opt-in) — ver **ADR-0017**. Este ADR ya no prohíbe κ en absoluto.
+

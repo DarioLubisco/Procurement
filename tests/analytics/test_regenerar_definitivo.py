@@ -85,11 +85,13 @@ def test_regenerar_avanzado_override_changes_qty_vs_sencillo():
     assert definitivo["meta"]["phase"] == "PedidoDefinitivo"
 
 
-def test_dead_s4_kappa_overrides_rejected():
+def test_dead_s4_overrides_rejected_kappa_living():
     base = resolve_preset_knobs(PresetSencillo.NORMAL)
-    for dead in ("s4_enabled", "sust_kappa", "kappa", "monto_days_reduction_pct"):
+    for dead in ("s4_enabled", "monto_days_reduction_pct"):
         with pytest.raises(ValueError, match="muerto"):
             apply_living_overrides(base, {dead: 1}, nivel="Avanzado")
+    knobs = apply_living_overrides(base, {"sust_kappa": 5.0}, nivel="Avanzado")
+    assert knobs.sust_kappa == 5.0
 
 
 def test_living_schema_excludes_dead_knobs():
@@ -97,7 +99,8 @@ def test_living_schema_excludes_dead_knobs():
     for dead in DEAD_OPTIMIZER_KEYS:
         assert dead not in schema["living_keys"]
     assert "s4_enabled" in schema["dead_keys_excluded"]
-    assert "sust_kappa" in schema["dead_keys_excluded"]
+    assert "sust_kappa" in schema["living_keys"]
+    assert "sust_kappa" not in schema["dead_keys_excluded"]
 
 
 def test_living_schema_includes_labeled_fields_for_fe():

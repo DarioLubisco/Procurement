@@ -36,5 +36,6 @@ def test_fe_regenerar_definitivo_distinct_from_sencillo():
     assert "renderDefinitivoOverrideFields" in JS
     assert "loadDefinitivoOverrideSchema" in JS
     assert "s4_enabled" in HTML  # documented as excluded
-    assert "sust_kappa" in HTML
+    assert "sucedáneos" in HTML or "κ" in HTML  # κ opt-in copy ADR-0017
+    assert "field.help" in JS or "field.hint" in JS
     assert "forced_includes" not in JS or "deprecated" in JS.lower()

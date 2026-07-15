@@ -91,8 +91,8 @@ _(Deprecado.)_ Antes: BARRAs bajo umbral forzadas al export. Sustituido por reso
 _Avoid_: reintroducirlo como requisito de paridad
 
 **Sustitución:**
-Usar otra BARRA del mismo Grupo (oferta de mercado vivo) dentro del PedidoPropuesto/Definitivo. Ver ADR-0005. `kappa` sigue fuera del schema hasta calibración.
-_Avoid_: kappa / techo cuadrático; forced_includes
+Usar otra BARRA del mismo Grupo (oferta de mercado vivo) dentro del PedidoPropuesto/Definitivo. Ver ADR-0005. κ / techo cuadrático en Definitivo (opt-in): ADR-0017.
+_Avoid_: S4 coverage reduction; forced_includes; κ en Generar Sencillo
 
 **PresetSencillo:**
 Conservador — ADR-0010. Normal — ADR-0011. Agresivo — ADR-0013. LeadTime vía SplitLeadTime — ADR-0014.
