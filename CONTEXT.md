@@ -36,6 +36,10 @@ _Avoid_: tratar elasticidad como única causa del delta; asumir elasticidad=5 co
 
 **MontoMinimoPedidoUSD:**
 Piso comercial en dólares por proveedor (`ProveedorConfig.MontoMinimoPedidoUSD`, nullable). No es `SAPROD.Minimo` ERP.
+
+**Moneda Pedidos (ADR-0023):**
+`MonedaOferta` por lab (USD|VES) normaliza `Mercado_Vivo` a USD con `dbo.dolartoday.dolarbcv`. Desvío/histórico/mínimos siempre USD. `MonedaTrabajo` (USD|VES) solo afecta pantalla: si VES, precios y Δ se reconvierten a Bs.
+_Avoid_: comparar histórico en Bs (inflación); dividir a ciegas todo Mercado_Vivo sin MonedaOferta
 _Avoid_: confundir con MOQ en unidades del SplitLeadTime
 
 **MOQ (unidades):**
@@ -131,8 +135,9 @@ Señal unificada del Desvío de precio: score, multiplicador de cantidad y días
 _Avoid_: F4, amplificador y F5 como tres conceptos de negocio en UI sencilla
 
 **Desvío:**
-Fracción `(precio − media_de_mediana) / media_de_mediana`. Negativo = más barato.
-_Avoid_: descuento comercial del proveedor
+Fracción `(precio − media_de_mediana) / media_de_mediana` en USD. Negativo = más barato. Ventana 120d; fallback semanal si falta diario (ADR-0024). `media_min` es informativa (no base del desvío).
+`fuente_baseline=diario` → media de **mercado** (snapshot `Mercado_Vivo`). `semanal`/`mixto` → media de **costo compra USD** (`CUSTOM_LOTES` vía `SAITEMCOM.NroUnicoL`; no `SAITEMCOM.Costo` en Bs). Serie larga semanal se reconstruye desde LOTES; diario solo forward limpio.
+_Avoid_: descuento comercial del proveedor; usar `SAITEMCOM.Costo` crudo como USD; `dbo.LOTES` (no existe — es `SALOTE`/`CUSTOM_LOTES`)
 
 **S4:**
 Reducción de cobertura para SKUs costosos por elasticidad. No cableado; fuera del schema activo hasta reactivación.

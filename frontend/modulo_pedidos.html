@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <script src="https://unpkg.com/lucide@latest"></script>
   
-  <link rel="stylesheet" href="css/style.css?v=2.4"/>
+  <link rel="stylesheet" href="css/style.css?v=20260716-sidebar2"/>
   <style>
     /* ── Pedidos layout (ADR-0020): full-width, categorías en modal ── */
     .pedidos-layout {
@@ -286,6 +286,29 @@
                     <input type="number" id="presupuestoMaximo" class="form-control" min="0" step="0.01" placeholder="Sin tope" style="height: 48px;"/>
                 </div>
 
+                <div class="input-group" style="display:flex; flex-direction:column; gap:0.75rem; padding:1rem; border:1px solid var(--border-subtle); background:rgba(0,0,0,0.12);">
+                    <p style="margin:0; font-weight:600; font-size:0.9rem;">Moneda del módulo Pedidos</p>
+                    <p style="margin:0; font-size:0.8rem; color:var(--text-secondary);">
+                        Desvío / histórico / mínimos siempre en <strong>USD</strong>. Si elige bolívares, los precios y Δ se muestran convertidos con <code>dbo.dolartoday.dolarbcv</code>.
+                    </p>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; align-items:end;">
+                        <div>
+                            <label for="monedaTrabajo">Moneda de trabajo (pantalla)</label>
+                            <select id="monedaTrabajo" class="form-control" style="height:48px;">
+                                <option value="USD">USD (dólares)</option>
+                                <option value="VES">VES (bolívares)</option>
+                            </select>
+                        </div>
+                        <div style="font-size:0.85rem; color:var(--text-secondary); padding-bottom:0.5rem;">
+                            BCV: <strong id="dolarbcvLabel">—</strong>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="margin-bottom:0.4rem; display:block;">Moneda de oferta por proveedor (Mercado_Vivo)</label>
+                        <div id="proveedorMonedaTable" style="max-height:220px; overflow:auto; border:1px solid var(--border-subtle); font-size:0.82rem;"></div>
+                    </div>
+                </div>
+
                 <div class="input-group" style="display: flex; flex-direction: column; gap: 0.75rem; background: rgba(99, 102, 241, 0.05); padding: 1rem; border-radius: var(--radius-lg); border: 1px solid var(--border-subtle);">
                     <p style="margin: 0; font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">Tipos de Producto a Incluir</p>
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -368,7 +391,9 @@
                                 <th style="padding: 0.6rem; text-align:left;">BARRA</th>
                                 <th style="padding: 0.6rem; text-align:left;">Descripción</th>
                                 <th style="padding: 0.6rem; text-align:left;">Proveedor</th>
+                                <th style="padding: 0.6rem; text-align:right;">Precio</th>
                                 <th style="padding: 0.6rem; text-align:right;">Cantidad</th>
+                                <th style="padding: 0.6rem; text-align:right;">Total</th>
                             </tr>
                         </thead>
                         <tbody id="propuestoTableBody"></tbody>
@@ -392,8 +417,8 @@
                             <label style="font-size: 0.8rem;">% extra cobertura</label>
                             <input type="number" id="vmPctExtra" class="form-control" value="50" min="0" max="500" step="5" style="width: 100px; height: 40px;">
                             <button type="button" id="btnVmRecalcular" class="btn btn-primary" style="height: 40px;">Recalcular</button>
-                            <button type="button" id="btnVmAceptar" class="btn btn-secondary" style="height: 40px;">Aceptar submínimo</button>
-                            <button type="button" id="btnVmRechazar" class="btn btn-secondary" style="height: 40px; border-color: #ef4444; color: #ef4444;">Rechazar proveedor</button>
+                            <button type="button" id="btnVmAceptar" class="btn btn-secondary" style="height: 40px;" title="Quedarse con este lab aunque esté bajo el mínimo">Aceptar submínimo</button>
+                            <button type="button" id="btnVmRedistribuir" class="btn btn-secondary" style="height: 40px; border-color: #ef4444; color: #ef4444;" title="Mueve solo las líneas marcadas al 2º proveedor; las no marcadas se quedan con este lab">Aplicar redistribución</button>
                         </div>
                         <p id="validarMinimosHint" style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;"></p>
                     </div>
@@ -533,9 +558,9 @@
 </div>
 
 <!-- SCRIPTS -->
-<script src="js/sidebar.js"></script>
+<script src="js/sidebar.js?v=20260716-sidebar2"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260716-rivales-topn"></script>
+<script src="js/app_pedidos.js?v=20260716-hist-usd"></script>
 
 <script>
   // Inicializa Lucide Icons si hay alguno

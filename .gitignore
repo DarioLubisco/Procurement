@@ -58,3 +58,7 @@ Thumbs.db
 *.tmp
 *.swp
 scratch/
+
+# --- QA histórico (generados; el proceso vive en analytics_engine/historico_stats/) ---
+reports/historico_qa/*
+!reports/historico_qa/.gitkeep

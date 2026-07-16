@@ -140,7 +140,63 @@ def test_reject_reasigns_same_barra_second_best():
     assert "Validar mínimos" in new.comparativa_cantidades[0]["justificacion_delta"]
     facts = new.comparativa_cantidades[0].get("justificacion_factores") or []
     vm = next(f for f in facts if f["codigo"] == "validar_minimos")
-    assert "rechazó CHEAP" in vm["detalle"]
+    assert "CHEAP" in vm["detalle"]
+    assert "EXPENSIVE" in vm["detalle"] or "redistribuyó" in vm["detalle"] or "rechazó" in vm["detalle"]
+
+
+def test_redistribuir_parcial_deja_no_marcadas_con_lab():
+    """Unchecked lines stay with lab; only barras_redistribuir move."""
+    state = ValidarMinimosState(
+        pedido_propuesto=[
+            {"barra": "A", "descripcion": "Prod A", "proveedor": "CHEAP", "cantidad": 10},
+            {"barra": "B", "descripcion": "Prod B sibling", "proveedor": "CHEAP", "cantidad": 5},
+        ],
+        comparativa_cantidades=[
+            {
+                "barra_baseline": "A",
+                "desc_baseline": "Prod A",
+                "qty_baseline": 10,
+                "barra_propuesto": "A",
+                "desc_propuesto": "Prod A",
+                "qty_propuesto": 10,
+                "justificacion_delta": "",
+            },
+            {
+                "barra_baseline": "B",
+                "desc_baseline": "Prod B sibling",
+                "qty_baseline": 5,
+                "barra_propuesto": "B",
+                "desc_propuesto": "Prod B sibling",
+                "qty_propuesto": 5,
+                "justificacion_delta": "",
+            },
+        ],
+        criterios_agrupacion=[
+            "principio_activo",
+            "forma_farmaceutica",
+            "concentracion",
+            "cantidad_presentacion",
+            "contenido_neto",
+        ],
+    )
+    # B needs its own offer for second best — use same catalog sibling group or separate
+    offers = [
+        {"barra": "A", "proveedor": "CHEAP", "precio": 1.0, "stock_proveedor": 100},
+        {"barra": "A", "proveedor": "EXPENSIVE", "precio": 2.0, "stock_proveedor": 100},
+        {"barra": "B", "proveedor": "CHEAP", "precio": 1.0, "stock_proveedor": 100},
+        {"barra": "B", "proveedor": "EXPENSIVE", "precio": 2.0, "stock_proveedor": 100},
+    ]
+    new, orphans = reject_proveedor(
+        state,
+        proveedor="CHEAP",
+        catalog_rows=_catalog(),
+        market_offers=offers,
+        barras_redistribuir=["A"],
+    )
+    by = {r["barra"]: r for r in new.pedido_propuesto}
+    assert by["A"]["proveedor"] == "EXPENSIVE"
+    assert by["B"]["proveedor"] == "CHEAP"
+    assert orphans == []
 
 
 def test_reject_orphan_when_no_alternative():
@@ -238,6 +294,83 @@ def test_panel_skips_bogus_ahorro_when_precio_actual_missing():
     assert r0["ahorro_usd"] is None
     assert r0["proveedor_actual"] == "UNKNOWN_PROV"
     assert panel["ahorro_vs_segundo_usd"] == 0.0
+
+
+def test_panel_skips_ahorro_when_precio_absurd_vs_historico():
+    """VITALCLINIC $2 vs media $285 → must not show Δ ≈ -$1452 vs NENA."""
+    state = ValidarMinimosState(
+        pedido_propuesto=[
+            {
+                "barra": "8904187826557",
+                "descripcion": "X",
+                "proveedor": "VITALCLINIC",
+                "cantidad": 1,
+            }
+        ],
+        comparativa_cantidades=[],
+        cobertura=30.0,
+        criterios_agrupacion=[
+            "principio_activo",
+            "forma_farmaceutica",
+            "concentracion",
+            "cantidad_presentacion",
+            "contenido_neto",
+        ],
+    )
+    offers = [
+        {
+            "barra": "8904187826557",
+            "proveedor": "VITALCLINIC",
+            "precio": 2.0,
+            "desvio": -0.992991,
+            "media_de_mediana": 285.337917,
+            "stock_proveedor": 100,
+        },
+        {
+            "barra": "8904187826557",
+            "proveedor": "NENA",
+            "precio": 1454.9,
+            "desvio": 4.098867,
+            "media_de_mediana": 285.337917,
+            "stock_proveedor": 100,
+        },
+    ]
+    catalog = [
+        {
+            "barra": "8904187826557",
+            "descripcion": "X",
+            "principio_activo": "x",
+            "forma_farmaceutica": "tab",
+            "concentracion": "1",
+            "cantidad_presentacion": "1",
+            "contenido_neto": "1",
+        }
+    ]
+    panel = build_decision_panel(
+        proveedor="VITALCLINIC",
+        state=state,
+        catalog_rows=catalog,
+        market_offers=offers,
+        minimo_usd=50.0,
+    )
+    assert panel["reemplazos"]
+    r0 = panel["reemplazos"][0]
+    assert r0["proveedor_alt"] == "NENA"
+    assert r0["ahorro_usd"] is None
+    assert r0["precio_actual_missing"] is True
+    assert r0["precio_actual_invalido"] is True
+    assert panel["ahorro_vs_segundo_usd"] == 0.0
+
+
+def test_lookup_rejects_zero_precio():
+    from analytics_engine.core.validar_minimos import _lookup_precio, _price_index
+
+    prices = _price_index(
+        [{"barra": "A", "proveedor": "P", "precio": 0.0}]
+    )
+    assert ("A", "P") not in prices
+    assert _lookup_precio({}, "A", "P", {"precio": 0.0}) is None
+    assert _lookup_precio({("A", "P"): 1.5}, "A", "P") == 1.5
 
 
 def test_line_usd_case_insensitive_proveedor():

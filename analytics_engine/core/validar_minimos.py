@@ -116,6 +116,12 @@ def _f(v: Any, default: float = 0.0) -> float:
         return default
 
 
+# Desvío ≤ this vs media_de_mediana ⇒ precio actual no confiable para Δ USD
+# (ej. VITALCLINIC $2 vs media $285 → desvío ≈ -0.99 ⇒ fake Δ $-1452).
+_DESVIO_PRECIO_INVALIDO = -0.85
+_RATIO_PRECIO_VS_MEDIA_MIN = 0.15
+
+
 def _price_index(
     market_offers: Sequence[Dict[str, Any]],
 ) -> Dict[Tuple[str, str], float]:
@@ -127,12 +133,64 @@ def _price_index(
         if not barra or not prov:
             continue
         precio = _f(o.get("precio"), default=-1.0)
-        if precio < 0:
+        if precio <= 0:
             continue
         key = (barra, prov)
         if key not in idx or precio < idx[key]:
             idx[key] = precio
     return idx
+
+
+def _offer_hist_index(
+    market_offers: Sequence[Dict[str, Any]],
+) -> Dict[Tuple[str, str], Dict[str, float]]:
+    """(barra, proveedor_upper) → {desvio, media_de_mediana} when present."""
+    idx: Dict[Tuple[str, str], Dict[str, float]] = {}
+    for o in market_offers or []:
+        barra = str(o.get("barra") or "").strip()
+        prov = _upper(o.get("proveedor"))
+        if not barra or not prov:
+            continue
+        meta: Dict[str, float] = {}
+        if o.get("desvio") is not None:
+            try:
+                meta["desvio"] = float(o["desvio"])
+            except (TypeError, ValueError):
+                pass
+        if o.get("media_de_mediana") is not None:
+            try:
+                media = float(o["media_de_mediana"])
+                if media > 0:
+                    meta["media_de_mediana"] = media
+            except (TypeError, ValueError):
+                pass
+        if not meta:
+            continue
+        key = (barra, prov)
+        # Prefer entry tied to the best (lowest) price row already in _price_index
+        if key not in idx:
+            idx[key] = meta
+    return idx
+
+
+def _precio_actual_unreliable(
+    precio: Optional[float],
+    *,
+    desvio: Optional[float] = None,
+    media_de_mediana: Optional[float] = None,
+) -> bool:
+    """True when unit price is missing, non-positive, or absurd vs histórico."""
+    if precio is None or precio <= 0:
+        return True
+    if desvio is not None and desvio <= _DESVIO_PRECIO_INVALIDO:
+        return True
+    if (
+        media_de_mediana is not None
+        and media_de_mediana > 0
+        and (precio / media_de_mediana) < _RATIO_PRECIO_VS_MEDIA_MIN
+    ):
+        return True
+    return False
 
 
 def _lookup_precio(
@@ -141,14 +199,18 @@ def _lookup_precio(
     proveedor: str,
     line: Optional[Dict[str, Any]] = None,
 ) -> Optional[float]:
-    """Resolve USD unit price: market index (case-insensitive) then line.precio."""
+    """Resolve USD unit price: market index (case-insensitive) then line.precio.
+
+    Rejects precio ≤ 0 (treated as missing) so VM Δ cannot use fake $0 baselines.
+    """
     b = str(barra or "").strip()
     p = _upper(proveedor)
     if b and p and (b, p) in prices:
-        return float(prices[(b, p)])
+        px = float(prices[(b, p)])
+        return px if px > 0 else None
     if line is not None:
         lp = _f(line.get("precio"), default=-1.0)
-        if lp >= 0:
+        if lp > 0:
             return float(lp)
     return None
 
@@ -498,6 +560,7 @@ def build_decision_panel(
 ) -> Dict[str, Any]:
     """Savings vs 2nd, replacements, orphan risk — for post-1st-fail panel."""
     prices = _price_index(market_offers)
+    hist = _offer_hist_index(market_offers)
     cat = _catalog_index(catalog_rows)
     criterios = state.criterios_agrupacion
     group = resolve_group(proveedor, groups)
@@ -514,13 +577,17 @@ def build_decision_panel(
         line_prov = str(line.get("proveedor") or "").strip()
         qty = _f(line.get("cantidad"))
         precio_act = _lookup_precio(prices, b, line_prov, line)
-        precio_missing = precio_act is None
-        if precio_act is None:
-            precio_act = 0.0
+        hmeta = hist.get((b, _upper(line_prov)), {})
+        desvio_act = hmeta.get("desvio")
+        media_act = hmeta.get("media_de_mediana")
+        precio_unreliable = _precio_actual_unreliable(
+            precio_act, desvio=desvio_act, media_de_mediana=media_act
+        )
+        precio_for_alt = float(precio_act) if precio_act is not None else 0.0
         alt = second_best_for_line(
             barra=b,
             proveedor_actual=line_prov,
-            precio_actual=float(precio_act),
+            precio_actual=precio_for_alt,
             catalog_by_barra=cat,
             market_offers=market_offers,
             criterios=criterios,
@@ -532,25 +599,37 @@ def build_decision_panel(
                     "barra": b,
                     "descripcion": line.get("descripcion") or "",
                     "cantidad": int(qty),
+                    "redistribuible_default": False,
                 }
             )
             continue
-        # Skip bogus ahorro when we never resolved the current USD price
-        # (was defaulting to 0 → fake ~-$qty*alt looking like a FX bug).
-        if precio_missing:
+        # Skip bogus Δ: missing/≤0 price OR absurd vs histórico
+        # (VITALCLINIC $2 / media $285 → fake Δ ≈ -alt.precio * qty).
+        if precio_unreliable:
             replacements.append(
                 {
                     "barra_actual": b,
                     "barra_alternativa": alt.barra,
                     "proveedor_actual": line_prov,
                     "proveedor_alt": alt.proveedor,
-                    "precio_actual": None,
+                    "precio_actual": round(float(precio_act), 4)
+                    if precio_act is not None
+                    else None,
                     "precio_alt": round(alt.precio, 4),
                     "cantidad": int(qty),
                     "ahorro_usd": None,
                     "delta_pct": None,
                     "precio_actual_missing": True,
+                    "precio_actual_invalido": True,
+                    "desvio_actual": round(float(desvio_act), 4)
+                    if desvio_act is not None
+                    else None,
+                    "media_de_mediana": round(float(media_act), 4)
+                    if media_act is not None
+                    else None,
+                    "descripcion_actual": str(line.get("descripcion") or ""),
                     "descripcion_alt": alt.descripcion,
+                    "redistribuible_default": False,
                 }
             )
             continue
@@ -571,7 +650,10 @@ def build_decision_panel(
                 "ahorro_usd": round(ahorro_line, 2),
                 "delta_pct": round(delta_pct, 1) if delta_pct is not None else None,
                 "precio_actual_missing": False,
+                "precio_actual_invalido": False,
+                "descripcion_actual": str(line.get("descripcion") or ""),
                 "descripcion_alt": alt.descripcion,
+                "redistribuible_default": True,
             }
         )
 
@@ -639,11 +721,16 @@ def reject_proveedor(
     catalog_rows: Sequence[Dict[str, Any]],
     market_offers: Sequence[Dict[str, Any]],
     groups: Optional[Sequence[Dict[str, Any]]] = None,
+    barras_redistribuir: Optional[Sequence[str]] = None,
 ) -> Tuple[ValidarMinimosState, List[str]]:
-    """Reassign all group lines to 2nd best (barra→Grupo) or orphan (proveedor='').
+    """Reassign selected group lines to 2nd best (barra→Grupo) or orphan.
+
+    barras_redistribuir: if provided, only those barras (of this lab) move.
+    Unlisted lines stay with the current proveedor (submínimo parcial).
+    If None, all lab lines are redistributed (legacy full reject).
 
     Sibling aliases of the same ProveedorID are never treated as a valid 2nd supplier.
-    Returns (new_state, orphan_barras).
+    Returns (new_state, orphan_barras) for lines that moved and found no 2nd.
     """
     prices = _price_index(market_offers)
     cat = _catalog_index(catalog_rows)
@@ -651,6 +738,9 @@ def reject_proveedor(
     group = resolve_group(proveedor, groups)
     can = str(group["cod_prov"]).strip() if group else str(proveedor).strip()
     cods = group_cod_set(group, fallback=proveedor)
+    selected: Optional[Set[str]] = None
+    if barras_redistribuir is not None:
+        selected = {str(b).strip() for b in barras_redistribuir if str(b).strip()}
     orphans: List[str] = []
 
     reassignments: Dict[str, Dict[str, Any]] = {}
@@ -662,6 +752,10 @@ def reject_proveedor(
             new_prop.append(row)
             continue
         old_b = str(row.get("barra") or "").strip()
+        # Stay with lab (partial submínimo) when not in selected set
+        if selected is not None and old_b not in selected:
+            new_prop.append(row)
+            continue
         line_prov = str(row.get("proveedor") or "").strip()
         precio_act = _lookup_precio(prices, old_b, line_prov, row)
         if precio_act is None:
@@ -678,13 +772,15 @@ def reject_proveedor(
         if alt is None:
             row["proveedor"] = ""
             orphans.append(old_b)
-            note = f"ValidarMinimos: rechazó {can} → huérfano (sin 2º)"
+            note = f"ValidarMinimos: redistribuyó {can} → huérfano (sin 2º)"
         else:
             row["barra"] = alt.barra
             row["descripcion"] = alt.descripcion or row.get("descripcion")
             row["proveedor"] = alt.proveedor
+            if alt.precio is not None:
+                row["precio"] = alt.precio
             note = (
-                f"ValidarMinimos: rechazó {can} → {alt.proveedor}/{alt.barra}"
+                f"ValidarMinimos: redistribuyó {can} → {alt.proveedor}/{alt.barra}"
             )
         reassignments[old_b] = {
             "barra": row["barra"],
@@ -708,7 +804,7 @@ def reject_proveedor(
                 r,
                 info["note"],
                 datos={
-                    "accion": "rechazar",
+                    "accion": "redistribuir",
                     "barra": info["barra"],
                     "cantidad": info["cantidad"],
                 },

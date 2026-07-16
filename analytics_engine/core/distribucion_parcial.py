@@ -878,6 +878,21 @@ def _oferta_factor_from_chosen(
             desvio_v = None
     if desvio_v is not None:
         det_bits.append(f"desvío={desvio_v:+.1%}")
+    media = None
+    if "media_de_mediana" in chosen.index and pd.notna(chosen.get("media_de_mediana")):
+        try:
+            media = float(chosen["media_de_mediana"])
+        except (TypeError, ValueError):
+            media = None
+    delta_usd = None
+    if precio is not None and media is not None:
+        delta_usd = precio - media
+        det_bits.append(f"media hist. ${media:.4f}")
+        det_bits.append(f"Δ ${delta_usd:+.4f}")
+    fuente_bl = None
+    if "fuente_baseline" in chosen.index and pd.notna(chosen.get("fuente_baseline")):
+        fuente_bl = str(chosen.get("fuente_baseline"))
+        det_bits.append(f"[{fuente_bl}]")
     if score is not None:
         det_bits.append(f"score={score:.3f}")
     comp = competencia_payload(
@@ -892,12 +907,12 @@ def _oferta_factor_from_chosen(
     n_herm = len(comp.get("hermanos_reemplazables") or [])
     if n_riv > 1 or n_herm:
         det_bits.append(f"rivales={n_riv} hermanos={n_herm}")
-    media = None
-    if "media_de_mediana" in chosen.index and pd.notna(chosen.get("media_de_mediana")):
+    media_min = None
+    if "media_min_diario" in chosen.index and pd.notna(chosen.get("media_min_diario")):
         try:
-            media = float(chosen["media_de_mediana"])
+            media_min = float(chosen["media_min_diario"])
         except (TypeError, ValueError):
-            media = None
+            media_min = None
     return factor(
         "oferta",
         " · ".join(det_bits) if det_bits else prov,
@@ -907,6 +922,9 @@ def _oferta_factor_from_chosen(
             "score": score,
             "desvio": desvio_v,
             "media_de_mediana": media,
+            "media_min_diario": media_min,
+            "delta_vs_media_usd": round(delta_usd, 6) if delta_usd is not None else None,
+            "fuente_baseline": fuente_bl,
             **comp,
         },
     )
@@ -1031,10 +1049,14 @@ def _apply_amplifier(qty: int, chosen: pd.Series, knobs: PresetKnobs) -> int:
         return qty
     if "desvio" not in chosen.index or pd.isna(chosen.get("desvio")):
         return qty
+    desvio = float(chosen["desvio"])
+    # Guard: desvío extremo suele ser precio basura en Mercado_Vivo (ej. $2 vs media $285).
+    if desvio <= -0.85 or desvio >= 5.0:
+        return qty
     from .nonlinear import exponential_amplifier
 
     mult = exponential_amplifier(
-        float(chosen["desvio"]),
+        desvio,
         knobs.amp_a,
         knobs.amp_b,
         knobs.amp_max_increment_pct,
