@@ -85,3 +85,44 @@ def test_lotes_filter_drops_junk_keeps_usd():
     w = aggregate_weekly_box(clean)
     assert len(w) == 1
     assert abs(w.iloc[0]["precio_mediana"] - 3.5) < 1e-9
+
+
+def test_dual_currency_invariant_ok_and_fail():
+    from analytics_engine.historico_stats.schemas import (
+        dual_currency_row_ok,
+        flag_dual_currency_violations,
+        validate_daily_dual_frame,
+    )
+
+    assert dual_currency_row_ok(precio_usd=2.0, precio_ves=1450.0, tasa_bcv=725.0)
+    assert not dual_currency_row_ok(precio_usd=2.0, precio_ves=9000.0, tasa_bcv=725.0)
+    assert not dual_currency_row_ok(precio_usd=2.0, precio_ves=None, tasa_bcv=725.0)
+
+    df = pd.DataFrame(
+        [
+            {
+                "codigo_barras": "A",
+                "precio_mediana_usd": 2.0,
+                "precio_mediana_ves": 1450.0,
+                "tasa_bcv": 725.0,
+                "moneda_origen": "USD",
+            },
+            {
+                "codigo_barras": "B",
+                "precio_mediana_usd": 2.0,
+                "precio_mediana_ves": 9000.0,
+                "tasa_bcv": 725.0,
+                "moneda_origen": "VES",
+            },
+        ]
+    )
+    flagged = flag_dual_currency_violations(df)
+    assert bool(flagged.loc[0, "dual_currency_ok"])
+    assert not bool(flagged.loc[1, "dual_currency_ok"])
+    try:
+        validate_daily_dual_frame(df)
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "violan" in str(exc)
+    ok_only = df.iloc[[0]].copy()
+    validate_daily_dual_frame(ok_only)

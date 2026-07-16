@@ -16,14 +16,15 @@ BEGIN
         SELECT
             CAST(h.codigo_barras AS NVARCHAR(50)) AS codigo_barras,
             CAST(h.fecha_snapshot AS date) AS fecha,
-            CAST(h.precio_mediana AS FLOAT) AS precio_mediana,
-            CAST(h.precio_min AS FLOAT) AS precio_min,
+            CAST(COALESCE(h.precio_mediana_usd, h.precio_mediana) AS FLOAT) AS precio_mediana,
+            CAST(COALESCE(h.precio_min_usd, h.precio_min) AS FLOAT) AS precio_min,
+            CAST(h.tasa_bcv AS FLOAT) AS tasa_bcv,
             DATEPART(ISO_WEEK, h.fecha_snapshot) AS semana_iso,
             YEAR(DATEADD(day, 26 - DATEPART(ISO_WEEK, h.fecha_snapshot), h.fecha_snapshot)) AS anio_iso
         FROM Analitica.Mercado_Historico h
         WHERE h.fecha_snapshot >= @Desde
-          AND h.precio_mediana IS NOT NULL
-          AND CAST(h.precio_mediana AS FLOAT) > 0
+          AND COALESCE(h.precio_mediana_usd, h.precio_mediana) IS NOT NULL
+          AND CAST(COALESCE(h.precio_mediana_usd, h.precio_mediana) AS FLOAT) > 0
     ),
     src AS (
         SELECT
@@ -35,6 +36,7 @@ BEGIN
             MAX(precio_mediana) AS precio_p75,
             MIN(CASE WHEN precio_min IS NOT NULL AND precio_min > 0 THEN precio_min END) AS precio_min,
             AVG(CASE WHEN precio_min IS NOT NULL AND precio_min > 0 THEN precio_min END) AS media_precio_min,
+            AVG(CASE WHEN tasa_bcv IS NOT NULL AND tasa_bcv > 0 THEN tasa_bcv END) AS tasa_bcv_ref,
             CAST(COUNT_BIG(*) AS INT) AS n_obs,
             MIN(fecha) AS fecha_semana_ini,
             MAX(fecha) AS fecha_semana_fin
@@ -54,6 +56,7 @@ BEGIN
         precio_p75 = s.precio_p75,
         precio_min = s.precio_min,
         media_precio_min = COALESCE(s.media_precio_min, s.precio_min),
+        tasa_bcv_ref = s.tasa_bcv_ref,
         n_obs = s.n_obs,
         fecha_semana_ini = s.fecha_semana_ini,
         fecha_semana_fin = s.fecha_semana_fin,
@@ -61,11 +64,13 @@ BEGIN
     WHEN NOT MATCHED THEN INSERT (
         codigo_barras, anio_iso, semana_iso,
         precio_p25, precio_mediana, precio_p75, precio_min, media_precio_min,
+        tasa_bcv_ref,
         n_obs, fecha_semana_ini, fecha_semana_fin
     ) VALUES (
         s.codigo_barras, s.anio_iso, s.semana_iso,
         s.precio_p25, s.precio_mediana, s.precio_p75, s.precio_min,
         COALESCE(s.media_precio_min, s.precio_min),
+        s.tasa_bcv_ref,
         s.n_obs, s.fecha_semana_ini, s.fecha_semana_fin
     );
 

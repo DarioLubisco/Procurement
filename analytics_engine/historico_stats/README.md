@@ -6,8 +6,8 @@ Proceso versionado en git para **depurar fuentes → construir estadísticas** (
 
 Cada noche **06:00** el job `Synapse_Refresh_Mercado_Historico_Noche` ejecuta:
 
-1. `Analitica.SP_Snapshot_Mercado` — lista del día (USD; heurística BCV/LOTES si lab mal etiquetado)
-2. `Analitica.SP_Refresh_Historico_Semanal` — lista semanal (+ huecos `CUSTOM_LOTES` vía `NroUnicoL`)
+1. `Analitica.SP_Snapshot_Mercado` — lista del día (**VES + USD + `tasa_bcv` + `moneda_origen`**; heurística BCV/LOTES)
+2. `Analitica.SP_Refresh_Historico_Semanal` — lista semanal USD (+ huecos `CUSTOM_LOTES` vía `NroUnicoL`; `tasa_bcv_ref` desde diario)
 
 One-shot wipe+backfill: `python sql/rebuild_historico_from_lotes.py --commit --backup --seed-today`  
 (DDL de SPs: `python sql/apply_historico_agent_job.py` con **pyodbc autocommit**, no el pool de `database.py`.)
@@ -23,14 +23,16 @@ One-shot wipe+backfill: `python sql/rebuild_historico_from_lotes.py --commit --b
 - `media_min`: acumulativa en semanal (`media_precio_min`) y en baseline 120d (`media_min_diario`)
 - Huecos compras: solo semanas **sin** fila mercado; USD desde `CUSTOM_LOTES.[Precio$ (per unit)]` vía `SAITEMCOM.NroUnicoL` (nunca `SAITEMCOM.Costo` crudo)
 - Backfill híbrido C: wipe + semanal desde LOTES; diario solo forward (`SP_Snapshot_Mercado`)
-- Moneda mercado: `ProveedorConfig.MonedaOferta` / BCV; costo: BCV en `CUSTOM_LOTES`
+- Moneda mercado: diario guarda **VES + USD + tasa_bcv**; desvío usa USD; costo LOTES ya en USD
+- Invariante QA: `|usd × tasa_bcv − ves| / ves ≤ 2%` (`schemas.flag_dual_currency_violations`)
 
 ## Artefactos QA
 
 Por defecto bajo `reports/historico_qa/`:
 
-- `inventory.json` — conteos / cobertura
-- `exclusiones.csv` — filas marcadas (BCV missing, outlier, dudoso)
+- `inventory.json` — conteos / cobertura / `dual_currency` summary
+- `exclusiones.csv` — filas marcadas (BCV missing, outlier, dual invariant, dudoso)
 - `qa_summary.html` — resumen (profiling opcional si `ydata-profiling` instalado)
 
 Deps opcionales: `requirements-historico-qa.txt`.
+DDL dual: `sql/017_mercado_historico_dual_currency.sql`.

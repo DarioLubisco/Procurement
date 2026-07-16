@@ -14,6 +14,7 @@ import pandas as pd
 from .constants import HISTORICO_DESVIO_LOOKBACK_DAYS, RECONVERSION_DATE
 from .currency import classify_row_dict, to_usd_candidate
 from .outliers import exclusion_rows, flag_mad_outliers
+from .schemas import dual_currency_summary, flag_dual_currency_violations
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +40,18 @@ _SQL_HIST_SAMPLE = """
 SELECT TOP (?)
   CAST(codigo_barras AS NVARCHAR(50)) AS codigo_barras,
   CAST(fecha_snapshot AS date) AS fecha,
-  CAST(precio_mediana AS FLOAT) AS precio,
-  CAST(precio_min AS FLOAT) AS precio_min_diario
+  CAST(COALESCE(precio_mediana_usd, precio_mediana) AS FLOAT) AS precio,
+  CAST(COALESCE(precio_min_usd, precio_min) AS FLOAT) AS precio_min_diario,
+  CAST(precio_mediana_usd AS FLOAT) AS precio_mediana_usd,
+  CAST(precio_mediana_ves AS FLOAT) AS precio_mediana_ves,
+  CAST(precio_min_usd AS FLOAT) AS precio_min_usd,
+  CAST(precio_min_ves AS FLOAT) AS precio_min_ves,
+  CAST(tasa_bcv AS FLOAT) AS tasa_bcv,
+  CAST(moneda_origen AS NVARCHAR(3)) AS moneda_origen
 FROM Analitica.Mercado_Historico
 WHERE fecha_snapshot >= ?
-  AND precio_mediana IS NOT NULL
-  AND CAST(precio_mediana AS FLOAT) > 0
+  AND COALESCE(precio_mediana_usd, precio_mediana) IS NOT NULL
+  AND CAST(COALESCE(precio_mediana_usd, precio_mediana) AS FLOAT) > 0
 ORDER BY fecha_snapshot DESC
 """
 
@@ -237,5 +244,23 @@ def run_qa_pipeline(conn: Any, *, out_dir: Optional[Path] = None, sample_n: int 
             if pd.notna(m) and m > 0:
                 med[str(b)] = float(m)
     annotated = annotate_qa_frame(sample, bcv, mediana_usd_by_barra=med)
+    # Dual currency invariant (VES ≈ USD × tasa) when columns present
+    dual_src = sample
+    if not sample.empty and "precio_mediana_usd" in sample.columns:
+        dual_src = flag_dual_currency_violations(sample)
+        inventory["dual_currency"] = dual_currency_summary(sample)
+        # fold dual failures into annotated for exclusiones
+        if not dual_src.empty and "dual_currency_ok" in dual_src.columns:
+            bad_dual = dual_src.loc[~dual_src["dual_currency_ok"].fillna(False)].copy()
+            if not bad_dual.empty:
+                bad_dual["fuente_moneda"] = bad_dual.get("moneda_origen", "dual")
+                bad_dual["precio_usd"] = pd.to_numeric(bad_dual.get("precio_mediana_usd"), errors="coerce")
+                bad_dual["bcv_missing"] = pd.to_numeric(bad_dual.get("tasa_bcv"), errors="coerce").isna()
+                bad_dual["es_outlier_mad"] = True
+                annotated = (
+                    pd.concat([annotated, bad_dual], ignore_index=True, sort=False)
+                    if annotated is not None and not annotated.empty
+                    else bad_dual
+                )
     paths = write_qa_artifacts(inventory, annotated, out_dir=out_dir)
     return {"inventory": inventory, "paths": paths, "annotated_rows": len(annotated)}

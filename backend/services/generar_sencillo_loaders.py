@@ -47,8 +47,8 @@ except Exception:  # pragma: no cover — path/import edge in some test harnesse
 _SQL_HISTORICO_BASELINES_OPENJSON = """
     SELECT
         CAST(h.codigo_barras AS NVARCHAR(50)) AS codigo_barras,
-        AVG(CAST(h.precio_mediana AS FLOAT)) AS media_de_mediana,
-        AVG(CAST(h.precio_min AS FLOAT)) AS media_min_diario,
+        AVG(CAST(COALESCE(h.precio_mediana_usd, h.precio_mediana) AS FLOAT)) AS media_de_mediana,
+        AVG(CAST(COALESCE(h.precio_min_usd, h.precio_min) AS FLOAT)) AS media_min_diario,
         COUNT_BIG(*) AS dias_hist,
         MIN(h.fecha_snapshot) AS fecha_desde,
         MAX(h.fecha_snapshot) AS fecha_hasta
@@ -56,8 +56,8 @@ _SQL_HISTORICO_BASELINES_OPENJSON = """
     INNER JOIN OPENJSON(?) WITH (codigo_barras NVARCHAR(50) '$.b') AS j
       ON CAST(h.codigo_barras AS NVARCHAR(50)) = j.codigo_barras
     WHERE h.fecha_snapshot >= DATEADD(day, -?, CAST(GETDATE() AS date))
-      AND h.precio_mediana IS NOT NULL
-      AND CAST(h.precio_mediana AS FLOAT) > 0
+      AND COALESCE(h.precio_mediana_usd, h.precio_mediana) IS NOT NULL
+      AND CAST(COALESCE(h.precio_mediana_usd, h.precio_mediana) AS FLOAT) > 0
     GROUP BY CAST(h.codigo_barras AS NVARCHAR(50))
 """
 

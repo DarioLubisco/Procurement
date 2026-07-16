@@ -1,7 +1,7 @@
 # Mercado histórico USD + serie semanal (ADR-0024)
 
 **Status:** accepted  
-**Updated:** 2026-07-16 — hybrid C (LOTES weekly backfill + market daily forward)
+**Updated:** 2026-07-16 — hybrid C + dual currency columns (VES + USD + FX)
 
 ## Context
 
@@ -11,8 +11,8 @@ El gap-fill vía `SAITEMCOM.Costo` también contaminaba (costo a menudo en Bs). 
 
 ## Decision
 
-1. **Diario** `Analitica.Mercado_Historico`: solo **forward** vía `SP_Snapshot_Mercado` (Mercado_Vivo → USD con `MonedaOferta` ÷ BCV). Auditoría: `n_obs`, `fuente`, `moneda_snapshot`. Tras wipe híbrido, el diario arranca vacío/semilla del día y madura noche a noche.
-2. **Semanal** `Analitica.Mercado_Historico_Semanal`: ISO week desde **2021-10-01**; caja `p25`, `mediana`, `p75`, `min`, **`media_precio_min`**, `n_obs`.
+1. **Diario** `Analitica.Mercado_Historico`: solo **forward** vía `SP_Snapshot_Mercado`. Cada fila guarda **VES + USD + `tasa_bcv` + `moneda_origen`** (`USD`|`VES`|`MIX`). Legacy `precio_min`/`precio_mediana` = **alias USD**. Desvío lee `COALESCE(precio_mediana_usd, precio_mediana)`. Auditoría: `n_obs`, `fuente`, `moneda_snapshot='USD'`. Tras wipe híbrido, el diario madura noche a noche.
+2. **Semanal** `Analitica.Mercado_Historico_Semanal`: ISO week desde **2021-10-01**; caja USD `p25`, `mediana`, `p75`, `min`, **`media_precio_min`**, `n_obs`; opcional **`tasa_bcv_ref`** (AVG BCV de días mercado). Sin caja VES semanal (mezclar días con BCV distinto engaña).
 3. **Backfill híbrido (C):** wipe diario+semanal sucios; **reconstruir semanal desde costo USD** (`CUSTOM_LOTES` vía `NroUnicoL`). Percentiles reales en Python (`historico_stats.weekly_aggregate`) en el one-shot; rollup nightly mercado→semana puede seguir con puente SQL `MIN/AVG/MAX` si hace falta memoria.
 3b. **`SP_Snapshot_Mercado`:** además de `MonedaOferta=VES`, convierte si `precio_raw >= BCV` o `precio_raw >= 20×` media costo LOTES USD de la barra (corrige labs mal etiquetados USD). Descarta medianas aún `>= BCV` tras normalizar.
 4. **`media_min`**: acumulativa — semanal (`media_precio_min`) + baseline loader 120d (`media_min_diario`). **No** base del desvío.
@@ -21,7 +21,7 @@ El gap-fill vía `SAITEMCOM.Costo` también contaminaba (costo a menudo en Bs). 
 7. **Significado de `fuente_baseline`:**
    - `diario` — oferta vs mediana de **mercado** (días limpios)
    - `semanal` / `mixto` — oferta vs mediana de **costo de compra USD** (puente hasta madurar el diario)
-8. Moneda mercado: `ProveedorConfig` / explícita; BCV en `CUSTOM_LOTES` para costo.
+8. Moneda mercado: `ProveedorConfig` / heurísticas; BCV en fila diaria (`tasa_bcv`) y en `CUSTOM_LOTES` para costo. Invariante: con `tasa_bcv` conocida, ambos lados VES/USD poblados (`*_ves ≈ *_usd * tasa_bcv`).
 9. UI: cabecera `precio · media hist · Δ$ · %` (USD) + badge fuente; rivales `precio · %`.
 10. Nightly: SQL Agent only (`SP_Refresh_Mercado_Historico_Noche`); N8N snapshot off.
 

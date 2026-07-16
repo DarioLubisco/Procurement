@@ -37,9 +37,9 @@ _Avoid_: tratar elasticidad como única causa del delta; asumir elasticidad=5 co
 **MontoMinimoPedidoUSD:**
 Piso comercial en dólares por proveedor (`ProveedorConfig.MontoMinimoPedidoUSD`, nullable). No es `SAPROD.Minimo` ERP.
 
-**Moneda Pedidos (ADR-0023):**
-`MonedaOferta` por lab (USD|VES) normaliza `Mercado_Vivo` a USD con `dbo.dolartoday.dolarbcv`. Desvío/histórico/mínimos siempre USD. `MonedaTrabajo` (USD|VES) solo afecta pantalla: si VES, precios y Δ se reconvierten a Bs.
-_Avoid_: comparar histórico en Bs (inflación); dividir a ciegas todo Mercado_Vivo sin MonedaOferta
+**Moneda Pedidos (ADR-0023 / 0024 dual):**
+`MonedaOferta` por lab (USD|VES) resuelve origen de cotización en `Mercado_Vivo`. Snapshot diario guarda **VES + USD + `tasa_bcv` + `moneda_origen`** en `Mercado_Historico` (legacy `precio_mediana` = alias USD). Desvío/mínimos usan **USD** (`precio_mediana_usd`). `MonedaTrabajo` (USD|VES) solo pantalla: si VES, UI reconvierte con BCV.
+_Avoid_: comparar desvío en Bs (inflación); una sola columna ambigua; dividir a ciegas sin MonedaOferta/heurística
 _Avoid_: confundir con MOQ en unidades del SplitLeadTime
 
 **MOQ (unidades):**
@@ -136,8 +136,8 @@ _Avoid_: F4, amplificador y F5 como tres conceptos de negocio en UI sencilla
 
 **Desvío:**
 Fracción `(precio − media_de_mediana) / media_de_mediana` en USD. Negativo = más barato. Ventana 120d; fallback semanal si falta diario (ADR-0024). `media_min` es informativa (no base del desvío).
-`fuente_baseline=diario` → media de **mercado** (snapshot `Mercado_Vivo`). `semanal`/`mixto` → media de **costo compra USD** (`CUSTOM_LOTES` vía `SAITEMCOM.NroUnicoL`; no `SAITEMCOM.Costo` en Bs). Serie larga semanal se reconstruye desde LOTES; diario solo forward limpio.
-_Avoid_: descuento comercial del proveedor; usar `SAITEMCOM.Costo` crudo como USD; `dbo.LOTES` (no existe — es `SALOTE`/`CUSTOM_LOTES`)
+`fuente_baseline=diario` → media de **mercado USD** (`COALESCE(precio_mediana_usd, precio_mediana)`). `semanal`/`mixto` → media de **costo compra USD** (`CUSTOM_LOTES` vía `SAITEMCOM.NroUnicoL`). Columnas VES/`tasa_bcv` en diario son auditoría/UI, no base del desvío.
+_Avoid_: descuento comercial del proveedor; usar `SAITEMCOM.Costo` crudo como USD; `dbo.LOTES` (no existe — es `SALOTE`/`CUSTOM_LOTES`); desvío sobre mediana VES
 
 **S4:**
 Reducción de cobertura para SKUs costosos por elasticidad. No cableado; fuera del schema activo hasta reactivación.
