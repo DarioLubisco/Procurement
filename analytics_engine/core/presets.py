@@ -347,18 +347,31 @@ def resolve_preset_knobs(preset: PresetSencillo) -> PresetKnobs:
     raise ValueError(f"preset not implemented yet: {preset}")
 
 
-def living_override_schema(*, nivel: str = "Avanzado") -> Dict[str, Any]:
+def living_override_schema(
+    *,
+    nivel: str = "Avanzado",
+    base_preset: str = "Normal",
+) -> Dict[str, Any]:
     """Describe living knobs for FE (excludes dead S4; ADR-0017 exposes sust_kappa)."""
     if nivel == "Intermedio":
         keys = sorted(INTERMEDIO_OVERRIDE_KEYS - set(_ALIAS))
     else:
         keys = sorted(k for k in LIVING_OVERRIDE_KEYS if k not in _ALIAS)
+    try:
+        preset_enum = PresetSencillo(base_preset)
+    except ValueError:
+        preset_enum = PresetSencillo.NORMAL
+    knobs = resolve_preset_knobs(preset_enum)
     fields_out: list[Dict[str, Any]] = []
     for key in keys:
         meta = dict(_OVERRIDE_FIELD_META.get(key, {"label": key, "type": "number"}))
+        if hasattr(knobs, key):
+            val = getattr(knobs, key)
+            meta["default"] = val
         fields_out.append({"key": key, **meta})
     return {
         "nivel": nivel,
+        "base_preset": preset_enum.value,
         "living_keys": keys,
         "fields": fields_out,
         "dead_keys_excluded": sorted(DEAD_OPTIMIZER_KEYS),

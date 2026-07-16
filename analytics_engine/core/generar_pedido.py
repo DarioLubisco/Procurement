@@ -125,7 +125,11 @@ def _propuesto_desde_knobs(
     market_offers: pd.DataFrame,
     criterios: Sequence[str],
 ) -> tuple[List[PropuestoLine], List[ComparativaRow]]:
-    """PedidoPropuesto via DistribucionParcial with resolved knobs."""
+    """PedidoPropuesto via DistribucionParcial with resolved knobs.
+
+    Comparativa includes all Baseline lines (incl. unmet sin_oferta if no hermano/
+    sucedáneo). PedidoPropuesto only lines with proveedor (comprables).
+    """
     allocations = distribute_parcial(
         baseline, catalog, market_offers, knobs, criterios
     )
@@ -134,16 +138,19 @@ def _propuesto_desde_knobs(
     for alloc in allocations:
         extra_qty = sum(leg.cantidad for leg in alloc.extra_legs)
         primary_qty = alloc.qty_propuesto - extra_qty
-        propuesto.append(
-            PropuestoLine(
-                barra=alloc.barra_propuesto,
-                descripcion=alloc.desc_propuesto,
-                proveedor=alloc.proveedor,
-                cantidad=primary_qty,
-                precio=alloc.precio,
+        if primary_qty > 0 and str(alloc.proveedor or "").strip():
+            propuesto.append(
+                PropuestoLine(
+                    barra=alloc.barra_propuesto,
+                    descripcion=alloc.desc_propuesto,
+                    proveedor=alloc.proveedor,
+                    cantidad=primary_qty,
+                    precio=alloc.precio,
+                )
             )
-        )
         for leg in alloc.extra_legs:
+            if leg.cantidad <= 0 or not str(leg.proveedor or "").strip():
+                continue
             propuesto.append(
                 PropuestoLine(
                     barra=leg.barra,

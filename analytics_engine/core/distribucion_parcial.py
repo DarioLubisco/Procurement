@@ -153,11 +153,15 @@ def distribute_parcial(
         qty_baseline = int(line.cantidad)
 
         barra_p = str(chosen["barra"])
-        desc_p = line.descripcion
-        if "descripcion" in chosen.index and pd.notna(chosen.get("descripcion")):
-            desc_p = str(chosen["descripcion"])
-        elif barra_p in by_barra:
-            desc_p = str(by_barra[barra_p]["descripcion"])
+        # Same BARRA → keep Baseline/catalog description (Mercado_Vivo text often differs).
+        if barra_p == str(line.barra):
+            desc_p = line.descripcion
+        else:
+            desc_p = line.descripcion
+            if "descripcion" in chosen.index and pd.notna(chosen.get("descripcion")):
+                desc_p = str(chosen["descripcion"])
+            elif barra_p in by_barra:
+                desc_p = str(by_barra[barra_p]["descripcion"])
 
         kappa_alloc = _apply_kappa_split_if_needed(
             line=line,
@@ -243,7 +247,216 @@ def distribute_parcial(
         out = _apply_f5_extension(
             out, baseline, cat, offers, criterios, by_barra, knobs.f5_umbral
         )
+    out = _resolve_unmet_via_grupo(
+        out, cat, offers, criterios, by_barra, knobs
+    )
     return out
+
+
+def _allocation_is_unmet(a: Allocation) -> bool:
+    """Only true sin_oferta / sin_catalogo — not kappa-forced baseline (empty proveedor)."""
+    codes = {f.codigo for f in a.justificacion_factores}
+    return "sin_oferta" in codes or "sin_catalogo" in codes
+
+
+def _resolve_unmet_via_grupo(
+    allocations: List[Allocation],
+    catalog: pd.DataFrame,
+    offers: pd.DataFrame,
+    criterios: Sequence[str],
+    by_barra: dict,
+    knobs: PresetKnobs,
+) -> List[Allocation]:
+    """Sin oferta → sucedáneo de mercado del Grupo, o compensación a hermano ya en pedido.
+
+    Elasticidad (0–5) acota cuánto del gap de la línea sin oferta se traslada al hermano.
+    """
+    out = list(allocations)
+    for i, a in enumerate(out):
+        if not _allocation_is_unmet(a):
+            continue
+        row = by_barra.get(a.barra_baseline)
+        if row is None:
+            continue
+        gk = _group_key(row, criterios)
+        if not gk or gk[0] == "__sku__":
+            continue  # sin attrs MDM → no Grupo que sustituya
+
+        candidates = _offers_for_group(offers, gk, criterios)
+        if candidates is not None and not candidates.empty:
+            rewritten = _allocation_sucedaneo_from_offers(
+                line_baseline=a,
+                catalog_row=row,
+                candidates=candidates,
+                knobs=knobs,
+                by_barra=by_barra,
+            )
+            if rewritten is not None:
+                out[i] = rewritten
+                continue
+
+        sib_idxs = [
+            j
+            for j, o in enumerate(out)
+            if j != i
+            and not _allocation_is_unmet(o)
+            and by_barra.get(o.barra_baseline) is not None
+            and _group_key(by_barra[o.barra_baseline], criterios) == gk
+        ]
+        if not sib_idxs:
+            continue
+
+        j = max(sib_idxs, key=lambda idx: out[idx].qty_propuesto)
+        sib = out[j]
+        e = _elasticidad(row)
+        frac = min(1.0, max(0.0, e / 5.0))
+        if frac <= 0:
+            # e=0: no capacidad de cesión; deja sin_oferta visible
+            continue
+        qty_comp = max(1, int(round(int(a.qty_baseline) * frac)))
+
+        factors = [
+            factor(
+                "sucedaneo",
+                f"{a.barra_baseline}→{sib.barra_propuesto} (hermano grupal en pedido)",
+                datos={
+                    "barra_baseline": a.barra_baseline,
+                    "barra_propuesto": sib.barra_propuesto,
+                },
+            ),
+            factor(
+                "compensacion_grupo",
+                f"elasticidad={e:g} → +{qty_comp} u al hermano",
+                datos={
+                    "elasticidad": e,
+                    "frac": frac,
+                    "qty_compensada": qty_comp,
+                    "hermano_baseline": sib.barra_baseline,
+                },
+            ),
+        ]
+        resumen, facts = finalize(factors)
+        out[i] = Allocation(
+            barra_baseline=a.barra_baseline,
+            desc_baseline=a.desc_baseline,
+            qty_baseline=a.qty_baseline,
+            barra_propuesto=sib.barra_propuesto,
+            desc_propuesto=sib.desc_propuesto,
+            qty_propuesto=qty_comp,
+            proveedor=sib.proveedor,
+            justificacion_delta=resumen,
+            precio=sib.precio,
+            justificacion_factores=facts,
+        )
+        # Compensar qty en el hermano (Propuesto agrega ambas líneas / o suma aquí)
+        sib_facts = append_factor(
+            sib.justificacion_factores,
+            factor(
+                "compensacion_grupo",
+                f"+{qty_comp} u desde {a.barra_baseline} (e={e:g})",
+                datos={
+                    "from_barra": a.barra_baseline,
+                    "qty": qty_comp,
+                    "elasticidad": e,
+                },
+            ),
+        )
+        sib_resumen, sib_facts = finalize(sib_facts)
+        out[j] = Allocation(
+            barra_baseline=sib.barra_baseline,
+            desc_baseline=sib.desc_baseline,
+            qty_baseline=sib.qty_baseline,
+            barra_propuesto=sib.barra_propuesto,
+            desc_propuesto=sib.desc_propuesto,
+            qty_propuesto=sib.qty_propuesto + qty_comp,
+            proveedor=sib.proveedor,
+            justificacion_delta=sib_resumen,
+            extra_legs=sib.extra_legs,
+            precio=sib.precio,
+            justificacion_factores=sib_facts,
+        )
+    return out
+
+
+def _allocation_sucedaneo_from_offers(
+    *,
+    line_baseline: Allocation,
+    catalog_row,
+    candidates: pd.DataFrame,
+    knobs: PresetKnobs,
+    by_barra: dict,
+) -> Optional[Allocation]:
+    """Build a buyable Allocation from group market offers (sucedáneo)."""
+    line = BaselineLine(
+        barra=line_baseline.barra_baseline,
+        descripcion=line_baseline.desc_baseline,
+        cantidad=line_baseline.qty_baseline,
+    )
+    scored = _score_offers(
+        candidates, knobs, baseline_elasticidad=_elasticidad(catalog_row)
+    )
+    if scored.empty:
+        return None
+    chosen = scored.iloc[0]
+    barra_p = str(chosen["barra"])
+    if barra_p == str(line.barra):
+        desc_p = line.descripcion
+    else:
+        desc_p = line.descripcion
+        if "descripcion" in chosen.index and pd.notna(chosen.get("descripcion")):
+            desc_p = str(chosen["descripcion"])
+        elif barra_p in by_barra:
+            desc_p = str(by_barra[barra_p]["descripcion"])
+
+    factors: List[JustificacionFactor] = []
+    if barra_p != str(line.barra):
+        factors.append(
+            factor(
+                "sucedaneo",
+                f"{line.barra}→{barra_p} (sucedáneo del Grupo)",
+                datos={"barra_baseline": line.barra, "barra_propuesto": barra_p},
+            )
+        )
+    prov = str(chosen["proveedor"])
+    if not prov.strip():
+        return None
+    precio = _offer_precio(chosen)
+    if precio is not None:
+        factors.append(
+            factor(
+                "oferta",
+                f"{prov} @ ${precio:g}",
+                datos={"proveedor": prov, "precio": precio},
+            )
+        )
+    qty = int(line.cantidad)
+    qty, amp_f = _amplifier_factor(qty, chosen, knobs)
+    if amp_f is not None:
+        factors.append(amp_f)
+    stock = chosen.get("stock_proveedor")
+    if pd.notna(stock):
+        qty = min(qty, int(stock))
+    if qty != int(line.cantidad):
+        factors.append(
+            factor(
+                "delta_qty",
+                f"{line.cantidad}→{qty}",
+                datos={"qty_baseline": line.cantidad, "qty_propuesto": qty},
+            )
+        )
+    resumen, facts = finalize(factors)
+    return Allocation(
+        barra_baseline=line.barra,
+        desc_baseline=line.descripcion,
+        qty_baseline=line.cantidad,
+        barra_propuesto=barra_p,
+        desc_propuesto=desc_p,
+        qty_propuesto=qty,
+        proveedor=prov,
+        justificacion_delta=resumen,
+        precio=precio,
+        justificacion_factores=facts,
+    )
 
 
 def _apply_kappa_split_if_needed(
@@ -522,12 +735,14 @@ def _try_split_lead_time(
         elif stock is not None:
             stock = float(stock)
         desc = line.descripcion
-        if "descripcion" in o.index and pd.notna(o.get("descripcion")):
-            desc = str(o["descripcion"])
+        ob = str(o.get("barra") or "")
+        if ob != str(line.barra):
+            if "descripcion" in o.index and pd.notna(o.get("descripcion")):
+                desc = str(o["descripcion"])
         offer_list.append(
             OfferCandidate(
                 proveedor=str(o["proveedor"]),
-                barra=str(o["barra"]),
+                barra=ob,
                 descripcion=desc,
                 lead_time_dias=float(o.get("lead_time_dias") or 0.0),
                 precio=float(o.get("precio") or 0.0),
@@ -646,8 +861,32 @@ def _elasticidad(row) -> float:
         return 0.0
 
 
+def _attr_str(val) -> str:
+    """Normalize MDM attr for grouping (NULL/NaN/blank → '')."""
+    if val is None:
+        return ""
+    try:
+        if pd.isna(val):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    s = str(val).strip()
+    if s.lower() in ("nan", "none", "<na>", "nat"):
+        return ""
+    return s
+
+
 def _group_key(row, criterios: Sequence[str]) -> tuple:
-    return tuple(str(row.get(c, "")) for c in criterios)
+    """Grupo MDM key; blank attrs → per-SKU singleton (same contract as PedidoBaseline).
+
+    Without this, all rows with empty CriteriosAgrupacion share ('','',…) and one
+    offer barra can appear on every Comparativa line.
+    """
+    vals = tuple(_attr_str(row.get(c, "")) for c in criterios)
+    if not any(vals):
+        barra = _attr_str(row.get("barra", ""))
+        return ("__sku__", barra)
+    return vals
 
 
 def _enrich_offers_with_grupo(
@@ -691,12 +930,17 @@ def _offers_for_group(
     if offers.empty:
         return offers
     offers = offers.reset_index(drop=True)
-    mask = pd.Series([True] * len(offers), index=offers.index)
-    for c, val in zip(criterios, group_key):
-        if c not in offers.columns:
-            return offers.iloc[0:0].copy()
-        mask &= offers[c].astype(str) == val
-    matched = offers.loc[mask].copy()
+    # Blank-MDM singleton: only offers for that exact barra (no mega-group).
+    if group_key and group_key[0] == "__sku__":
+        barra = str(group_key[1]) if len(group_key) > 1 else ""
+        matched = offers.loc[offers["barra"].astype(str) == barra].copy()
+    else:
+        mask = pd.Series([True] * len(offers), index=offers.index)
+        for c, val in zip(criterios, group_key):
+            if c not in offers.columns:
+                return offers.iloc[0:0].copy()
+            mask &= offers[c].fillna("").astype(str).str.strip() == str(val)
+        matched = offers.loc[mask].copy()
     # Exclude zero-stock offers when stock known
     if "stock_proveedor" in matched.columns and not matched.empty:
         matched = matched[

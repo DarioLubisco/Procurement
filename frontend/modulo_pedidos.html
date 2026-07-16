@@ -100,7 +100,7 @@
       overflow-y: auto;
       flex: 1 1 auto;
       min-height: 200px;
-      max-height: 50vh;
+      max-height: 62.5vh; /* +25% vs 50vh (grill UX 2026-07-15) */
       margin-top: 0.75rem;
       padding-right: 0.35rem;
     }
@@ -260,8 +260,8 @@
                     <div class="input-group">
                         <label>Preset Sencillo</label>
                         <select id="presetSencillo" class="form-control" style="height: 48px;">
-                            <option value="Conservador" selected>Conservador</option>
-                            <option value="Normal">Normal</option>
+                            <option value="Conservador">Conservador</option>
+                            <option value="Normal" selected>Normal</option>
                             <option value="Agresivo">Agresivo</option>
                         </select>
                     </div>
@@ -335,7 +335,14 @@
 
             <!-- Comparativa + Propuesto (salida primaria) -->
             <div id="generarResultSection" class="section-card" style="display: none;">
-                <h3 style="margin-bottom: 0.75rem;"><i class="fas fa-balance-scale"></i> Comparativa de Cantidades</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                <h3 style="margin:0;"><i class="fas fa-balance-scale"></i> Comparativa de Cantidades</h3>
+                <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem; margin:0; cursor:pointer;">
+                    <input type="checkbox" id="comparativaSoloCambios" checked style="width:16px;height:16px;">
+                    Solo cambios
+                </label>
+                </div>
+                <p id="comparativaFilterHint" style="font-size:0.75rem; color:var(--text-secondary); margin:0 0 0.5rem 0;"></p>
                 <div class="pedidos-table-scroll" style="margin-bottom: 1.5rem;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
                         <thead style="background: rgba(0,0,0,0.2); position: sticky; top: 0;">
@@ -409,14 +416,35 @@
                         <div class="input-group" style="margin:0;">
                             <label>Base preset</label>
                             <select id="basePresetDefinitivo" class="form-control" style="height: 44px;">
-                                <option value="Normal" selected>Normal</option>
                                 <option value="Conservador">Conservador</option>
+                                <option value="Normal" selected>Normal</option>
                                 <option value="Agresivo">Agresivo</option>
                             </select>
                         </div>
                     </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                        <span style="font-size:0.85rem; color:var(--text-secondary);">Knobs del preset (editables = override)</span>
+                        <button type="button" id="btnResetDefinitivoOverrides" class="btn btn-secondary" style="font-size:0.8rem; padding:0.35rem 0.75rem;">
+                            <i class="fas fa-undo"></i> Reset a preset
+                        </button>
+                    </div>
+                    <div id="definitivoAmpSection" style="display:none; margin-bottom:0.75rem; padding:0.75rem; border:1px solid var(--border-subtle); border-radius:var(--radius-md);">
+                        <strong style="font-size:0.85rem;">Amplificador de oportunidad</strong>
+                        <div id="definitivoAmpFields" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; margin-top:0.5rem;"></div>
+                    </div>
                     <div id="definitivoOverridesHost" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
                         <!-- Populated from GET /api/pedidos/overrides-schema -->
+                    </div>
+                    <div id="definitivoCustomPresets" style="margin-bottom:1rem; padding:0.75rem; border:1px dashed var(--border-subtle); border-radius:var(--radius-md);">
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                            <input type="text" id="customPresetName" class="form-control" placeholder="Nombre preset personalizado" style="flex:1; min-width:160px; height:40px;">
+                            <button type="button" id="btnSaveCustomPreset" class="btn btn-secondary" style="height:40px;">Guardar preset</button>
+                            <select id="customPresetSelect" class="form-control" style="min-width:160px; height:40px;">
+                                <option value="">Mis presets…</option>
+                            </select>
+                            <button type="button" id="btnLoadCustomPreset" class="btn btn-secondary" style="height:40px;">Cargar</button>
+                            <button type="button" id="btnDeleteCustomPreset" class="btn btn-secondary" style="height:40px; border-color:#ef4444; color:#ef4444;">Borrar</button>
+                        </div>
                     </div>
                     <p id="definitivoOverridesNote" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
                         Knobs vivos según nivel. Si no ajusta el límite de reemplazo (κ), no se limita el cambio a sucedáneos. No se exponen: s4_enabled, s4_porcentaje_base, monto_days_reduction_pct.
@@ -507,7 +535,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260715-layout-fullwidth"></script>
+<script src="js/app_pedidos.js?v=20260715-grill-presets"></script>
 
 <script>
   // Inicializa Lucide Icons si hay alguno

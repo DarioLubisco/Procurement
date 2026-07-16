@@ -90,6 +90,16 @@ def map_catalog_dataframe(df: pd.DataFrame) -> List[Dict[str, Any]]:
     for attr in ATRIBUTOS_VALIDOS_ORDER:
         if attr not in out.columns:
             out[attr] = ""
+        else:
+            out[attr] = out[attr].fillna("").astype(str).replace(
+                {"nan": "", "None": "", "<NA>": "", "NaT": ""}
+            ).str.strip()
+    if "elasticidad_demanda" not in out.columns:
+        out["elasticidad_demanda"] = 0.0
+    else:
+        out["elasticidad_demanda"] = pd.to_numeric(
+            out["elasticidad_demanda"], errors="coerce"
+        ).fillna(0.0)
     cols = [
         "barra",
         "descripcion",
@@ -97,6 +107,7 @@ def map_catalog_dataframe(df: pd.DataFrame) -> List[Dict[str, Any]]:
         "existen",
         "es_generico",
         "categoria",
+        "elasticidad_demanda",
         *ATRIBUTOS_VALIDOS_ORDER,
     ]
     cols = [c for c in cols if c in out.columns]
@@ -360,6 +371,7 @@ def load_catalog_and_offers_from_db(
     include_generics: bool = True,
     include_brands: bool = True,
     criterios_agrupacion: Optional[Sequence[str]] = None,
+    cobertura_dias: float = 30.0,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Load SAPROD rotation catalog + Mercado_Vivo offers (productive path)."""
     _ensure_analytics_path()
@@ -397,15 +409,17 @@ def load_catalog_and_offers_from_db(
         catalog_rows = map_catalog_dataframe(catalog_df)
         barras = prioritize_barras_for_offers(
             catalog_rows,
+            cobertura_dias=float(cobertura_dias),
             criterios_agrupacion=criterios_agrupacion,
         )
         offers_df = fetch_mercado_vivo_offers(conn, barras)
         offers_rows = map_mercado_vivo_dataframe(offers_df)
         logger.info(
-            "Generar Sencillo load: catalog=%s barras=%s offer_rows=%s",
+            "Generar Sencillo load: catalog=%s barras=%s offer_rows=%s cobertura=%s",
             len(catalog_rows),
             len(barras),
             len(offers_rows),
+            cobertura_dias,
         )
         return catalog_rows, offers_rows
     finally:

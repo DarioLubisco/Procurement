@@ -125,3 +125,216 @@ def test_sucedaneo_changes_barra_and_justificacion_declares_codigo():
     prop = next(p for p in result.pedido_propuesto if p.barra == "S3")
     assert prop.proveedor == "P_S3"
     assert prop.cantidad > 0
+
+
+def test_blank_mdm_rows_do_not_share_one_propuesto_barra():
+    """Regression: empty CriteriosAgrupacion must not mega-group (e.g. 7593567000697)."""
+    catalog = pd.DataFrame(
+        [
+            {
+                "barra": "BLANK_A",
+                "descripcion": "A sin MDM",
+                "rotacion_mensual": 30.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "principio_activo": "",
+                "forma_farmaceutica": "",
+                "concentracion": "",
+                "cantidad_presentacion": "",
+                "contenido_neto": "",
+            },
+            {
+                "barra": "BLANK_B",
+                "descripcion": "B sin MDM",
+                "rotacion_mensual": 30.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "principio_activo": "",
+                "forma_farmaceutica": "",
+                "concentracion": "",
+                "cantidad_presentacion": "",
+                "contenido_neto": "",
+            },
+            {
+                "barra": "CHEAP_BLANK",
+                "descripcion": "Barato sin MDM",
+                "rotacion_mensual": 1.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "principio_activo": "",
+                "forma_farmaceutica": "",
+                "concentracion": "",
+                "cantidad_presentacion": "",
+                "contenido_neto": "",
+            },
+        ]
+    )
+    market = pd.DataFrame(
+        [
+            {"barra": "BLANK_A", "proveedor": "PA", "precio": 10.0, "stock_proveedor": 100},
+            {"barra": "BLANK_B", "proveedor": "PB", "precio": 10.0, "stock_proveedor": 100},
+            {
+                "barra": "CHEAP_BLANK",
+                "proveedor": "PC",
+                "precio": 1.0,
+                "stock_proveedor": 10000,
+            },
+        ]
+    )
+    perfil = PerfilPedido(
+        cobertura=30,
+        criterios_agrupacion=[],
+        filtros_operativos=FiltrosOperativos(),
+        nivel=NivelPerfil.SENCILLO,
+        preset=PresetSencillo.CONSERVADOR,
+    )
+    result = generar_pedido(perfil, catalog=catalog, market_offers=market)
+    by_base = {
+        r.barra_baseline: r.barra_propuesto for r in result.comparativa_cantidades
+    }
+    assert by_base.get("BLANK_A") == "BLANK_A"
+    assert by_base.get("BLANK_B") == "BLANK_B"
+    assert by_base.get("BLANK_A") != "CHEAP_BLANK"
+    assert by_base.get("BLANK_B") != "CHEAP_BLANK"
+
+
+def test_same_barra_keeps_baseline_descripcion_not_mercado():
+    catalog = pd.DataFrame(
+        [
+            {
+                "barra": "111",
+                "descripcion": "Desc SAPROD",
+                "rotacion_mensual": 30.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "principio_activo": "PA",
+                "forma_farmaceutica": "TAB",
+                "concentracion": "1",
+                "cantidad_presentacion": "1",
+                "contenido_neto": "1",
+            }
+        ]
+    )
+    market = pd.DataFrame(
+        [
+            {
+                "barra": "111",
+                "descripcion": "Desc Mercado distinta",
+                "proveedor": "P1",
+                "precio": 5.0,
+                "stock_proveedor": 100,
+            }
+        ]
+    )
+    perfil = PerfilPedido(
+        cobertura=30,
+        criterios_agrupacion=[],
+        filtros_operativos=FiltrosOperativos(),
+        nivel=NivelPerfil.SENCILLO,
+        preset=PresetSencillo.CONSERVADOR,
+    )
+    result = generar_pedido(perfil, catalog=catalog, market_offers=market)
+    row = result.comparativa_cantidades[0]
+    assert row.barra_baseline == row.barra_propuesto == "111"
+    assert row.desc_baseline == "Desc SAPROD"
+    assert row.desc_propuesto == "Desc SAPROD"
+
+
+def test_sin_oferta_uses_grupo_sucedaneo_when_hermano_has_offer():
+    """No own offer → sucedáneo del Grupo (otra BARRA con oferta), con proveedor."""
+    catalog = pd.DataFrame(
+        [
+            {
+                "barra": "HAS",
+                "descripcion": "Con oferta",
+                "rotacion_mensual": 30.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "elasticidad_demanda": 3.0,
+                "principio_activo": "PA",
+                "forma_farmaceutica": "TAB",
+                "concentracion": "1",
+                "cantidad_presentacion": "1",
+                "contenido_neto": "1",
+            },
+            {
+                "barra": "NOPE",
+                "descripcion": "Sin oferta propia",
+                "rotacion_mensual": 30.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "elasticidad_demanda": 4.0,
+                "principio_activo": "PA",
+                "forma_farmaceutica": "TAB",
+                "concentracion": "1",
+                "cantidad_presentacion": "1",
+                "contenido_neto": "1",
+            },
+        ]
+    )
+    market = pd.DataFrame(
+        [
+            {
+                "barra": "HAS",
+                "proveedor": "P1",
+                "precio": 5.0,
+                "stock_proveedor": 1000,
+            }
+        ]
+    )
+    perfil = PerfilPedido(
+        cobertura=30,
+        criterios_agrupacion=[],
+        filtros_operativos=FiltrosOperativos(),
+        nivel=NivelPerfil.SENCILLO,
+        preset=PresetSencillo.CONSERVADOR,
+    )
+    result = generar_pedido(perfil, catalog=catalog, market_offers=market)
+    row_nope = next(r for r in result.comparativa_cantidades if r.barra_baseline == "NOPE")
+    assert row_nope.barra_propuesto == "HAS"
+    assert "sucedaneo" in {f.codigo for f in row_nope.justificacion_factores}
+    prop_has = [p for p in result.pedido_propuesto if p.barra == "HAS"]
+    assert prop_has
+    assert all(str(p.proveedor or "").strip() for p in result.pedido_propuesto)
+
+
+def test_unmet_without_grupo_offer_stays_comparativa_not_propuesto():
+    """Sin oferta y sin hermano/sucedáneo: visible en Comparativa; no en Propuesto."""
+    catalog = pd.DataFrame(
+        [
+            {
+                "barra": "LONELY",
+                "descripcion": "Sin mercado",
+                "rotacion_mensual": 30.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "elasticidad_demanda": 2.0,
+                "principio_activo": "ZZ",
+                "forma_farmaceutica": "TAB",
+                "concentracion": "9",
+                "cantidad_presentacion": "1",
+                "contenido_neto": "1",
+            }
+        ]
+    )
+    market = pd.DataFrame(
+        columns=["barra", "proveedor", "precio", "stock_proveedor"]
+    )
+    perfil = PerfilPedido(
+        cobertura=30,
+        criterios_agrupacion=[],
+        filtros_operativos=FiltrosOperativos(),
+        nivel=NivelPerfil.SENCILLO,
+        preset=PresetSencillo.CONSERVADOR,
+    )
+    result = generar_pedido(perfil, catalog=catalog, market_offers=market)
+    assert any(r.barra_baseline == "LONELY" for r in result.comparativa_cantidades)
+    lonely = next(r for r in result.comparativa_cantidades if r.barra_baseline == "LONELY")
+    assert "sin_oferta" in {f.codigo for f in lonely.justificacion_factores} or not lonely.justificacion_factores or "Sin oferta" in (lonely.justificacion_delta or "")
+    assert all(p.barra != "LONELY" for p in result.pedido_propuesto) or all(
+        str(p.proveedor or "").strip() for p in result.pedido_propuesto
+    )
+    assert not any(
+        p.barra == "LONELY" and not str(p.proveedor or "").strip()
+        for p in result.pedido_propuesto
+    )

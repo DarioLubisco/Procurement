@@ -35,6 +35,8 @@ def test_fe_calls_unified_generar_sencillo_endpoint():
     assert "fetchCriteriosAtributos" in JS
     assert "openCategoriesModal" in JS
     assert "setConfigCollapsed" in JS
+    assert "syn_ped_defaults_v2" in JS
+    assert "collectDefaultsSnapshot" in JS
 
 
 def test_fe_regenerar_definitivo_distinct_from_sencillo():
@@ -42,10 +44,19 @@ def test_fe_regenerar_definitivo_distinct_from_sencillo():
     assert 'id="btnRegenerarDefinitivo"' in HTML
     assert 'id="nivelDefinitivo"' in HTML
     assert 'id="definitivoOverridesHost"' in HTML
+    assert 'id="btnResetDefinitivoOverrides"' in HTML
+    assert 'id="definitivoAmpSection"' in HTML
+    assert 'id="comparativaSoloCambios"' in HTML
+    assert 'id="btnSaveCustomPreset"' in HTML
     assert "/api/pedidos/regenerar-definitivo" in JS
     assert "/api/pedidos/overrides-schema" in JS
+    assert "base_preset" in JS
     assert "renderDefinitivoOverrideFields" in JS
     assert "loadDefinitivoOverrideSchema" in JS
+    assert "fillDefinitivoFromSchemaDefaults" in JS
+    assert "comparativaSoloCambios" in JS
+    assert "isComparativaIdentityRow" in JS
+    assert "/api/pedidos/presets" in JS
     assert "s4_enabled" in HTML  # documented as excluded
     assert "sucedáneos" in HTML or "κ" in HTML  # κ opt-in copy ADR-0017
     assert "field.help" in JS or "field.hint" in JS
@@ -53,6 +64,18 @@ def test_fe_regenerar_definitivo_distinct_from_sencillo():
     assert "justificacion-resumen" in JS or "justificacion_factores" in JS
     assert "comparativa-detail-row" in JS
     assert "ⓘ" in JS or "aria-label', 'Información'" in JS or 'Información' in JS
+
+
+def test_fe_preset_order_conservador_normal_agresivo():
+    # Sencillo + Definitivo: Conservador → Normal → Agresivo; default Normal
+    for select_id in ('presetSencillo', 'basePresetDefinitivo'):
+        start = HTML.index(f'id="{select_id}"')
+        chunk = HTML[start : start + 450]
+        i_c = chunk.index('value="Conservador"')
+        i_n = chunk.index('value="Normal"')
+        i_a = chunk.index('value="Agresivo"')
+        assert i_c < i_n < i_a
+        assert 'value="Normal" selected' in chunk or "value='Normal' selected" in chunk
 
 
 def test_fe_guardar_borrador_after_definitivo():

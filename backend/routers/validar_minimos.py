@@ -245,12 +245,14 @@ async def validar_minimos(body: ValidarMinimosRequest):
         )
         queue = _queue()
         still = any(d.proveedor == prov for d in queue)
-        panel = _panel_for(prov) if still else None
+        # Always rebuild panel for the proveedor just recalculated so FE shows
+        # updated total_usd / déficit even if they now meet the minimum.
+        panel = _panel_for(prov)
         return _payload(
             state,
             _meta(
                 queue=queue,
-                activo=queue[0].proveedor if queue else None,
+                activo=prov if still else (queue[0].proveedor if queue else None),
                 panel=panel,
                 intentos_recalc=state.intentos_recalc,
                 requiere_panel_antes_recalc=still

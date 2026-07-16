@@ -81,27 +81,95 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // --- CONFIG DEFAULTS LOGIC ---
+    // --- CONFIG DEFAULTS (localStorage) ---
     const btnSaveDefaults = document.getElementById('btnSaveDefaults');
     const inputDays = document.getElementById('pedidoDays');
     const inputRows = document.getElementById('numRows');
     const inputUmbral = document.getElementById('umbralRotacion');
+    const DEFAULTS_KEY = 'syn_ped_defaults_v2';
+
+    function readStoredDefaults() {
+        try {
+            const raw = localStorage.getItem(DEFAULTS_KEY);
+            if (raw) return JSON.parse(raw);
+        } catch (e) { /* ignore */ }
+        // Legacy single keys
+        return {
+            days: localStorage.getItem('syn_ped_days'),
+            rows: localStorage.getItem('syn_ped_rows'),
+            umbral: localStorage.getItem('syn_ped_umbral'),
+        };
+    }
+
+    function collectDefaultsSnapshot() {
+        const selectedCatIds = Object.values(categoryMap)
+            .filter(c => c.selected)
+            .map(c => c.id);
+        return {
+            days: inputDays ? inputDays.value : '30',
+            rows: inputRows ? inputRows.value : '5000',
+            umbral: inputUmbral ? inputUmbral.value : '0.5',
+            preset: document.getElementById('presetSencillo')?.value || 'Normal',
+            presupuesto: document.getElementById('presupuestoMaximo')?.value || '',
+            include_generics: document.getElementById('includeGenerics')?.checked !== false,
+            include_brands: document.getElementById('includeBrands')?.checked !== false,
+            criterios: collectCriteriosAgrupacion(),
+            category_ids: selectedCatIds,
+        };
+    }
+
+    function applyScalarDefaults(d) {
+        if (!d) return;
+        if (d.days && inputDays) inputDays.value = d.days;
+        if (d.rows && inputRows) inputRows.value = d.rows;
+        if (d.umbral != null && d.umbral !== '' && inputUmbral) inputUmbral.value = d.umbral;
+        const preset = document.getElementById('presetSencillo');
+        if (d.preset && preset) preset.value = d.preset;
+        const presupuesto = document.getElementById('presupuestoMaximo');
+        if (presupuesto && d.presupuesto != null) presupuesto.value = d.presupuesto;
+        const gen = document.getElementById('includeGenerics');
+        if (gen && typeof d.include_generics === 'boolean') gen.checked = d.include_generics;
+        const brands = document.getElementById('includeBrands');
+        if (brands && typeof d.include_brands === 'boolean') brands.checked = d.include_brands;
+    }
+
+    function applyCriteriosDefaults(d) {
+        if (!d || !Array.isArray(d.criterios) || !d.criterios.length) return;
+        const wanted = new Set(d.criterios);
+        document.querySelectorAll('.criterio-cb').forEach(cb => {
+            cb.checked = wanted.has(cb.value);
+        });
+    }
+
+    function applyCategoryDefaults(d) {
+        if (!d || !Array.isArray(d.category_ids) || !Object.keys(categoryMap).length) return;
+        const wanted = new Set(d.category_ids.map(String));
+        Object.values(categoryMap).forEach(cat => {
+            cat.selected = wanted.has(String(cat.id));
+            cat.indeterminate = false;
+        });
+        // Recompute parent indeterminate from children (bottom-up via each parent)
+        Object.values(categoryMap).forEach(cat => {
+            if (cat.parentId && cat.parentId !== '0') updateParentState(cat.parentId);
+        });
+        renderCategories();
+    }
 
     function loadDefaults() {
-        const d_days = localStorage.getItem('syn_ped_days');
-        const d_rows = localStorage.getItem('syn_ped_rows');
-        const d_umbral = localStorage.getItem('syn_ped_umbral');
-        
-        if (d_days) inputDays.value = d_days;
-        if (d_rows) inputRows.value = d_rows;
-        if (d_umbral) inputUmbral.value = d_umbral;
+        const d = readStoredDefaults();
+        applyScalarDefaults(d);
+        window.__pedDefaults = d;
     }
-    
+
     if (btnSaveDefaults) {
         btnSaveDefaults.addEventListener('click', () => {
-            localStorage.setItem('syn_ped_days', inputDays.value);
-            localStorage.setItem('syn_ped_rows', inputRows.value);
-            localStorage.setItem('syn_ped_umbral', inputUmbral.value);
+            const snap = collectDefaultsSnapshot();
+            localStorage.setItem(DEFAULTS_KEY, JSON.stringify(snap));
+            // Keep legacy keys for older tabs
+            localStorage.setItem('syn_ped_days', snap.days);
+            localStorage.setItem('syn_ped_rows', snap.rows);
+            localStorage.setItem('syn_ped_umbral', snap.umbral);
+            window.__pedDefaults = snap;
             btnSaveDefaults.innerHTML = '<i class="fas fa-check"></i> Guardado';
             btnSaveDefaults.classList.remove('btn-secondary');
             btnSaveDefaults.classList.add('btn-primary');
@@ -141,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             renderCategories();
+            applyCategoryDefaults(window.__pedDefaults);
         } catch (error) {
             console.error(error);
             if (categoriesList) {
@@ -317,6 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
             label.appendChild(document.createTextNode(' ' + (attr.etiqueta || key)));
             host.appendChild(label);
         });
+        applyCriteriosDefaults(window.__pedDefaults);
     }
 
     async function fetchCriteriosAtributos() {
@@ -443,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ? Number(presupuestoRaw) : null;
         return {
             cobertura: Number(document.getElementById('pedidoDays').value),
-            preset: document.getElementById('presetSencillo')?.value || 'Conservador',
+            preset: document.getElementById('presetSencillo')?.value || 'Normal',
             criterios_agrupacion: collectCriteriosAgrupacion(),
             categorias: selectedCategoryNames,
             include_generics: document.getElementById('includeGenerics')?.checked !== false,
@@ -484,15 +554,34 @@ document.addEventListener('DOMContentLoaded', () => {
             '</ul>';
     }
 
+    function isComparativaIdentityRow(row) {
+        const sameBarra = String(row.barra_baseline || '') === String(row.barra_propuesto || '');
+        const sameQty = Number(row.qty_baseline) === Number(row.qty_propuesto);
+        return sameBarra && sameQty;
+    }
+
     function renderGenerarResult(data) {
         const section = document.getElementById('generarResultSection');
         const compBody = document.getElementById('comparativaTableBody');
         const propBody = document.getElementById('propuestoTableBody');
         if (!section || !compBody || !propBody) return;
 
+        const allRows = data.comparativa_cantidades || [];
+        const soloCambios = document.getElementById('comparativaSoloCambios')?.checked !== false;
+        const visibleRows = soloCambios
+            ? allRows.filter(r => !isComparativaIdentityRow(r))
+            : allRows;
+        const hiddenN = allRows.length - visibleRows.length;
+        const hint = document.getElementById('comparativaFilterHint');
+        if (hint) {
+            hint.textContent = soloCambios && hiddenN > 0
+                ? `Ocultas ${hiddenN} filas sin cambio (misma barra y qty). Desmarque «Solo cambios» para verlas.`
+                : (allRows.length ? `${allRows.length} filas en Comparativa.` : '');
+        }
+
         compBody.innerHTML = '';
         let openJustRow = null;
-        (data.comparativa_cantidades || []).forEach((row, idx) => {
+        visibleRows.forEach((row, idx) => {
             const tr = document.createElement('tr');
             tr.className = 'comparativa-main-row';
             tr.dataset.justIdx = String(idx);
@@ -549,6 +638,10 @@ document.addEventListener('DOMContentLoaded', () => {
         section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
+    document.getElementById('comparativaSoloCambios')?.addEventListener('change', () => {
+        if (lastGenerarResult) renderGenerarResult(lastGenerarResult);
+    });
+
     function stashGenerarResult(data, { resetVm = true } = {}) {
         lastGenerarResult = data;
         if (resetVm) {
@@ -584,21 +677,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!panel || !colaEl || !detEl) return;
         panel.style.display = 'block';
         const cola = vm.cola || [];
-        if (!cola.length) {
-            colaEl.innerHTML = '<strong style="color:#10b981;">Todos los proveedores cumplen el mínimo (o no tienen mínimo configurado).</strong>';
-            detEl.innerHTML = '';
-            if (hint) hint.textContent = '';
-            return;
-        }
-            colaEl.innerHTML = '<strong>Cola (mayor déficit primero):</strong><ul style="margin:0.4rem 0 0 1.2rem;">' +
-            cola.map(d => {
-                const id = d.proveedor_id != null ? `#${d.proveedor_id} ` : '';
-                const label = d.nombre_corto || d.proveedor;
-                return `<li>${id}<strong>${label}</strong> <code>${d.proveedor}</code> total $${d.total_usd} / mín $${d.minimo_usd} (déficit $${d.deficit_usd})</li>`;
-            }).join('') +
-            '</ul>';
         const p = vm.panel;
-        if (p) {
+
+        function panelHtml(p) {
+            if (!p) return '';
             const idLabel = p.proveedor_id != null ? `#${p.proveedor_id} ` : '';
             const name = p.nombre_corto || p.proveedor;
             const aliases = (p.aliases || []).length
@@ -608,22 +690,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 `${r.barra_actual}→${r.proveedor_alt}/${r.barra_alternativa} (ahorro línea $${r.ahorro_usd})`
             ).join('<br>');
             const huerf = (p.huerfanos_si_rechaza || []).map(h => h.barra).join(', ') || 'ninguno';
-            detEl.innerHTML = `
-                <div><strong>Activo:</strong> ${idLabel}${name} <code>${p.proveedor}</code>${aliases} — total $${p.total_usd}, mín $${p.minimo_usd}, déficit $${p.deficit_usd}</div>
+            const deficit = Number(p.deficit_usd || 0);
+            const okBadge = deficit <= 0
+                ? ' <span style="color:#10b981;font-weight:600;">(cumple mínimo)</span>'
+                : '';
+            return `
+                <div><strong>Activo:</strong> ${idLabel}${name} <code>${p.proveedor}</code>${aliases} — total <strong>$${p.total_usd}</strong>, mín $${p.minimo_usd}, déficit <strong>$${p.deficit_usd}</strong>${okBadge}</div>
                 <div><strong>Ahorro vs 2º (barra→Grupo):</strong> $${p.ahorro_vs_segundo_usd}</div>
                 <div style="margin-top:0.4rem;"><strong>Reemplazos:</strong><br>${reps || '—'}</div>
                 <div style="margin-top:0.4rem;"><strong>Huérfanos si rechaza:</strong> ${huerf}</div>
             `;
-        } else {
-            detEl.innerHTML = '';
         }
+
+        if (!cola.length) {
+            colaEl.innerHTML = '<strong style="color:#10b981;">Todos los proveedores cumplen el mínimo (o no tienen mínimo configurado).</strong>';
+            detEl.innerHTML = panelHtml(p);
+            if (hint) hint.textContent = p
+                ? 'Montos actualizados tras la última acción.'
+                : '';
+            return;
+        }
+        colaEl.innerHTML = '<strong>Cola (mayor déficit primero):</strong><ul style="margin:0.4rem 0 0 1.2rem;">' +
+            cola.map(d => {
+                const id = d.proveedor_id != null ? `#${d.proveedor_id} ` : '';
+                const label = d.nombre_corto || d.proveedor;
+                return `<li>${id}<strong>${label}</strong> <code>${d.proveedor}</code> total $${d.total_usd} / mín $${d.minimo_usd} (déficit $${d.deficit_usd})</li>`;
+            }).join('') +
+            '</ul>';
+        detEl.innerHTML = panelHtml(p);
         if (hint) {
             hint.textContent = vm.requiere_panel_antes_recalc
                 ? 'Tras el 1er recálculo debe revisar el panel (costo de rechazo / reemplazos) antes de otro %. Pulse Recalcular de nuevo para confirmar (panel_ack).'
                 : 'Sugerencia: +50% cobertura solo en SKUs de este proveedor. Puede aceptar submínimo o rechazar.';
         }
         if (vm.requiere_panel_antes_recalc) {
-            // User has seen panel; next recalc will send panel_ack=true once they click Recalcular again
             vmPanelAck = true;
         }
     }
@@ -696,37 +796,108 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function collectDefinitivoOverrides() {
+    const AMP_OVERRIDE_KEYS = new Set([
+        'amplifier_enabled', 'amp_a', 'amp_b', 'amp_max_increment_pct', 'amp_floor_pct',
+    ]);
+    let lastDefinitivoSchema = null;
+    let pendingCustomOverrides = null;
+
+    function allDefinitivoOverrideInputs() {
+        return document.querySelectorAll(
+            '#definitivoOverridesHost [data-override-key], #definitivoAmpFields [data-override-key]'
+        );
+    }
+
+    function valuesEqual(a, b, type) {
+        if (type === 'boolean') return !!a === !!b;
+        if (type === 'select') return String(a ?? '') === String(b ?? '');
+        const na = Number(a);
+        const nb = Number(b);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return Math.abs(na - nb) < 1e-9;
+        return String(a ?? '') === String(b ?? '');
+    }
+
+    function collectDefinitivoOverrides({ allValues = false } = {}) {
         const overrides = {};
-        document.querySelectorAll('#definitivoOverridesHost [data-override-key]').forEach((el) => {
+        allDefinitivoOverrideInputs().forEach((el) => {
             const key = el.getAttribute('data-override-key');
             if (!key) return;
             const type = el.getAttribute('data-override-type') || 'number';
+            let current;
             if (type === 'boolean') {
-                if (el.dataset.touched === '1' || el.checked) {
-                    // only send if user checked or explicitly toggled; unchecked default = omit
-                    if (el.dataset.touched === '1') overrides[key] = !!el.checked;
-                }
+                current = !!el.checked;
+            } else if (type === 'select') {
+                current = (el.value || '').trim();
+                if (current === '' && !allValues) return;
+            } else {
+                const raw = (el.value || '').trim();
+                if (raw === '') return;
+                const num = Number(raw);
+                if (Number.isNaN(num)) return;
+                current = num;
+            }
+            if (allValues) {
+                overrides[key] = current;
                 return;
             }
-            const raw = (el.value || '').trim();
-            if (raw === '') return;
-            if (type === 'select') {
-                overrides[key] = raw;
-                return;
+            const defRaw = el.getAttribute('data-default');
+            let defVal = defRaw;
+            if (type === 'boolean') defVal = defRaw === 'true' || defRaw === '1';
+            else if (type !== 'select' && defRaw != null && defRaw !== '') defVal = Number(defRaw);
+            if (defRaw == null || defRaw === '' || !valuesEqual(current, defVal, type)) {
+                overrides[key] = current;
             }
-            const num = Number(raw);
-            if (!Number.isNaN(num)) overrides[key] = num;
         });
         return overrides;
     }
 
+    function applyValuesToDefinitivoFields(values, { markTouched = false } = {}) {
+        const map = values || {};
+        allDefinitivoOverrideInputs().forEach((el) => {
+            const key = el.getAttribute('data-override-key');
+            if (!key || !(key in map)) return;
+            const type = el.getAttribute('data-override-type') || 'number';
+            const val = map[key];
+            if (type === 'boolean') {
+                el.checked = !!val;
+            } else {
+                el.value = val == null ? '' : String(val);
+            }
+            if (markTouched) el.dataset.touched = '1';
+            else delete el.dataset.touched;
+        });
+    }
+
+    function fillDefinitivoFromSchemaDefaults() {
+        if (!lastDefinitivoSchema) return;
+        const defaults = {};
+        (lastDefinitivoSchema.fields || []).forEach((f) => {
+            if (f.default !== undefined) defaults[f.key] = f.default;
+        });
+        applyValuesToDefinitivoFields(defaults, { markTouched: false });
+    }
+
+    function updateAmpSectionVisibility(basePreset) {
+        const section = document.getElementById('definitivoAmpSection');
+        if (!section) return;
+        const show = (basePreset || 'Normal') !== 'Conservador';
+        section.style.display = show ? 'block' : 'none';
+    }
+
     function renderDefinitivoOverrideFields(schema) {
         const host = document.getElementById('definitivoOverridesHost');
+        const ampHost = document.getElementById('definitivoAmpFields');
         const note = document.getElementById('definitivoOverridesNote');
         if (!host) return;
         host.innerHTML = '';
+        if (ampHost) ampHost.innerHTML = '';
+        lastDefinitivoSchema = schema;
         const fields = schema.fields || [];
+        const basePreset = schema.base_preset
+            || document.getElementById('basePresetDefinitivo')?.value
+            || 'Normal';
+        updateAmpSectionVisibility(basePreset);
+
         fields.forEach((field) => {
             const wrap = document.createElement('div');
             wrap.className = 'input-group';
@@ -760,49 +931,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 input.style.height = '20px';
                 input.style.width = '20px';
                 input.style.marginTop = '10px';
+                input.checked = !!field.default;
                 input.addEventListener('change', () => { input.dataset.touched = '1'; });
             } else if (field.type === 'select') {
                 input = document.createElement('select');
                 input.className = 'form-control';
                 input.style.height = '40px';
-                const blank = document.createElement('option');
-                blank.value = '';
-                blank.textContent = '(preset)';
-                input.appendChild(blank);
                 (field.options || []).forEach((opt) => {
                     const o = document.createElement('option');
                     o.value = opt;
                     o.textContent = opt;
                     input.appendChild(o);
                 });
+                if (field.default != null) input.value = String(field.default);
+                input.addEventListener('change', () => { input.dataset.touched = '1'; });
             } else {
                 input = document.createElement('input');
                 input.type = 'number';
                 input.className = 'form-control';
                 input.style.height = '40px';
                 if (field.step) input.step = field.step;
-                input.placeholder = '(preset)';
+                if (field.default != null) {
+                    input.value = String(field.default);
+                    input.placeholder = String(field.default);
+                }
+                input.addEventListener('input', () => { input.dataset.touched = '1'; });
             }
             input.setAttribute('data-override-key', field.key);
             input.setAttribute('data-override-type', field.type || 'number');
+            if (field.default !== undefined && field.default !== null) {
+                input.setAttribute('data-default', String(field.default));
+            }
             input.id = `ov_${field.key}`;
             wrap.appendChild(input);
-            if (field.default != null && field.type === 'number') {
-                input.placeholder = String(field.default);
-            }
-            host.appendChild(wrap);
+            const target = (AMP_OVERRIDE_KEYS.has(field.key) && ampHost) ? ampHost : host;
+            target.appendChild(wrap);
         });
+        if (pendingCustomOverrides) {
+            applyValuesToDefinitivoFields(pendingCustomOverrides, { markTouched: true });
+            pendingCustomOverrides = null;
+        }
         if (note) {
             const dead = (schema.dead_keys_excluded || []).join(', ');
             note.textContent = schema.note
-                || `Nivel ${schema.nivel}: ${fields.length} knobs vivos. Excluidos: ${dead || '—'}.`;
+                || `Nivel ${schema.nivel} / ${basePreset}: ${fields.length} knobs. Excluidos: ${dead || '—'}.`;
         }
     }
 
     async function loadDefinitivoOverrideSchema(attempt = 0) {
         const nivel = document.getElementById('nivelDefinitivo')?.value || 'Intermedio';
+        const basePreset = document.getElementById('basePresetDefinitivo')?.value || 'Normal';
         try {
-            const response = await fetch(`/api/pedidos/overrides-schema?nivel=${encodeURIComponent(nivel)}`);
+            const qs = new URLSearchParams({ nivel, base_preset: basePreset });
+            const response = await fetch(`/api/pedidos/overrides-schema?${qs}`);
             if (!response.ok) throw new Error(`schema HTTP ${response.status}`);
             const schema = await response.json();
             if (!schema.fields || !schema.fields.length) {
@@ -817,14 +998,123 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Expose for smoke / debugging
     window.__loadDefinitivoOverrideSchema = loadDefinitivoOverrideSchema;
 
     const nivelDefinitivoEl = document.getElementById('nivelDefinitivo');
     if (nivelDefinitivoEl) {
         nivelDefinitivoEl.addEventListener('change', () => loadDefinitivoOverrideSchema(0));
-        loadDefinitivoOverrideSchema(0);
     }
+    const basePresetDefinitivoEl = document.getElementById('basePresetDefinitivo');
+    if (basePresetDefinitivoEl) {
+        basePresetDefinitivoEl.addEventListener('change', () => loadDefinitivoOverrideSchema(0));
+    }
+    document.getElementById('btnResetDefinitivoOverrides')?.addEventListener('click', () => {
+        fillDefinitivoFromSchemaDefaults();
+        showAlert('Overrides restablecidos al preset base.', true);
+    });
+    loadDefinitivoOverrideSchema(0);
+
+    async function refreshCustomPresetsList() {
+        const sel = document.getElementById('customPresetSelect');
+        if (!sel) return;
+        try {
+            const response = await fetch('/api/pedidos/presets');
+            if (!response.ok) throw new Error(`presets HTTP ${response.status}`);
+            const data = await response.json();
+            const presets = data.presets || [];
+            const prev = sel.value;
+            sel.innerHTML = '<option value="">Mis presets…</option>';
+            presets.forEach((p) => {
+                const o = document.createElement('option');
+                o.value = String(p.preset_id);
+                o.textContent = `${p.nombre} (${p.nivel}/${p.base_preset})`;
+                o.dataset.nombre = p.nombre;
+                o.dataset.nivel = p.nivel;
+                o.dataset.basePreset = p.base_preset;
+                o.dataset.overrides = JSON.stringify(p.overrides || {});
+                sel.appendChild(o);
+            });
+            if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+        } catch (err) {
+            console.warn('custom presets list failed', err);
+        }
+    }
+
+    document.getElementById('btnSaveCustomPreset')?.addEventListener('click', async () => {
+        hideAlert();
+        const nombre = (document.getElementById('customPresetName')?.value || '').trim();
+        if (!nombre) {
+            showAlert('Indique un nombre para el preset personalizado.', false);
+            return;
+        }
+        const nivel = document.getElementById('nivelDefinitivo')?.value || 'Intermedio';
+        const base_preset = document.getElementById('basePresetDefinitivo')?.value || 'Normal';
+        const overrides = collectDefinitivoOverrides({ allValues: true });
+        try {
+            const response = await fetch('/api/pedidos/presets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, nivel, base_preset, overrides }),
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || `HTTP ${response.status}`);
+            }
+            const saved = await response.json();
+            showAlert(`Preset «${saved.nombre}» guardado (id ${saved.preset_id}).`, true);
+            await refreshCustomPresetsList();
+            const sel = document.getElementById('customPresetSelect');
+            if (sel) sel.value = String(saved.preset_id);
+        } catch (error) {
+            showAlert(error.message, false);
+        }
+    });
+
+    document.getElementById('btnLoadCustomPreset')?.addEventListener('click', async () => {
+        hideAlert();
+        const sel = document.getElementById('customPresetSelect');
+        const opt = sel?.selectedOptions?.[0];
+        if (!opt || !opt.value) {
+            showAlert('Seleccione un preset personalizado.', false);
+            return;
+        }
+        let overrides = {};
+        try { overrides = JSON.parse(opt.dataset.overrides || '{}'); } catch (e) { overrides = {}; }
+        const nivelEl = document.getElementById('nivelDefinitivo');
+        const baseEl = document.getElementById('basePresetDefinitivo');
+        if (nivelEl && opt.dataset.nivel) nivelEl.value = opt.dataset.nivel;
+        if (baseEl && opt.dataset.basePreset) baseEl.value = opt.dataset.basePreset;
+        const nameEl = document.getElementById('customPresetName');
+        if (nameEl) nameEl.value = opt.dataset.nombre || '';
+        pendingCustomOverrides = overrides;
+        await loadDefinitivoOverrideSchema(0);
+        showAlert(`Preset «${opt.dataset.nombre}» cargado.`, true);
+    });
+
+    document.getElementById('btnDeleteCustomPreset')?.addEventListener('click', async () => {
+        hideAlert();
+        const sel = document.getElementById('customPresetSelect');
+        const id = sel?.value;
+        if (!id) {
+            showAlert('Seleccione un preset para borrar.', false);
+            return;
+        }
+        if (!confirm('¿Borrar este preset personalizado de la BD?')) return;
+        try {
+            const response = await fetch(`/api/pedidos/presets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || `HTTP ${response.status}`);
+            }
+            showAlert('Preset borrado.', true);
+            await refreshCustomPresetsList();
+        } catch (error) {
+            showAlert(error.message, false);
+        }
+    });
+
+    refreshCustomPresetsList();
+
 
     const btnRegenerarDefinitivo = document.getElementById('btnRegenerarDefinitivo');
     if (btnRegenerarDefinitivo) {

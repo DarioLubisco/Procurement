@@ -60,6 +60,7 @@ def _load_catalog_offers_backorder(
     backorder: Optional[List[Dict[str, Any]]],
     log_label: str,
     criterios_agrupacion: Optional[List[str]] = None,
+    cobertura_dias: float = 30.0,
 ) -> Tuple[
     Sequence[Dict[str, Any]],
     Sequence[Dict[str, Any]],
@@ -90,6 +91,7 @@ def _load_catalog_offers_backorder(
                 include_generics=include_generics,
                 include_brands=include_brands,
                 criterios_agrupacion=criterios_agrupacion,
+                cobertura_dias=float(cobertura_dias),
             )
         except Exception as exc:
             logging.error("DB load for %s failed: %s", log_label, exc, exc_info=True)
@@ -137,6 +139,7 @@ async def generar_sencillo(body: GenerarSencilloRequest):
             backorder=body.backorder,
             log_label="generar-sencillo",
             criterios_agrupacion=body.criterios_agrupacion,
+            cobertura_dias=body.cobertura,
         )
     )
 
@@ -173,13 +176,20 @@ async def generar_sencillo(body: GenerarSencilloRequest):
 
 
 @router.get("/overrides-schema")
-async def overrides_schema(nivel: str = "Avanzado"):
+async def overrides_schema(
+    nivel: str = "Avanzado",
+    base_preset: str = "Normal",
+):
     """Living OptimizerConfig knobs for Definitivo UI (S4 dead; κ living ADR-0017)."""
     from analytics_engine.core.presets import living_override_schema
 
     if nivel not in ("Intermedio", "Avanzado"):
         raise HTTPException(status_code=400, detail="nivel must be Intermedio|Avanzado")
-    return living_override_schema(nivel=nivel)
+    if base_preset not in ("Conservador", "Normal", "Agresivo"):
+        raise HTTPException(
+            status_code=400, detail="base_preset must be Conservador|Normal|Agresivo"
+        )
+    return living_override_schema(nivel=nivel, base_preset=base_preset)
 
 
 @router.post("/regenerar-definitivo")
@@ -200,6 +210,7 @@ async def regenerar_definitivo(body: RegenerarDefinitivoRequest):
             backorder=body.backorder,
             log_label="regenerar-definitivo",
             criterios_agrupacion=body.criterios_agrupacion,
+            cobertura_dias=body.cobertura,
         )
     )
 
