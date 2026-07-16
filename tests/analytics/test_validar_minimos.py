@@ -194,8 +194,59 @@ def test_panel_includes_replacements_and_savings():
     assert panel["deficit_usd"] == 40.0
     assert panel["reemplazos"]
     assert panel["reemplazos"][0]["proveedor_alt"] == "EXPENSIVE"
+    assert panel["reemplazos"][0]["proveedor_actual"] == "CHEAP"
+    assert panel["reemplazos"][0]["delta_pct"] == -100.0  # 1→2: (1-2)/1 = -100%
     # CHEAP is cheaper than EXPENSIVE → ahorro vs segundo is negative
     assert panel["ahorro_vs_segundo_usd"] == -10.0
+
+
+def test_panel_skips_bogus_ahorro_when_precio_actual_missing():
+    """Regression: prices.get(..., 0.0) made ahorro ≈ -qty*alt (looked like FX bug)."""
+    state = ValidarMinimosState(
+        pedido_propuesto=[
+            {
+                "barra": "A",
+                "descripcion": "Prod A",
+                "proveedor": "UNKNOWN_PROV",
+                "cantidad": 1000,
+            }
+        ],
+        comparativa_cantidades=[],
+        cobertura=30.0,
+        criterios_agrupacion=[
+            "principio_activo",
+            "forma_farmaceutica",
+            "concentracion",
+            "cantidad_presentacion",
+            "contenido_neto",
+        ],
+    )
+    # Only EXPENSIVE has an offer for A — UNKNOWN has no price
+    offers = [
+        {"barra": "A", "proveedor": "EXPENSIVE", "precio": 2.9, "stock_proveedor": 5000},
+    ]
+    panel = build_decision_panel(
+        proveedor="UNKNOWN_PROV",
+        state=state,
+        catalog_rows=_catalog(),
+        market_offers=offers,
+        minimo_usd=50.0,
+    )
+    assert panel["reemplazos"]
+    r0 = panel["reemplazos"][0]
+    assert r0["precio_actual_missing"] is True
+    assert r0["ahorro_usd"] is None
+    assert r0["proveedor_actual"] == "UNKNOWN_PROV"
+    assert panel["ahorro_vs_segundo_usd"] == 0.0
+
+
+def test_line_usd_case_insensitive_proveedor():
+    from analytics_engine.core.validar_minimos import line_usd, _price_index
+
+    prices = _price_index(
+        [{"barra": "A", "proveedor": "Cheap", "precio": 1.0}]
+    )
+    assert line_usd({"barra": "A", "proveedor": "CHEAP", "cantidad": 10}, prices) == 10.0
 
 
 def test_accept_subminimo_annotates_justificacion():

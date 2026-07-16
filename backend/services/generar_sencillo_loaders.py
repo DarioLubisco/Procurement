@@ -31,6 +31,26 @@ _OFFERS_EMPTY = pd.DataFrame(
     ]
 )
 
+# ADR-0021: lookback for AVG(precio_mediana) / AVG(precio_min) on Mercado_Historico
+HISTORICO_DESVIO_LOOKBACK_DAYS = 90
+
+_SQL_HISTORICO_BASELINES_OPENJSON = """
+    SELECT
+        CAST(h.codigo_barras AS NVARCHAR(50)) AS codigo_barras,
+        AVG(CAST(h.precio_mediana AS FLOAT)) AS media_de_mediana,
+        AVG(CAST(h.precio_min AS FLOAT)) AS media_min_diario,
+        COUNT_BIG(*) AS dias_hist,
+        MIN(h.fecha_snapshot) AS fecha_desde,
+        MAX(h.fecha_snapshot) AS fecha_hasta
+    FROM Analitica.Mercado_Historico h
+    INNER JOIN OPENJSON(?) WITH (codigo_barras NVARCHAR(50) '$.b') AS j
+      ON CAST(h.codigo_barras AS NVARCHAR(50)) = j.codigo_barras
+    WHERE h.fecha_snapshot >= DATEADD(day, -?, CAST(GETDATE() AS date))
+      AND h.precio_mediana IS NOT NULL
+      AND CAST(h.precio_mediana AS FLOAT) > 0
+    GROUP BY CAST(h.codigo_barras AS NVARCHAR(50))
+"""
+
 _SQL_MERCADO_VIVO_IN = """
     SELECT codigo_barras, proveedor, precio_unitario_final,
            stock_disponible, descripcion_producto
@@ -139,6 +159,84 @@ def map_mercado_vivo_dataframe(df: pd.DataFrame) -> List[Dict[str, Any]]:
     if "descripcion" in out.columns:
         cols.append("descripcion")
     return out[cols].to_dict(orient="records")
+
+
+def fetch_historico_baselines(
+    conn: Any,
+    barras: Sequence[str],
+    *,
+    lookback_days: int = HISTORICO_DESVIO_LOOKBACK_DAYS,
+) -> Dict[str, Dict[str, Any]]:
+    """AVG(precio_mediana) and AVG(precio_min) per barra from Mercado_Historico.
+
+    Returns barra → {media_de_mediana, media_min_diario, dias_hist, fecha_desde, fecha_hasta}.
+    """
+    clean = _normalize_barras(barras)
+    if not clean:
+        return {}
+    payload = json.dumps([{"b": b} for b in clean])
+    cur = conn.cursor()
+    cur.execute(
+        _SQL_HISTORICO_BASELINES_OPENJSON,
+        [payload, int(lookback_days)],
+    )
+    out: Dict[str, Dict[str, Any]] = {}
+    for row in cur.fetchall():
+        barra = str(row[0] or "").strip()
+        if not barra:
+            continue
+        media_med = row[1]
+        media_min = row[2]
+        try:
+            media_med_f = float(media_med) if media_med is not None else None
+        except (TypeError, ValueError):
+            media_med_f = None
+        try:
+            media_min_f = float(media_min) if media_min is not None else None
+        except (TypeError, ValueError):
+            media_min_f = None
+        if media_med_f is None or media_med_f <= 0:
+            continue
+        out[barra] = {
+            "media_de_mediana": media_med_f,
+            "media_min_diario": media_min_f,
+            "dias_hist": int(row[3] or 0),
+            "fecha_desde": row[4].isoformat() if row[4] is not None else None,
+            "fecha_hasta": row[5].isoformat() if row[5] is not None else None,
+        }
+    return out
+
+
+def enrich_offers_with_desvio(
+    offers: Sequence[Dict[str, Any]],
+    baselines: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Attach media_de_mediana / media_min_diario / desvio (ADR-0021).
+
+    desvio = (precio − media_de_mediana) / media_de_mediana. Negative = cheaper.
+    """
+    from analytics_engine.core.nonlinear import calculate_price_deviation
+
+    enriched: List[Dict[str, Any]] = []
+    for raw in offers:
+        row = dict(raw)
+        barra = str(row.get("barra") or "").strip()
+        base = baselines.get(barra)
+        if not base:
+            enriched.append(row)
+            continue
+        media = float(base["media_de_mediana"])
+        row["media_de_mediana"] = round(media, 6)
+        if base.get("media_min_diario") is not None:
+            row["media_min_diario"] = round(float(base["media_min_diario"]), 6)
+        row["dias_hist"] = int(base.get("dias_hist") or 0)
+        try:
+            precio = float(row.get("precio") or 0.0)
+        except (TypeError, ValueError):
+            precio = 0.0
+        row["desvio"] = round(calculate_price_deviation(precio, media), 6)
+        enriched.append(row)
+    return enriched
 
 
 def prioritize_barras_for_offers(
@@ -414,12 +512,25 @@ def load_catalog_and_offers_from_db(
         )
         offers_df = fetch_mercado_vivo_offers(conn, barras)
         offers_rows = map_mercado_vivo_dataframe(offers_df)
+        try:
+            baselines = fetch_historico_baselines(conn, barras)
+            offers_rows = enrich_offers_with_desvio(offers_rows, baselines)
+            with_desvio = sum(1 for o in offers_rows if o.get("desvio") is not None)
+        except Exception as exc:
+            logger.warning(
+                "Mercado_Historico baselines failed (desvio omitted): %s", exc
+            )
+            baselines = {}
+            with_desvio = 0
         logger.info(
-            "Generar Sencillo load: catalog=%s barras=%s offer_rows=%s cobertura=%s",
+            "Generar Sencillo load: catalog=%s barras=%s offer_rows=%s "
+            "cobertura=%s hist_barras=%s offers_with_desvio=%s",
             len(catalog_rows),
             len(barras),
             len(offers_rows),
             cobertura_dias,
+            len(baselines),
+            with_desvio,
         )
         return catalog_rows, offers_rows
     finally:

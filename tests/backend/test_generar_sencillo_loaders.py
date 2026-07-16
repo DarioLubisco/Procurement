@@ -4,6 +4,7 @@ from __future__ import annotations
 import pandas as pd
 
 from backend.services.generar_sencillo_loaders import (
+    enrich_offers_with_desvio,
     fetch_mercado_vivo_offers,
     prioritize_barras_for_offers,
 )
@@ -164,3 +165,30 @@ def test_fetch_mercado_vivo_offers_falls_back_to_full_scan():
 
     out = fetch_mercado_vivo_offers(conn=_Conn(), barras=["KEEP"])
     assert out["codigo_barras"].tolist() == ["KEEP"]
+
+
+def test_enrich_offers_with_desvio_uses_media_de_mediana_not_min():
+    offers = [
+        {"barra": "A", "proveedor": "P1", "precio": 8.0},
+        {"barra": "B", "proveedor": "P2", "precio": 10.0},  # no baseline
+    ]
+    baselines = {
+        "A": {
+            "media_de_mediana": 10.0,
+            "media_min_diario": 5.0,  # must NOT be used for desvio
+            "dias_hist": 12,
+        }
+    }
+    out = enrich_offers_with_desvio(offers, baselines)
+    assert out[0]["desvio"] == -0.2  # (8-10)/10
+    assert out[0]["media_de_mediana"] == 10.0
+    assert out[0]["media_min_diario"] == 5.0
+    assert "desvio" not in out[1]
+
+
+def test_enrich_offers_with_desvio_zero_when_at_media():
+    out = enrich_offers_with_desvio(
+        [{"barra": "X", "proveedor": "P", "precio": 12.5}],
+        {"X": {"media_de_mediana": 12.5, "media_min_diario": 10.0, "dias_hist": 5}},
+    )
+    assert out[0]["desvio"] == 0.0

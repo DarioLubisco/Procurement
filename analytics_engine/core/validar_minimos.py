@@ -119,11 +119,11 @@ def _f(v: Any, default: float = 0.0) -> float:
 def _price_index(
     market_offers: Sequence[Dict[str, Any]],
 ) -> Dict[Tuple[str, str], float]:
-    """(barra, proveedor) → best (lowest) precio."""
+    """(barra, proveedor_upper) → best (lowest) precio USD."""
     idx: Dict[Tuple[str, str], float] = {}
     for o in market_offers or []:
         barra = str(o.get("barra") or "").strip()
-        prov = str(o.get("proveedor") or "").strip()
+        prov = _upper(o.get("proveedor"))
         if not barra or not prov:
             continue
         precio = _f(o.get("precio"), default=-1.0)
@@ -135,6 +135,24 @@ def _price_index(
     return idx
 
 
+def _lookup_precio(
+    prices: Dict[Tuple[str, str], float],
+    barra: str,
+    proveedor: str,
+    line: Optional[Dict[str, Any]] = None,
+) -> Optional[float]:
+    """Resolve USD unit price: market index (case-insensitive) then line.precio."""
+    b = str(barra or "").strip()
+    p = _upper(proveedor)
+    if b and p and (b, p) in prices:
+        return float(prices[(b, p)])
+    if line is not None:
+        lp = _f(line.get("precio"), default=-1.0)
+        if lp >= 0:
+            return float(lp)
+    return None
+
+
 def line_usd(
     line: Dict[str, Any],
     prices: Dict[Tuple[str, str], float],
@@ -142,7 +160,7 @@ def line_usd(
     barra = str(line.get("barra") or "").strip()
     prov = str(line.get("proveedor") or "").strip()
     qty = _f(line.get("cantidad"))
-    precio = prices.get((barra, prov))
+    precio = _lookup_precio(prices, barra, prov, line)
     if precio is None:
         return 0.0
     return qty * precio
@@ -413,8 +431,8 @@ def second_best_for_line(
 
     # Same barra
     same_barra: List[ReplacementOption] = []
-    for (ob, op), precio in prices.items():
-        if ob != b or _excluded(op):
+    for (ob, op_u), precio in prices.items():
+        if ob != b or op_u in excluded or _excluded(op_u):
             continue
         desc = ""
         row = catalog_by_barra.get(b)
@@ -424,7 +442,7 @@ def second_best_for_line(
             ReplacementOption(
                 barra=b,
                 descripcion=desc,
-                proveedor=op,
+                proveedor=op_u,  # index key is already upper
                 precio=precio,
                 ahorro_usd_vs_actual=precio_actual - precio,
             )
@@ -495,11 +513,14 @@ def build_decision_panel(
         b = str(line.get("barra") or "").strip()
         line_prov = str(line.get("proveedor") or "").strip()
         qty = _f(line.get("cantidad"))
-        precio_act = prices.get((b, line_prov), 0.0)
+        precio_act = _lookup_precio(prices, b, line_prov, line)
+        precio_missing = precio_act is None
+        if precio_act is None:
+            precio_act = 0.0
         alt = second_best_for_line(
             barra=b,
             proveedor_actual=line_prov,
-            precio_actual=precio_act,
+            precio_actual=float(precio_act),
             catalog_by_barra=cat,
             market_offers=market_offers,
             criterios=criterios,
@@ -514,17 +535,42 @@ def build_decision_panel(
                 }
             )
             continue
-        ahorro_line = (precio_act - alt.precio) * qty
+        # Skip bogus ahorro when we never resolved the current USD price
+        # (was defaulting to 0 → fake ~-$qty*alt looking like a FX bug).
+        if precio_missing:
+            replacements.append(
+                {
+                    "barra_actual": b,
+                    "barra_alternativa": alt.barra,
+                    "proveedor_actual": line_prov,
+                    "proveedor_alt": alt.proveedor,
+                    "precio_actual": None,
+                    "precio_alt": round(alt.precio, 4),
+                    "cantidad": int(qty),
+                    "ahorro_usd": None,
+                    "delta_pct": None,
+                    "precio_actual_missing": True,
+                    "descripcion_alt": alt.descripcion,
+                }
+            )
+            continue
+        ahorro_line = (float(precio_act) - alt.precio) * qty
+        # % vs costo actual de la línea (negativo = alt más caro)
+        base_line = float(precio_act) * qty
+        delta_pct = (ahorro_line / base_line * 100.0) if base_line > 1e-12 else None
         ahorro_total += ahorro_line
         replacements.append(
             {
                 "barra_actual": b,
                 "barra_alternativa": alt.barra,
+                "proveedor_actual": line_prov,
                 "proveedor_alt": alt.proveedor,
-                "precio_actual": round(precio_act, 4),
+                "precio_actual": round(float(precio_act), 4),
                 "precio_alt": round(alt.precio, 4),
                 "cantidad": int(qty),
                 "ahorro_usd": round(ahorro_line, 2),
+                "delta_pct": round(delta_pct, 1) if delta_pct is not None else None,
+                "precio_actual_missing": False,
                 "descripcion_alt": alt.descripcion,
             }
         )
@@ -617,11 +663,13 @@ def reject_proveedor(
             continue
         old_b = str(row.get("barra") or "").strip()
         line_prov = str(row.get("proveedor") or "").strip()
-        precio_act = prices.get((old_b, line_prov), 0.0)
+        precio_act = _lookup_precio(prices, old_b, line_prov, row)
+        if precio_act is None:
+            precio_act = 0.0
         alt = second_best_for_line(
             barra=old_b,
             proveedor_actual=line_prov,
-            precio_actual=precio_act,
+            precio_actual=float(precio_act),
             catalog_by_barra=cat,
             market_offers=market_offers,
             criterios=criterios,

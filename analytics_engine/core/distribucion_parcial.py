@@ -6,6 +6,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 
+from .competencia_top_n import competencia_payload
 from .gap_extension import MiembroGrupo, compute_gap_extension_oferta
 from .justificacion_factores import (
     JustificacionFactor,
@@ -178,38 +179,36 @@ def distribute_parcial(
 
         factors: List[JustificacionFactor] = []
         if barra_p != str(line.barra):
+            herm = competencia_payload(
+                scored,
+                baseline_barra=str(line.barra),
+                elegida_barra=barra_p,
+                elegida_proveedor=str(chosen.get("proveedor") or ""),
+                rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
+                hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+            )
             factors.append(
                 factor(
                     "sucedaneo",
                     f"{line.barra}→{barra_p} (sucedáneo del Grupo)",
-                    datos={"barra_baseline": line.barra, "barra_propuesto": barra_p},
+                    datos={
+                        "barra_baseline": line.barra,
+                        "barra_propuesto": barra_p,
+                        "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
+                        "top_n_hermanos": herm.get("top_n_hermanos"),
+                    },
                 )
             )
         prov = str(chosen["proveedor"])
         precio = _offer_precio(chosen)
-        score = None
-        if "_score" in chosen.index and pd.notna(chosen.get("_score")):
-            try:
-                score = float(chosen["_score"])
-            except (TypeError, ValueError):
-                score = None
-        if precio is not None or score is not None:
-            det_bits = [prov]
-            if precio is not None:
-                det_bits.append(f"${precio:g}")
-            if score is not None:
-                det_bits.append(f"score={score:.3f}")
-            factors.append(
-                factor(
-                    "oferta",
-                    " · ".join(det_bits),
-                    datos={
-                        "proveedor": prov,
-                        "precio": precio,
-                        "score": score,
-                    },
-                )
-            )
+        oferta_f = _oferta_factor_from_chosen(
+            chosen,
+            scored=scored,
+            baseline_barra=str(line.barra),
+            knobs=knobs,
+        )
+        if oferta_f is not None:
+            factors.append(oferta_f)
 
         qty = qty_baseline
         qty, amp_f = _amplifier_factor(qty, chosen, knobs)
@@ -410,25 +409,38 @@ def _allocation_sucedaneo_from_offers(
 
     factors: List[JustificacionFactor] = []
     if barra_p != str(line.barra):
+        herm = competencia_payload(
+            scored,
+            baseline_barra=str(line.barra),
+            elegida_barra=barra_p,
+            elegida_proveedor=str(chosen.get("proveedor") or ""),
+            rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
+            hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+        )
         factors.append(
             factor(
                 "sucedaneo",
                 f"{line.barra}→{barra_p} (sucedáneo del Grupo)",
-                datos={"barra_baseline": line.barra, "barra_propuesto": barra_p},
+                datos={
+                    "barra_baseline": line.barra,
+                    "barra_propuesto": barra_p,
+                    "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
+                    "top_n_hermanos": herm.get("top_n_hermanos"),
+                },
             )
         )
     prov = str(chosen["proveedor"])
     if not prov.strip():
         return None
     precio = _offer_precio(chosen)
-    if precio is not None:
-        factors.append(
-            factor(
-                "oferta",
-                f"{prov} @ ${precio:g}",
-                datos={"proveedor": prov, "precio": precio},
-            )
-        )
+    oferta_f = _oferta_factor_from_chosen(
+        chosen,
+        scored=scored,
+        baseline_barra=str(line.barra),
+        knobs=knobs,
+    )
+    if oferta_f is not None:
+        factors.append(oferta_f)
     qty = int(line.cantidad)
     qty, amp_f = _amplifier_factor(qty, chosen, knobs)
     if amp_f is not None:
@@ -833,6 +845,70 @@ def _try_split_lead_time(
         extra_legs=extras,
         precio=precio_by_key.get((primary.proveedor, primary.barra)),
         justificacion_factores=facts,
+    )
+
+
+def _oferta_factor_from_chosen(
+    chosen,
+    *,
+    scored: pd.DataFrame,
+    baseline_barra: str,
+    knobs: PresetKnobs,
+) -> Optional[JustificacionFactor]:
+    """Oferta factor + rivales/hermanos top-N (ADR-0022)."""
+    prov = str(chosen.get("proveedor") or "")
+    barra_p = str(chosen.get("barra") or "")
+    precio = _offer_precio(chosen)
+    score = None
+    if "_score" in chosen.index and pd.notna(chosen.get("_score")):
+        try:
+            score = float(chosen["_score"])
+        except (TypeError, ValueError):
+            score = None
+    if precio is None and score is None and not prov.strip():
+        return None
+    det_bits = [prov] if prov.strip() else []
+    if precio is not None:
+        det_bits.append(f"${precio:g}")
+    desvio_v = None
+    if "desvio" in chosen.index and pd.notna(chosen.get("desvio")):
+        try:
+            desvio_v = float(chosen["desvio"])
+        except (TypeError, ValueError):
+            desvio_v = None
+    if desvio_v is not None:
+        det_bits.append(f"desvío={desvio_v:+.1%}")
+    if score is not None:
+        det_bits.append(f"score={score:.3f}")
+    comp = competencia_payload(
+        scored,
+        baseline_barra=baseline_barra,
+        elegida_barra=barra_p,
+        elegida_proveedor=prov,
+        rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
+        hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+    )
+    n_riv = len(comp.get("rivales") or [])
+    n_herm = len(comp.get("hermanos_reemplazables") or [])
+    if n_riv > 1 or n_herm:
+        det_bits.append(f"rivales={n_riv} hermanos={n_herm}")
+    media = None
+    if "media_de_mediana" in chosen.index and pd.notna(chosen.get("media_de_mediana")):
+        try:
+            media = float(chosen["media_de_mediana"])
+        except (TypeError, ValueError):
+            media = None
+    return factor(
+        "oferta",
+        " · ".join(det_bits) if det_bits else prov,
+        datos={
+            "proveedor": prov,
+            "precio": precio,
+            "score": score,
+            "desvio": desvio_v,
+            "media_de_mediana": media,
+            **comp,
+        },
     )
 
 
