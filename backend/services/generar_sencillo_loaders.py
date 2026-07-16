@@ -31,6 +31,53 @@ _OFFERS_EMPTY = pd.DataFrame(
     ]
 )
 
+# ADR-0021 / 0024: lookback diario; fallback semanal si cobertura diaria baja
+try:
+    from analytics_engine.historico_stats.constants import (
+        HISTORICO_DESVIO_LOOKBACK_DAYS as _LOOKBACK,
+        MIN_DIAS_DIARIO_COBERTURA as _MIN_DIAS,
+    )
+
+    HISTORICO_DESVIO_LOOKBACK_DAYS = int(_LOOKBACK)
+    MIN_DIAS_DIARIO_COBERTURA = int(_MIN_DIAS)
+except Exception:  # pragma: no cover — path/import edge in some test harnesses
+    HISTORICO_DESVIO_LOOKBACK_DAYS = 120
+    MIN_DIAS_DIARIO_COBERTURA = 7
+
+_SQL_HISTORICO_BASELINES_OPENJSON = """
+    SELECT
+        CAST(h.codigo_barras AS NVARCHAR(50)) AS codigo_barras,
+        AVG(CAST(COALESCE(h.precio_mediana_usd, h.precio_mediana) AS FLOAT)) AS media_de_mediana,
+        AVG(CAST(COALESCE(h.precio_min_usd, h.precio_min) AS FLOAT)) AS media_min_diario,
+        COUNT_BIG(*) AS dias_hist,
+        MIN(h.fecha_snapshot) AS fecha_desde,
+        MAX(h.fecha_snapshot) AS fecha_hasta
+    FROM Analitica.Mercado_Historico h
+    INNER JOIN OPENJSON(?) WITH (codigo_barras NVARCHAR(50) '$.b') AS j
+      ON CAST(h.codigo_barras AS NVARCHAR(50)) = j.codigo_barras
+    WHERE h.fecha_snapshot >= DATEADD(day, -?, CAST(GETDATE() AS date))
+      AND COALESCE(h.precio_mediana_usd, h.precio_mediana) IS NOT NULL
+      AND CAST(COALESCE(h.precio_mediana_usd, h.precio_mediana) AS FLOAT) > 0
+    GROUP BY CAST(h.codigo_barras AS NVARCHAR(50))
+"""
+
+_SQL_SEMANAL_BASELINES_OPENJSON = """
+    SELECT
+        CAST(s.codigo_barras AS NVARCHAR(50)) AS codigo_barras,
+        AVG(CAST(s.precio_mediana AS FLOAT)) AS media_de_mediana,
+        AVG(CAST(s.media_precio_min AS FLOAT)) AS media_min_diario,
+        COUNT_BIG(*) AS semanas_hist,
+        MIN(s.fecha_semana_ini) AS fecha_desde,
+        MAX(s.fecha_semana_fin) AS fecha_hasta
+    FROM Analitica.Mercado_Historico_Semanal s
+    INNER JOIN OPENJSON(?) WITH (codigo_barras NVARCHAR(50) '$.b') AS j
+      ON CAST(s.codigo_barras AS NVARCHAR(50)) = j.codigo_barras
+    WHERE s.fecha_semana_fin >= DATEADD(day, -?, CAST(GETDATE() AS date))
+      AND s.precio_mediana IS NOT NULL
+      AND CAST(s.precio_mediana AS FLOAT) > 0
+    GROUP BY CAST(s.codigo_barras AS NVARCHAR(50))
+"""
+
 _SQL_MERCADO_VIVO_IN = """
     SELECT codigo_barras, proveedor, precio_unitario_final,
            stock_disponible, descripcion_producto
@@ -139,6 +186,174 @@ def map_mercado_vivo_dataframe(df: pd.DataFrame) -> List[Dict[str, Any]]:
     if "descripcion" in out.columns:
         cols.append("descripcion")
     return out[cols].to_dict(orient="records")
+
+
+def normalize_offers_to_usd(
+    offers: Sequence[Dict[str, Any]],
+    *,
+    moneda_by_prov: Dict[str, str],
+    dolarbcv: float,
+) -> List[Dict[str, Any]]:
+    """Normalize Mercado_Vivo unit prices to USD before desvío / scoring.
+
+    MonedaOferta=VES → precio / dolarbcv (ecosistema dbo.dolartoday).
+    MonedaOferta=USD → unchanged. Always stores precio in USD thereafter.
+    """
+    from .fx_bcv import to_usd
+
+    out: List[Dict[str, Any]] = []
+    for raw in offers:
+        row = dict(raw)
+        prov_u = str(row.get("proveedor") or "").strip().upper()
+        mon = moneda_by_prov.get(prov_u, "USD")
+        try:
+            raw_px = float(row.get("precio") or 0.0)
+        except (TypeError, ValueError):
+            raw_px = 0.0
+        row["precio_raw"] = round(raw_px, 6)
+        row["moneda_oferta"] = mon
+        row["precio"] = round(to_usd(raw_px, moneda=mon, dolarbcv=dolarbcv), 6)
+        row["dolarbcv"] = float(dolarbcv)
+        out.append(row)
+    return out
+
+
+def enrich_offers_with_desvio(
+    offers: Sequence[Dict[str, Any]],
+    baselines: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Attach media_de_mediana / media_min_diario / desvio (ADR-0021 / 0024).
+
+    Comparativa vs histórico siempre en USD: `precio` debe estar ya normalizado
+    a USD (normalize_offers_to_usd). desvio = (precio_usd − media) / media.
+    """
+    from analytics_engine.core.nonlinear import calculate_price_deviation
+
+    enriched: List[Dict[str, Any]] = []
+    for raw in offers:
+        row = dict(raw)
+        barra = str(row.get("barra") or "").strip()
+        base = baselines.get(barra)
+        if not base:
+            enriched.append(row)
+            continue
+        media = float(base["media_de_mediana"])
+        row["media_de_mediana"] = round(media, 6)
+        if base.get("media_min_diario") is not None:
+            row["media_min_diario"] = round(float(base["media_min_diario"]), 6)
+        row["dias_hist"] = int(base.get("dias_hist") or 0)
+        if base.get("semanas_hist") is not None:
+            row["semanas_hist"] = int(base["semanas_hist"] or 0)
+        fuente = str(base.get("fuente_baseline") or "diario")
+        row["fuente_baseline"] = fuente
+        try:
+            precio = float(row.get("precio") or 0.0)
+        except (TypeError, ValueError):
+            precio = 0.0
+        row["desvio"] = round(calculate_price_deviation(precio, media), 6)
+        row["delta_vs_media_usd"] = round(precio - media, 6)
+        enriched.append(row)
+    return enriched
+
+
+def _parse_baseline_row(
+    row: Sequence[Any],
+    *,
+    fuente: str,
+    count_key: str,
+) -> Optional[Dict[str, Any]]:
+    barra = str(row[0] or "").strip()
+    if not barra:
+        return None
+    try:
+        media_med_f = float(row[1]) if row[1] is not None else None
+    except (TypeError, ValueError):
+        media_med_f = None
+    try:
+        media_min_f = float(row[2]) if row[2] is not None else None
+    except (TypeError, ValueError):
+        media_min_f = None
+    if media_med_f is None or media_med_f <= 0:
+        return None
+    out: Dict[str, Any] = {
+        "media_de_mediana": media_med_f,
+        "media_min_diario": media_min_f,
+        count_key: int(row[3] or 0),
+        "fecha_desde": row[4].isoformat() if row[4] is not None else None,
+        "fecha_hasta": row[5].isoformat() if row[5] is not None else None,
+        "fuente_baseline": fuente,
+    }
+    if count_key == "dias_hist":
+        out["dias_hist"] = out[count_key]
+    else:
+        out["semanas_hist"] = out[count_key]
+        out["dias_hist"] = 0
+    return out
+
+
+def fetch_historico_baselines(
+    conn: Any,
+    barras: Sequence[str],
+    *,
+    lookback_days: int = HISTORICO_DESVIO_LOOKBACK_DAYS,
+    min_dias_diario: int = MIN_DIAS_DIARIO_COBERTURA,
+) -> Dict[str, Dict[str, Any]]:
+    """Baselines 120d: diario primero; fallback semanal si cobertura &lt; min_dias.
+
+    Returns barra → media_de_mediana, media_min_diario, dias_hist/semanas_hist,
+    fuente_baseline (diario|semanal|mixto).
+    """
+    clean = _normalize_barras(barras)
+    if not clean:
+        return {}
+    payload = json.dumps([{"b": b} for b in clean])
+    cur = conn.cursor()
+    cur.execute(
+        _SQL_HISTORICO_BASELINES_OPENJSON,
+        [payload, int(lookback_days)],
+    )
+    out: Dict[str, Dict[str, Any]] = {}
+    for row in cur.fetchall():
+        parsed = _parse_baseline_row(row, fuente="diario", count_key="dias_hist")
+        if parsed:
+            out[str(row[0]).strip()] = parsed
+
+    need_weekly = [
+        b
+        for b in clean
+        if b not in out or int(out[b].get("dias_hist") or 0) < int(min_dias_diario)
+    ]
+    if not need_weekly:
+        return out
+
+    payload_w = json.dumps([{"b": b} for b in need_weekly])
+    try:
+        cur.execute(
+            _SQL_SEMANAL_BASELINES_OPENJSON,
+            [payload_w, int(lookback_days)],
+        )
+        weekly_rows = cur.fetchall()
+    except Exception as exc:
+        logger.warning("Mercado_Historico_Semanal baselines skipped: %s", exc)
+        return out
+
+    for row in weekly_rows:
+        parsed = _parse_baseline_row(row, fuente="semanal", count_key="semanas_hist")
+        if not parsed:
+            continue
+        barra = str(row[0]).strip()
+        prev = out.get(barra)
+        if not prev:
+            out[barra] = parsed
+            continue
+        # Cobertura diaria insuficiente → fallback semanal (ADR-0024)
+        if int(prev.get("dias_hist") or 0) < int(min_dias_diario):
+            parsed["dias_hist"] = int(prev.get("dias_hist") or 0)
+            parsed["fuente_baseline"] = (
+                "mixto" if int(prev.get("dias_hist") or 0) > 0 else "semanal"
+            )
+            out[barra] = parsed
+    return out
 
 
 def prioritize_barras_for_offers(
@@ -414,12 +629,50 @@ def load_catalog_and_offers_from_db(
         )
         offers_df = fetch_mercado_vivo_offers(conn, barras)
         offers_rows = map_mercado_vivo_dataframe(offers_df)
+        # Normalizar a USD antes del desvío (comparativa histórico siempre $).
+        try:
+            from .fx_bcv import fetch_dolarbcv
+            from .proveedor_config_loader import (
+                fetch_proveedor_groups,
+                moneda_oferta_index_from_groups,
+            )
+
+            dolarbcv = fetch_dolarbcv(conn)
+            groups = fetch_proveedor_groups(conn)
+            moneda_by_prov = moneda_oferta_index_from_groups(groups)
+            offers_rows = normalize_offers_to_usd(
+                offers_rows,
+                moneda_by_prov=moneda_by_prov,
+                dolarbcv=dolarbcv,
+            )
+            n_ves = sum(1 for o in offers_rows if o.get("moneda_oferta") == "VES")
+            logger.info(
+                "Offers USD-normalized: bcv=%s ves_rows=%s/%s",
+                dolarbcv,
+                n_ves,
+                len(offers_rows),
+            )
+        except Exception as exc:
+            logger.warning("USD normalize skipped: %s", exc)
+        try:
+            baselines = fetch_historico_baselines(conn, barras)
+            offers_rows = enrich_offers_with_desvio(offers_rows, baselines)
+            with_desvio = sum(1 for o in offers_rows if o.get("desvio") is not None)
+        except Exception as exc:
+            logger.warning(
+                "Mercado_Historico baselines failed (desvio omitted): %s", exc
+            )
+            baselines = {}
+            with_desvio = 0
         logger.info(
-            "Generar Sencillo load: catalog=%s barras=%s offer_rows=%s cobertura=%s",
+            "Generar Sencillo load: catalog=%s barras=%s offer_rows=%s "
+            "cobertura=%s hist_barras=%s offers_with_desvio=%s",
             len(catalog_rows),
             len(barras),
             len(offers_rows),
             cobertura_dias,
+            len(baselines),
+            with_desvio,
         )
         return catalog_rows, offers_rows
     finally:

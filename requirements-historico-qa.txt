@@ -1,0 +1,5 @@
+# Opcional — Fase 0 QA histórico (no requerido por el API)
+ydata-profiling>=4.0.0
+pandera>=0.18.0
+scipy>=1.11.0
+matplotlib>=3.7.0

@@ -40,6 +40,8 @@ LIVING_OVERRIDE_KEYS = frozenset(
         "sust_kappa",  # ADR-0017 Definitivo opt-in
         "kappa",  # alias → sust_kappa
         "max_sustitucion_base",  # Avanzado only
+        "rivales_top_n",  # ADR-0022
+        "hermanos_top_n",
     }
 )
 
@@ -70,6 +72,8 @@ INTERMEDIO_OVERRIDE_KEYS = frozenset(
         "split_lead_time_enabled",
         "sust_kappa",
         "kappa",
+        "rivales_top_n",
+        "hermanos_top_n",
     }
 )
 
@@ -94,6 +98,9 @@ class PresetKnobs:
     # ADR-0017: None = kappa off (Sencillo / Definitivo without override)
     sust_kappa: Optional[float] = None
     max_sustitucion_base: Optional[float] = None
+    # ADR-0022: Comparativa competencia payload size
+    rivales_top_n: int = 3
+    hermanos_top_n: int = 3
 
 
 _ALIAS = {
@@ -282,6 +289,26 @@ _OVERRIDE_FIELD_META: Dict[str, Dict[str, Any]] = {
         ),
         "hint": "Opcional; si vacío usa mapa por elasticidad.",
     },
+    "rivales_top_n": {
+        "label": "Rivales a mostrar (top N)",
+        "type": "number",
+        "step": "1",
+        "hint": "Ofertas rivales en Comparativa.",
+        "help": (
+            "Cuántas ofertas del mismo Grupo (por score) se guardan en la justificación "
+            "para comparar sin recargar Mercado. Default 3; rango 1–10."
+        ),
+    },
+    "hermanos_top_n": {
+        "label": "Hermanos reemplazables (top N)",
+        "type": "number",
+        "step": "1",
+        "hint": "Barras hermanas del Grupo.",
+        "help": (
+            "Cuántas barras distintas del baseline (mismo Grupo MDM) con su mejor oferta "
+            "se muestran como sucedáneos potenciales. Default 3; rango 1–10."
+        ),
+    },
     "monto_buffer_pct": {
         "label": "Buffer presupuesto (%)",
         "type": "number",
@@ -410,6 +437,11 @@ def apply_living_overrides(
         if key in ("monto_buffer_pct", "ext_eta"):
             continue
         if key not in knob_names:
+            continue
+        if key in ("rivales_top_n", "hermanos_top_n"):
+            from .competencia_top_n import clamp_top_n
+
+            updates[key] = clamp_top_n(value)
             continue
         updates[key] = value
     if not updates:
