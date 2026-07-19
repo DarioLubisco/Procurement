@@ -6,6 +6,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 
+from .competencia_top_n import competencia_payload
 from .gap_extension import MiembroGrupo, compute_gap_extension_oferta
 from .justificacion_factores import (
     JustificacionFactor,
@@ -15,6 +16,17 @@ from .justificacion_factores import (
 )
 from .nonlinear import quadratic_ceiling
 from .pedido_baseline import BaselineLine
+from .pdr_offers import (
+    baja_score_multiplier,
+    excluded_pdr_rows,
+    is_baja,
+    normalize_semaforo,
+    parse_pdr,
+    prepare_pdr_candidates,
+    pdr_factor_all_excluded,
+    pdr_factor_for_chosen,
+    should_clamp_stock,
+)
 from .presets import PresetKnobs, max_sustitucion_base_from_elasticidad
 from .split_lead_time import OfferCandidate, compute_split_lead_time
 
@@ -143,12 +155,35 @@ def distribute_parcial(
             )
             continue
 
-        split = _try_split_lead_time(line, row, candidates, knobs)
+        eligible, excluded_nc = prepare_pdr_candidates(candidates, knobs)
+        if eligible.empty:
+            excl = excluded_pdr_rows(excluded_nc)
+            factors_empty = [
+                factor("sin_oferta", "sin ofertas confiables (todas NO_CONFIABLE)"),
+                pdr_factor_all_excluded(excl),
+            ]
+            resumen, facts = finalize(factors_empty)
+            out.append(
+                Allocation(
+                    barra_baseline=line.barra,
+                    desc_baseline=line.descripcion,
+                    qty_baseline=line.cantidad,
+                    barra_propuesto=line.barra,
+                    desc_propuesto=line.descripcion,
+                    qty_propuesto=line.cantidad,
+                    proveedor="",
+                    justificacion_delta=resumen,
+                    justificacion_factores=facts,
+                )
+            )
+            continue
+
+        split = _try_split_lead_time(line, row, eligible, knobs)
         if split is not None:
             out.append(split)
             continue
 
-        scored = _score_offers(candidates, knobs, baseline_elasticidad=_elasticidad(row))
+        scored = _score_offers(eligible, knobs, baseline_elasticidad=_elasticidad(row))
         chosen = scored.iloc[0]
         qty_baseline = int(line.cantidad)
 
@@ -178,46 +213,45 @@ def distribute_parcial(
 
         factors: List[JustificacionFactor] = []
         if barra_p != str(line.barra):
+            herm = competencia_payload(
+                scored,
+                baseline_barra=str(line.barra),
+                elegida_barra=barra_p,
+                elegida_proveedor=str(chosen.get("proveedor") or ""),
+                rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
+                hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+            )
             factors.append(
                 factor(
                     "sucedaneo",
                     f"{line.barra}→{barra_p} (sucedáneo del Grupo)",
-                    datos={"barra_baseline": line.barra, "barra_propuesto": barra_p},
+                    datos={
+                        "barra_baseline": line.barra,
+                        "barra_propuesto": barra_p,
+                        "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
+                        "top_n_hermanos": herm.get("top_n_hermanos"),
+                    },
                 )
             )
         prov = str(chosen["proveedor"])
         precio = _offer_precio(chosen)
-        score = None
-        if "_score" in chosen.index and pd.notna(chosen.get("_score")):
-            try:
-                score = float(chosen["_score"])
-            except (TypeError, ValueError):
-                score = None
-        if precio is not None or score is not None:
-            det_bits = [prov]
-            if precio is not None:
-                det_bits.append(f"${precio:g}")
-            if score is not None:
-                det_bits.append(f"score={score:.3f}")
-            factors.append(
-                factor(
-                    "oferta",
-                    " · ".join(det_bits),
-                    datos={
-                        "proveedor": prov,
-                        "precio": precio,
-                        "score": score,
-                    },
-                )
-            )
+        oferta_f = _oferta_factor_from_chosen(
+            chosen,
+            scored=scored,
+            baseline_barra=str(line.barra),
+            knobs=knobs,
+        )
+        if oferta_f is not None:
+            factors.append(oferta_f)
+        pdr_f = pdr_factor_for_chosen(chosen)
+        if pdr_f is not None:
+            factors.append(pdr_f)
 
         qty = qty_baseline
         qty, amp_f = _amplifier_factor(qty, chosen, knobs)
         if amp_f is not None:
             factors.append(amp_f)
-        stock = chosen.get("stock_proveedor")
-        if pd.notna(stock):
-            qty = min(qty, int(stock))
+        qty = _clamp_qty_by_stock(qty, chosen)
 
         if qty != qty_baseline:
             factors.append(
@@ -284,16 +318,19 @@ def _resolve_unmet_via_grupo(
 
         candidates = _offers_for_group(offers, gk, criterios)
         if candidates is not None and not candidates.empty:
-            rewritten = _allocation_sucedaneo_from_offers(
-                line_baseline=a,
-                catalog_row=row,
-                candidates=candidates,
-                knobs=knobs,
-                by_barra=by_barra,
-            )
-            if rewritten is not None:
-                out[i] = rewritten
-                continue
+            # ADR-0025/0026: do not resurrect NO_CONFIABLE via unmet→sucedáneo
+            eligible, _excluded_nc = prepare_pdr_candidates(candidates, knobs)
+            if not eligible.empty:
+                rewritten = _allocation_sucedaneo_from_offers(
+                    line_baseline=a,
+                    catalog_row=row,
+                    candidates=eligible,
+                    knobs=knobs,
+                    by_barra=by_barra,
+                )
+                if rewritten is not None:
+                    out[i] = rewritten
+                    continue
 
         sib_idxs = [
             j
@@ -392,8 +429,11 @@ def _allocation_sucedaneo_from_offers(
         descripcion=line_baseline.desc_baseline,
         cantidad=line_baseline.qty_baseline,
     )
+    eligible, _ = prepare_pdr_candidates(candidates, knobs)
+    if eligible.empty:
+        return None
     scored = _score_offers(
-        candidates, knobs, baseline_elasticidad=_elasticidad(catalog_row)
+        eligible, knobs, baseline_elasticidad=_elasticidad(catalog_row)
     )
     if scored.empty:
         return None
@@ -410,32 +450,46 @@ def _allocation_sucedaneo_from_offers(
 
     factors: List[JustificacionFactor] = []
     if barra_p != str(line.barra):
+        herm = competencia_payload(
+            scored,
+            baseline_barra=str(line.barra),
+            elegida_barra=barra_p,
+            elegida_proveedor=str(chosen.get("proveedor") or ""),
+            rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
+            hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+        )
         factors.append(
             factor(
                 "sucedaneo",
                 f"{line.barra}→{barra_p} (sucedáneo del Grupo)",
-                datos={"barra_baseline": line.barra, "barra_propuesto": barra_p},
+                datos={
+                    "barra_baseline": line.barra,
+                    "barra_propuesto": barra_p,
+                    "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
+                    "top_n_hermanos": herm.get("top_n_hermanos"),
+                },
             )
         )
     prov = str(chosen["proveedor"])
     if not prov.strip():
         return None
     precio = _offer_precio(chosen)
-    if precio is not None:
-        factors.append(
-            factor(
-                "oferta",
-                f"{prov} @ ${precio:g}",
-                datos={"proveedor": prov, "precio": precio},
-            )
-        )
+    oferta_f = _oferta_factor_from_chosen(
+        chosen,
+        scored=scored,
+        baseline_barra=str(line.barra),
+        knobs=knobs,
+    )
+    if oferta_f is not None:
+        factors.append(oferta_f)
+    pdr_f = pdr_factor_for_chosen(chosen)
+    if pdr_f is not None:
+        factors.append(pdr_f)
     qty = int(line.cantidad)
     qty, amp_f = _amplifier_factor(qty, chosen, knobs)
     if amp_f is not None:
         factors.append(amp_f)
-    stock = chosen.get("stock_proveedor")
-    if pd.notna(stock):
-        qty = min(qty, int(stock))
+    qty = _clamp_qty_by_stock(qty, chosen)
     if qty != int(line.cantidad):
         factors.append(
             factor(
@@ -550,9 +604,10 @@ def _apply_kappa_split_if_needed(
     qty_sub, amp_f = _amplifier_factor(qty_sub, chosen, knobs)
     if amp_f is not None:
         factors.append(amp_f)
-    stock = chosen.get("stock_proveedor")
-    if pd.notna(stock):
-        qty_sub = min(qty_sub, int(stock))
+    qty_sub = _clamp_qty_by_stock(qty_sub, chosen)
+    pdr_f = pdr_factor_for_chosen(chosen)
+    if pdr_f is not None:
+        factors.append(pdr_f)
     qty_sub = max(0, qty_sub)
     qty_rest = max(0, qty_baseline - int(qty_baseline * techo))
     pct = 100.0 * techo
@@ -836,6 +891,96 @@ def _try_split_lead_time(
     )
 
 
+def _oferta_factor_from_chosen(
+    chosen,
+    *,
+    scored: pd.DataFrame,
+    baseline_barra: str,
+    knobs: PresetKnobs,
+) -> Optional[JustificacionFactor]:
+    """Oferta factor + rivales/hermanos top-N (ADR-0022)."""
+    prov = str(chosen.get("proveedor") or "")
+    barra_p = str(chosen.get("barra") or "")
+    precio = _offer_precio(chosen)
+    score = None
+    if "_score" in chosen.index and pd.notna(chosen.get("_score")):
+        try:
+            score = float(chosen["_score"])
+        except (TypeError, ValueError):
+            score = None
+    if precio is None and score is None and not prov.strip():
+        return None
+    det_bits = [prov] if prov.strip() else []
+    if precio is not None:
+        det_bits.append(f"${precio:g}")
+    desvio_v = None
+    if "desvio" in chosen.index and pd.notna(chosen.get("desvio")):
+        try:
+            desvio_v = float(chosen["desvio"])
+        except (TypeError, ValueError):
+            desvio_v = None
+    if desvio_v is not None:
+        det_bits.append(f"desvío={desvio_v:+.1%}")
+    media = None
+    if "media_de_mediana" in chosen.index and pd.notna(chosen.get("media_de_mediana")):
+        try:
+            media = float(chosen["media_de_mediana"])
+        except (TypeError, ValueError):
+            media = None
+    delta_usd = None
+    if precio is not None and media is not None:
+        delta_usd = precio - media
+        det_bits.append(f"media hist. ${media:.4f}")
+        det_bits.append(f"Δ ${delta_usd:+.4f}")
+    fuente_bl = None
+    if "fuente_baseline" in chosen.index and pd.notna(chosen.get("fuente_baseline")):
+        fuente_bl = str(chosen.get("fuente_baseline"))
+        det_bits.append(f"[{fuente_bl}]")
+    pdr_sem = None
+    if "pdr_semaforo" in chosen.index:
+        pdr_sem = normalize_semaforo(chosen.get("pdr_semaforo"))
+        if pdr_sem:
+            det_bits.append(f"[PDR:{pdr_sem}]")
+    pdr_v = parse_pdr(chosen.get("pdr")) if "pdr" in chosen.index else None
+    if score is not None:
+        det_bits.append(f"score={score:.3f}")
+    comp = competencia_payload(
+        scored,
+        baseline_barra=baseline_barra,
+        elegida_barra=barra_p,
+        elegida_proveedor=prov,
+        rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
+        hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+    )
+    n_riv = len(comp.get("rivales") or [])
+    n_herm = len(comp.get("hermanos_reemplazables") or [])
+    if n_riv > 1 or n_herm:
+        det_bits.append(f"rivales={n_riv} hermanos={n_herm}")
+    media_min = None
+    if "media_min_diario" in chosen.index and pd.notna(chosen.get("media_min_diario")):
+        try:
+            media_min = float(chosen["media_min_diario"])
+        except (TypeError, ValueError):
+            media_min = None
+    return factor(
+        "oferta",
+        " · ".join(det_bits) if det_bits else prov,
+        datos={
+            "proveedor": prov,
+            "precio": precio,
+            "score": score,
+            "desvio": desvio_v,
+            "media_de_mediana": media,
+            "media_min_diario": media_min,
+            "delta_vs_media_usd": round(delta_usd, 6) if delta_usd is not None else None,
+            "fuente_baseline": fuente_bl,
+            "pdr": pdr_v,
+            "pdr_semaforo": pdr_sem,
+            **comp,
+        },
+    )
+
+
 def _offer_precio(chosen) -> Optional[float]:
     """USD unit price from scored offer row; None if missing/invalid."""
     if chosen is None:
@@ -921,6 +1066,8 @@ def _enrich_offers_with_grupo(
         offers["lead_time_dias"] = 0.0
     if "stock_proveedor" in offers.columns:
         offers["stock_proveedor"] = pd.to_numeric(offers["stock_proveedor"], errors="coerce")
+    if "pdr" in offers.columns:
+        offers["pdr"] = pd.to_numeric(offers["pdr"], errors="coerce")
     return offers
 
 
@@ -955,10 +1102,14 @@ def _apply_amplifier(qty: int, chosen: pd.Series, knobs: PresetKnobs) -> int:
         return qty
     if "desvio" not in chosen.index or pd.isna(chosen.get("desvio")):
         return qty
+    desvio = float(chosen["desvio"])
+    # Guard: desvío extremo suele ser precio basura en Mercado_Vivo (ej. $2 vs media $285).
+    if desvio <= -0.85 or desvio >= 5.0:
+        return qty
     from .nonlinear import exponential_amplifier
 
     mult = exponential_amplifier(
-        float(chosen["desvio"]),
+        desvio,
         knobs.amp_a,
         knobs.amp_b,
         knobs.amp_max_increment_pct,
@@ -1024,7 +1175,32 @@ def _score_offers(
         + knobs.w1 * 0.0
         + knobs.w2 * 0.0
     )
+    # ADR-0025: BAJA → score × max(0.5, pdr)
+    if "pdr_semaforo" in df.columns:
+        mults = []
+        for _, row in df.iterrows():
+            sem = normalize_semaforo(row.get("pdr_semaforo"))
+            if is_baja(sem):
+                mults.append(baja_score_multiplier(parse_pdr(row.get("pdr"))))
+            else:
+                mults.append(1.0)
+        df["_score"] = df["_score"] * pd.Series(mults, index=df.index)
     return df.sort_values("_score", ascending=False)
+
+
+def _clamp_qty_by_stock(qty: int, chosen) -> int:
+    """Cap qty by offer stock unless PDR BAJA (ADR-0025)."""
+    if chosen is None:
+        return int(qty)
+    sem = None
+    if hasattr(chosen, "index") and "pdr_semaforo" in chosen.index:
+        sem = normalize_semaforo(chosen.get("pdr_semaforo"))
+    if not should_clamp_stock(sem):
+        return int(qty)
+    stock = chosen.get("stock_proveedor") if hasattr(chosen, "get") else None
+    if stock is not None and pd.notna(stock):
+        return min(int(qty), int(stock))
+    return int(qty)
 
 
 def _justificacion(line: BaselineLine, barra_propuesto: str, qty_base: int, qty_prop: int) -> str:
