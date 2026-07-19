@@ -92,6 +92,8 @@ from routers.guardar_borrador import router as guardar_borrador_router
 app.include_router(guardar_borrador_router)
 from routers.pedido_presets import router as pedido_presets_router
 app.include_router(pedido_presets_router)
+from routers.pedido_moneda import router as pedido_moneda_router
+app.include_router(pedido_moneda_router)
 app.include_router(inventario_router)
 app.include_router(n8n_webhook_router)
 app.include_router(proveedores_b2b_router)

@@ -1,0 +1,12 @@
+# Optional deps for histórico QA / profiling (ADR-0024 Fase 0).
+# Core motor (loader + desvío) does NOT require these.
+#
+#   pip install -r requirements-historico-qa.txt
+#   python -m analytics_engine.historico_stats.run_qa
+
+pandas>=2.0
+numpy>=1.24
+pandera>=0.18
+scipy>=1.11
+matplotlib>=3.8
+ydata-profiling>=4.6

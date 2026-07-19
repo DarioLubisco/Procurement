@@ -42,6 +42,11 @@ LIVING_OVERRIDE_KEYS = frozenset(
         "max_sustitucion_base",  # Avanzado only
         "rivales_top_n",  # ADR-0022
         "hermanos_top_n",
+        # ADR-0026 PDR gate
+        "pdr_gate_enabled",
+        "pdr_gate_stock_max",
+        "pdr_gate_umbral_ppp",
+        "pdr_gate_action",
     }
 )
 
@@ -74,6 +79,8 @@ INTERMEDIO_OVERRIDE_KEYS = frozenset(
         "kappa",
         "rivales_top_n",
         "hermanos_top_n",
+        "pdr_gate_enabled",
+        "pdr_gate_stock_max",
     }
 )
 
@@ -101,6 +108,11 @@ class PresetKnobs:
     # ADR-0022: Comparativa competencia payload size
     rivales_top_n: int = 3
     hermanos_top_n: int = 3
+    # ADR-0026: PDR gate (stock × PPP) — defaults apply to Sencillo too
+    pdr_gate_enabled: bool = True
+    pdr_gate_stock_max: int = 2
+    pdr_gate_umbral_ppp: float = 0.001
+    pdr_gate_action: str = "NO_CONFIABLE"
 
 
 _ALIAS = {
@@ -319,6 +331,45 @@ _OVERRIDE_FIELD_META: Dict[str, Dict[str, Any]] = {
             "0 = respeta el tope estricto."
         ),
     },
+    "pdr_gate_enabled": {
+        "label": "Gate PDR (stock × PPP)",
+        "type": "boolean",
+        "hint": "Expulsa ofertas testigo.",
+        "help": (
+            "Si está activo, ofertas con stock bajo y PPP bajo el umbral se fuerzan a "
+            "NO_CONFIABLE (o BAJA según acción). Evita comprar stock fantasma de 1–2 unidades."
+        ),
+    },
+    "pdr_gate_stock_max": {
+        "label": "Gate PDR: stock máximo",
+        "type": "number",
+        "step": "1",
+        "hint": "Stock ≤ N dispara el gate.",
+        "help": (
+            "Tope de stock (unidades) para considerar la oferta 'testigo'. "
+            "Default 2: stock 1 o 2 con PPP bajo dispara el gate."
+        ),
+    },
+    "pdr_gate_umbral_ppp": {
+        "label": "Gate PDR: umbral PPP",
+        "type": "number",
+        "step": "0.0001",
+        "hint": "PPP < umbral dispara el gate.",
+        "help": (
+            "Peso del producto en el inventario del lab. Si PPP está bajo este umbral "
+            "y el stock ≤ stock máximo, aplica la acción del gate. Default 0.001."
+        ),
+    },
+    "pdr_gate_action": {
+        "label": "Gate PDR: acción",
+        "type": "select",
+        "options": ["NO_CONFIABLE", "BAJA"],
+        "hint": "Qué hacer al disparar.",
+        "help": (
+            "NO_CONFIABLE = saca la oferta del pool. BAJA = no topea qty con stock y "
+            "penaliza score (sigue compitiendo)."
+        ),
+    },
 }
 
 
@@ -442,6 +493,26 @@ def apply_living_overrides(
             from .competencia_top_n import clamp_top_n
 
             updates[key] = clamp_top_n(value)
+            continue
+        if key == "pdr_gate_enabled":
+            if isinstance(value, str):
+                updates[key] = value.strip().lower() in ("1", "true", "yes", "on", "si", "sí")
+            else:
+                updates[key] = bool(value)
+            continue
+        if key == "pdr_gate_stock_max":
+            updates[key] = max(0, int(value))
+            continue
+        if key == "pdr_gate_umbral_ppp":
+            updates[key] = float(value)
+            continue
+        if key == "pdr_gate_action":
+            act = str(value).strip().upper()
+            if act not in ("NO_CONFIABLE", "BAJA"):
+                raise ValueError(
+                    f"pdr_gate_action inválida: {value!r} (use NO_CONFIABLE|BAJA)"
+                )
+            updates[key] = act
             continue
         updates[key] = value
     if not updates:

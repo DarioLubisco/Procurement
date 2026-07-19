@@ -4,7 +4,9 @@ from __future__ import annotations
 import pandas as pd
 
 from backend.services.generar_sencillo_loaders import (
+    MIN_DIAS_DIARIO_COBERTURA,
     enrich_offers_with_desvio,
+    fetch_historico_baselines,
     fetch_mercado_vivo_offers,
     prioritize_barras_for_offers,
 )
@@ -192,3 +194,75 @@ def test_enrich_offers_with_desvio_zero_when_at_media():
         {"X": {"media_de_mediana": 12.5, "media_min_diario": 10.0, "dias_hist": 5}},
     )
     assert out[0]["desvio"] == 0.0
+
+
+def test_enrich_offers_exposes_fuente_baseline_and_delta():
+    out = enrich_offers_with_desvio(
+        [{"barra": "A", "proveedor": "P", "precio": 9.0}],
+        {
+            "A": {
+                "media_de_mediana": 10.0,
+                "media_min_diario": 8.0,
+                "dias_hist": 2,
+                "semanas_hist": 12,
+                "fuente_baseline": "mixto",
+            }
+        },
+    )
+    assert out[0]["fuente_baseline"] == "mixto"
+    assert out[0]["delta_vs_media_usd"] == -1.0
+    assert out[0]["semanas_hist"] == 12
+
+
+def test_fetch_historico_baselines_uses_weekly_when_daily_sparse():
+    """dias_hist < MIN_DIAS → weekly baseline (ADR-0024)."""
+
+    class _Cur:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, sql, params=None):
+            self.calls += 1
+            self.sql = sql
+            self.params = params
+
+        def fetchall(self):
+            if "Mercado_Historico_Semanal" in self.sql:
+                # semanas_hist=10, media=20
+                return [("SPARSE", 20.0, 18.0, 10, None, None)]
+            # daily: only 2 days (< 7)
+            return [("SPARSE", 15.0, 14.0, 2, None, None)]
+
+    class _Conn:
+        def __init__(self):
+            self.cur = _Cur()
+
+        def cursor(self):
+            return self.cur
+
+    out = fetch_historico_baselines(_Conn(), ["SPARSE"])
+    assert out["SPARSE"]["fuente_baseline"] == "mixto"
+    assert out["SPARSE"]["dias_hist"] == 2
+    assert out["SPARSE"]["semanas_hist"] == 10
+    assert out["SPARSE"]["media_de_mediana"] == 20.0
+    assert MIN_DIAS_DIARIO_COBERTURA == 7
+
+
+def test_fetch_historico_baselines_keeps_daily_when_rich():
+    class _Cur:
+        def execute(self, sql, params=None):
+            self.sql = sql
+
+        def fetchall(self):
+            if "Mercado_Historico_Semanal" in getattr(self, "sql", ""):
+                raise AssertionError("weekly should not run when daily rich")
+            return [("RICH", 11.0, 9.0, 30, None, None)]
+
+    class _Conn:
+        def cursor(self):
+            return _Cur()
+
+    out = fetch_historico_baselines(_Conn(), ["RICH"])
+    assert out["RICH"]["fuente_baseline"] == "diario"
+    assert out["RICH"]["dias_hist"] == 30
+    assert out["RICH"]["media_de_mediana"] == 11.0

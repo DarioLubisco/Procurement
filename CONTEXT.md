@@ -131,8 +131,16 @@ Señal unificada del Desvío de precio: score, multiplicador de cantidad y días
 _Avoid_: F4, amplificador y F5 como tres conceptos de negocio en UI sencilla
 
 **Desvío:**
-Fracción `(precio − media_de_mediana) / media_de_mediana`. Negativo = más barato.
-_Avoid_: descuento comercial del proveedor
+Fracción `(precio_usd − media_de_mediana) / media_de_mediana`. Negativo = más barato. Ventana motor **120d** sobre `Mercado_Historico`; si `dias_hist < 7` → fallback `Mercado_Historico_Semanal`. `fuente_baseline` ∈ {diario, semanal, mixto}. `media_min` / `media_precio_min` informativos — no base del desvío. UI: precio · media hist · Δ$ · % (USD) + badge fuente. Ver ADR-0021 / ADR-0024.
+_Avoid_: descuento comercial del proveedor; usar `precio_min` como base; mezclar SACom 1:1 sobre semanas de mercado ya existentes
+
+**MonedaPedidos:**
+Motor siempre USD. `MonedaOferta` por lab (USD|VES→BCV). `MonedaTrabajo` solo display. Ver ADR-0023.
+_Avoid_: scoring en bolívares; asumir VES sin `MonedaOferta`
+
+**PDR:**
+Probabilidad de Disponibilidad Real (`Mercado_Vivo_PDR`). `NO_CONFIABLE` → fuera del pool; `BAJA` → no topear qty con stock + `score×max(0.5,pdr)`. Gate Generar: stock≤N y PPP&lt;umbral → acción (default NO_CONFIABLE); knobs FE. Pesos scoring en `PDR_Config` (0.45/0.30/0.25). Ver ADR-0025, ADR-0026.
+_Avoid_: confiar stock bajo a ciegas; filtrar labs enteros por un SKU; gate con umbral 0.001 sin tope de stock
 
 **S4:**
 Reducción de cobertura para SKUs costosos por elasticidad. No cableado; fuera del schema activo hasta reactivación.

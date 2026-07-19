@@ -63,6 +63,10 @@ def rivales_top_n(
                 "desvio": round(desvio, 6) if desvio is not None else None,
                 "lead_time_dias": round(lt, 1) if lt is not None else None,
                 "elegida": is_elegida,
+                "pdr": _f(row, "pdr"),
+                "pdr_semaforo": str(row.get("pdr_semaforo")).strip().upper()
+                if "pdr_semaforo" in row.index and pd.notna(row.get("pdr_semaforo"))
+                else None,
             }
         )
         if len(out) >= n:
