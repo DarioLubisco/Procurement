@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""Generate / dry-run / apply SAINSTA Farma Pronto rewrite.
+"""Generate / dry-run / apply SAINSTA MDM (non-medicine) rewrite.
 
 Examples:
-  # Validate taxonomy + emit SQL from a JSON dump of current SAINSTA
-  python scripts/migrate_sainsta_pronto.py validate
-  python scripts/migrate_sainsta_pronto.py plan --sainsta-json /tmp/sainsta.json
-  python scripts/migrate_sainsta_pronto.py render-sql --sainsta-json /tmp/sainsta.json -o sql/013_sainsta_pronto_non_medicine.sql
-
-  # Live DB (requires .env with DB_*). Default is dry-run.
-  python scripts/migrate_sainsta_pronto.py apply --dry-run
-  python scripts/migrate_sainsta_pronto.py apply --execute
+  python3 scripts/migrate_sainsta_mdm.py validate
+  python3 scripts/migrate_sainsta_mdm.py plan --sainsta-json backend/data/sainsta_fixture_pre_pronto.json
+  python3 scripts/migrate_sainsta_mdm.py render-sql -o sql/013_sainsta_mdm_non_medicine.sql
+  python3 scripts/migrate_sainsta_mdm.py apply --dry-run
+  python3 scripts/migrate_sainsta_mdm.py apply --execute
 """
 from __future__ import annotations
 
@@ -22,7 +19,7 @@ from typing import Any, Dict, List
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from backend.services.sainsta_pronto_taxonomy import (  # noqa: E402
+from backend.services.sainsta_mdm_taxonomy import (  # noqa: E402
     load_taxonomy,
     plan_sainsta_rewrite,
     render_migration_sql,
@@ -33,17 +30,14 @@ from backend.services.sainsta_pronto_taxonomy import (  # noqa: E402
 def _load_sainsta_json(path: Path) -> List[Dict[str, Any]]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(raw, dict) and "categories" in raw:
-        # API shape {id,name,parentId}
-        rows = []
-        for c in raw["categories"]:
-            rows.append(
-                {
-                    "CodInst": int(c["id"]),
-                    "Descrip": c["name"],
-                    "InsPadre": int(c.get("parentId") or 0),
-                }
-            )
-        return rows
+        return [
+            {
+                "CodInst": int(c["id"]),
+                "Descrip": c["name"],
+                "InsPadre": int(c.get("parentId") or 0),
+            }
+            for c in raw["categories"]
+        ]
     if isinstance(raw, list):
         rows = []
         for c in raw:
@@ -74,16 +68,10 @@ def _fetch_sainsta_live() -> List[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         cur.execute("SELECT CodInst, Descrip, InsPadre FROM dbo.SAINSTA ORDER BY CodInst")
-        rows = []
-        for r in cur.fetchall():
-            rows.append(
-                {
-                    "CodInst": int(r[0]),
-                    "Descrip": r[1],
-                    "InsPadre": int(r[2] or 0),
-                }
-            )
-        return rows
+        return [
+            {"CodInst": int(r[0]), "Descrip": r[1], "InsPadre": int(r[2] or 0)}
+            for r in cur.fetchall()
+        ]
     finally:
         conn.close()
 
@@ -91,7 +79,7 @@ def _fetch_sainsta_live() -> List[Dict[str, Any]]:
 def cmd_validate(_: argparse.Namespace) -> int:
     ok, errors = validate_taxonomy()
     tax = load_taxonomy()
-    print(f"taxonomy version={tax.get('version')} nodes={len(tax.get('nodes') or [])}")
+    print(f"taxonomy version={tax.get('version')} stats={tax.get('stats')}")
     if ok:
         print("OK")
         return 0
@@ -101,15 +89,18 @@ def cmd_validate(_: argparse.Namespace) -> int:
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    rows = _load_sainsta_json(Path(args.sainsta_json)) if args.sainsta_json else _fetch_sainsta_live()
+    rows = (
+        _load_sainsta_json(Path(args.sainsta_json))
+        if args.sainsta_json
+        else _fetch_sainsta_live()
+    )
     plan = plan_sainsta_rewrite(rows)
     out = {
         "stats": plan["stats"],
         "preserve_codinsts": plan["preserve_codinsts"],
-        "unmapped_legacy": plan["unmapped_legacy"],
-        "sample_retire": plan["retire_to_anulados"][:10],
+        "legacy_root_id": plan["legacy_root_id"],
+        "sample_reparent": plan["reparent_to_legacy"][:15],
         "sample_inserts": plan["inserts"][:10],
-        "remap_count": len(plan["product_remap_by_old_cod"]),
     }
     text = json.dumps(out, ensure_ascii=False, indent=2)
     if args.out:
@@ -123,10 +114,9 @@ def cmd_plan(args: argparse.Namespace) -> int:
 def cmd_render_sql(args: argparse.Namespace) -> int:
     plan = None
     if args.sainsta_json:
-        rows = _load_sainsta_json(Path(args.sainsta_json))
-        plan = plan_sainsta_rewrite(rows)
-    sql = render_migration_sql(plan, portable=True)
-    out = Path(args.out or (ROOT / "sql" / "013_sainsta_pronto_non_medicine.sql"))
+        plan = plan_sainsta_rewrite(_load_sainsta_json(Path(args.sainsta_json)))
+    sql = render_migration_sql(plan)
+    out = Path(args.out or (ROOT / "sql" / "013_sainsta_mdm_non_medicine.sql"))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(sql, encoding="utf-8")
     extra = f" plan_stats={plan['stats']}" if plan else ""
@@ -141,17 +131,15 @@ def cmd_apply(args: argparse.Namespace) -> int:
     print(json.dumps(plan["stats"], indent=2))
     if args.dry_run or not args.execute:
         print("DRY-RUN — not executing. Pass --execute to apply.")
-        preview = ROOT / "sql" / "013_sainsta_pronto_non_medicine.preview.sql"
+        preview = ROOT / "sql" / "013_sainsta_mdm_non_medicine.preview.sql"
         preview.write_text(sql, encoding="utf-8")
         print(f"preview SQL: {preview}")
         return 0
-
     from backend.database import get_connection
 
     conn = get_connection()
     try:
         cur = conn.cursor()
-        # pyodbc: run batches split on GO
         for batch in sql.split("\nGO\n"):
             batch = batch.strip()
             if not batch or batch.upper().startswith("GO"):
@@ -170,25 +158,20 @@ def cmd_apply(args: argparse.Namespace) -> int:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
-
     v = sub.add_parser("validate")
     v.set_defaults(func=cmd_validate)
-
     pl = sub.add_parser("plan")
-    pl.add_argument("--sainsta-json", help="Offline dump (API or CodInst rows)")
+    pl.add_argument("--sainsta-json")
     pl.add_argument("-o", "--out")
     pl.set_defaults(func=cmd_plan)
-
     rs = sub.add_parser("render-sql")
     rs.add_argument("--sainsta-json")
     rs.add_argument("-o", "--out")
     rs.set_defaults(func=cmd_render_sql)
-
     ap = sub.add_parser("apply")
     ap.add_argument("--dry-run", action="store_true", default=True)
-    ap.add_argument("--execute", action="store_true", help="Actually run against DB")
+    ap.add_argument("--execute", action="store_true")
     ap.set_defaults(func=cmd_apply)
-
     args = p.parse_args()
     return int(args.func(args))
 
