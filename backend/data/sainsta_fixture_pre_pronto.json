@@ -1,0 +1,322 @@
+[
+  {
+    "CodInst": 1,
+    "Descrip": "Infantil",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 22,
+    "Descrip": "Alimentación Infantil",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 23,
+    "Descrip": "Accesorios Infantiles",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 24,
+    "Descrip": "Juguetes y Entretenimiento",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 25,
+    "Descrip": "Ropa y Textiles",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 26,
+    "Descrip": "Cuidados del bebe",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 1039,
+    "Descrip": "Cosmeticos",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 40,
+    "Descrip": "Cuidado del Adulto",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 41,
+    "Descrip": "General",
+    "InsPadre": 1
+  },
+  {
+    "CodInst": 2,
+    "Descrip": "Medicinas",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 42,
+    "Descrip": "Psicotropicos",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 43,
+    "Descrip": "Medicinas nevera",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 44,
+    "Descrip": "Suplementos&Naturistas",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 45,
+    "Descrip": "Dermatologicas",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 46,
+    "Descrip": "Recetura",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 47,
+    "Descrip": "Otica & Oftalmica",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 48,
+    "Descrip": "OTC",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 39,
+    "Descrip": "Bienestar Sexual",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 49,
+    "Descrip": "Rehidratacion y Electrolitos",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 1038,
+    "Descrip": "Ampollas",
+    "InsPadre": 2
+  },
+  {
+    "CodInst": 8,
+    "Descrip": "SERVICIOS GENERALES",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 9,
+    "Descrip": "Cuidado Personal",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 52,
+    "Descrip": "Cuidado Femenino",
+    "InsPadre": 9
+  },
+  {
+    "CodInst": 53,
+    "Descrip": "Higiene Bucodental",
+    "InsPadre": 9
+  },
+  {
+    "CodInst": 54,
+    "Descrip": "Cuidado Corporal y Baño",
+    "InsPadre": 9
+  },
+  {
+    "CodInst": 55,
+    "Descrip": "Desodorantes",
+    "InsPadre": 9
+  },
+  {
+    "CodInst": 10,
+    "Descrip": "Cosméticos",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 56,
+    "Descrip": "Fotoprotección",
+    "InsPadre": 10
+  },
+  {
+    "CodInst": 11,
+    "Descrip": "Cuidado de la Piel",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 12,
+    "Descrip": "Cuidado del Cabello",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 13,
+    "Descrip": "Suplementos Nutricionales",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 57,
+    "Descrip": "Vitaminas y Minerales",
+    "InsPadre": 13
+  },
+  {
+    "CodInst": 58,
+    "Descrip": "Nutrición Deportiva",
+    "InsPadre": 13
+  },
+  {
+    "CodInst": 1051,
+    "Descrip": "Alimentos y Bebidas Dietéticas",
+    "InsPadre": 13
+  },
+  {
+    "CodInst": 14,
+    "Descrip": "Suministros de Primeros Auxilios",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 59,
+    "Descrip": "Material de Curación",
+    "InsPadre": 14
+  },
+  {
+    "CodInst": 60,
+    "Descrip": "Insumos Descartables",
+    "InsPadre": 14
+  },
+  {
+    "CodInst": 15,
+    "Descrip": "Cuidado de la Salud en Casa",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 16,
+    "Descrip": "Cuidado de Bebés y Niños",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 61,
+    "Descrip": "Pañales y Toallitas",
+    "InsPadre": 16
+  },
+  {
+    "CodInst": 1048,
+    "Descrip": "Alimentación y Fórmulas Infantiles",
+    "InsPadre": 16
+  },
+  {
+    "CodInst": 18,
+    "Descrip": "Artículos para el Hogar",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 62,
+    "Descrip": "Productos de Limpieza",
+    "InsPadre": 18
+  },
+  {
+    "CodInst": 63,
+    "Descrip": "Repelentes de Insectos",
+    "InsPadre": 18
+  },
+  {
+    "CodInst": 64,
+    "Descrip": "Otros Misceláneos",
+    "InsPadre": 18
+  },
+  {
+    "CodInst": 19,
+    "Descrip": "Equipos Medicos",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 65,
+    "Descrip": "Equipos de Monitoreo de Salud",
+    "InsPadre": 19
+  },
+  {
+    "CodInst": 21,
+    "Descrip": "Consumibles Médicos",
+    "InsPadre": 19
+  },
+  {
+    "CodInst": 66,
+    "Descrip": "Descartables",
+    "InsPadre": 19
+  },
+  {
+    "CodInst": 67,
+    "Descrip": "Ortopedicos",
+    "InsPadre": 19
+  },
+  {
+    "CodInst": 1054,
+    "Descrip": "Artículos Ortopédicos",
+    "InsPadre": 19
+  },
+  {
+    "CodInst": 27,
+    "Descrip": "Anulados o Eliminadas",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 4,
+    "Descrip": "xx",
+    "InsPadre": 27
+  },
+  {
+    "CodInst": 5,
+    "Descrip": "xxx",
+    "InsPadre": 27
+  },
+  {
+    "CodInst": 6,
+    "Descrip": "xxxxx",
+    "InsPadre": 27
+  },
+  {
+    "CodInst": 7,
+    "Descrip": "xxxxxxxx",
+    "InsPadre": 27
+  },
+  {
+    "CodInst": 28,
+    "Descrip": "xxx",
+    "InsPadre": 27
+  },
+  {
+    "CodInst": 30,
+    "Descrip": "Bebidas",
+    "InsPadre": 29
+  },
+  {
+    "CodInst": 1035,
+    "Descrip": "Alimentos y Bebidas",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 31,
+    "Descrip": "Libreria",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 32,
+    "Descrip": "Pañales",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 1058,
+    "Descrip": "REACTIVOS Y LABORATORIO",
+    "InsPadre": 0
+  },
+  {
+    "CodInst": 68,
+    "Descrip": "Pruebas Rápidas de Diagnóstico",
+    "InsPadre": 1058
+  },
+  {
+    "CodInst": 69,
+    "Descrip": "Reactivos Químicos",
+    "InsPadre": 1058
+  }
+]
