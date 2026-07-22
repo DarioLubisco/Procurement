@@ -62,9 +62,9 @@ def _load_sainsta_json(path: Path) -> List[Dict[str, Any]]:
 
 
 def _fetch_sainsta_live() -> List[Dict[str, Any]]:
-    from backend.database import get_connection
+    from backend.database import get_db_connection
 
-    conn = get_connection()
+    conn = get_db_connection()
     try:
         cur = conn.cursor()
         cur.execute("SELECT CodInst, Descrip, InsPadre FROM dbo.SAINSTA ORDER BY CodInst")
@@ -129,27 +129,68 @@ def cmd_apply(args: argparse.Namespace) -> int:
     plan = plan_sainsta_rewrite(rows)
     sql = render_migration_sql(plan)
     print(json.dumps(plan["stats"], indent=2))
-    if args.dry_run or not args.execute:
+    # --execute wins over default --dry-run=True
+    if not args.execute:
         print("DRY-RUN — not executing. Pass --execute to apply.")
         preview = ROOT / "sql" / "013_sainsta_mdm_non_medicine.preview.sql"
         preview.write_text(sql, encoding="utf-8")
         print(f"preview SQL: {preview}")
         return 0
-    from backend.database import get_connection
 
-    conn = get_connection()
+    # Direct connection: pool release always rollbacks and can hide multi-result errors.
+    import os
+
+    import pyodbc
+    from backend.database import DB_DATABASE, DB_PASSWORD, DB_SERVER, DB_USERNAME
+
+    drivers = pyodbc.drivers()
+    driver = "ODBC Driver 18 for SQL Server"
+    if driver not in drivers:
+        driver = "ODBC Driver 17 for SQL Server" if "ODBC Driver 17 for SQL Server" in drivers else drivers[0]
+    conn_str = (
+        f"DRIVER={{{driver}}};"
+        f"SERVER={os.getenv('DB_SERVER', DB_SERVER)};"
+        f"DATABASE={os.getenv('DB_DATABASE', DB_DATABASE)};"
+        f"UID={os.getenv('DB_USERNAME', DB_USERNAME)};"
+        f"PWD={os.getenv('DB_PASSWORD', DB_PASSWORD)};"
+        f"Encrypt=yes;TrustServerCertificate=yes;LoginTimeout=10;"
+    )
+    conn = pyodbc.connect(conn_str, autocommit=False)
     try:
         cur = conn.cursor()
         for batch in sql.split("\nGO\n"):
             batch = batch.strip()
             if not batch or batch.upper().startswith("GO"):
                 continue
+            # Skip trailing comment-only batches after GO
+            meaningful = [
+                ln
+                for ln in batch.splitlines()
+                if ln.strip() and not ln.strip().startswith("--")
+            ]
+            if not meaningful:
+                continue
             cur.execute(batch)
-        conn.commit()
+            # Surface errors from later statements in the batch (IDENTITY_INSERT, etc.)
+            while True:
+                try:
+                    if cur.description is not None:
+                        cur.fetchall()
+                except pyodbc.ProgrammingError:
+                    pass
+                if not cur.nextset():
+                    break
+        # Script includes COMMIT; if still open, commit from client.
+        trancount = cur.execute("SELECT @@TRANCOUNT").fetchone()[0]
+        if trancount:
+            conn.commit()
         print("APPLY OK")
         return 0
     except Exception:
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         raise
     finally:
         conn.close()

@@ -192,6 +192,8 @@ def render_migration_sql(
         "END",
         "",
         f"-- 1) LEGACY_NO_MEDICINA root ({legacy_id})",
+        # CodInst is IDENTITY on live SAINSTA — required for explicit CodInst values.
+        "SET IDENTITY_INSERT dbo.SAINSTA ON;",
         f"IF EXISTS (SELECT 1 FROM dbo.SAINSTA WHERE CodInst = {legacy_id})",
         "    UPDATE dbo.SAINSTA SET "
         f"Descrip = N'{legacy_name}', InsPadre = 0 WHERE CodInst = {legacy_id};",
@@ -219,6 +221,7 @@ def render_migration_sql(
 
     lines.extend(
         [
+            "SET IDENTITY_INSERT dbo.SAINSTA OFF;",
             "",
             "-- 3) Medicinas subtree (preserve)",
             ";WITH MedicinasTree AS (",
