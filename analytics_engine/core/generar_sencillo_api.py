@@ -127,6 +127,19 @@ def serialize_generar_result(result) -> Dict[str, Any]:
                 "justificacion_factores": factors_to_dicts(
                     getattr(row, "justificacion_factores", ()) or ()
                 ),
+                # ADR-0027 drawer / override key
+                "proveedor": getattr(row, "proveedor", "") or "",
+                "existen": float(getattr(row, "existen", 0.0) or 0.0),
+                "backorder_qty": int(getattr(row, "backorder_qty", 0) or 0),
+                "stock_oferta": getattr(row, "stock_oferta", None),
+                "grupo_key": getattr(row, "grupo_key", "") or "",
+                "grupo_sum_baseline": int(
+                    getattr(row, "grupo_sum_baseline", 0) or 0
+                ),
+                "grupo_sum_propuesto": int(
+                    getattr(row, "grupo_sum_propuesto", 0) or 0
+                ),
+                "extra_legs_qty": int(getattr(row, "extra_legs_qty", 0) or 0),
             }
             for row in result.comparativa_cantidades
         ],

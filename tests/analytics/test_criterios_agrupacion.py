@@ -52,17 +52,18 @@ def _catalog_two_skus_same_pa_different_presentation() -> pd.DataFrame:
     )
 
 
-def test_resolve_criterios_default_is_five_attrs():
+def test_resolve_criterios_default_is_four_attrs():
     assert resolve_criterios_agrupacion(None) == list(CRITERIOS_AGRUPACION_DEFAULT)
     assert resolve_criterios_agrupacion([]) == list(CRITERIOS_AGRUPACION_DEFAULT)
-    assert len(CRITERIOS_AGRUPACION_DEFAULT) == 5
+    assert len(CRITERIOS_AGRUPACION_DEFAULT) == 4
     assert CRITERIOS_AGRUPACION_DEFAULT == (
         "principio_activo",
         "forma_farmaceutica",
         "concentracion",
         "cantidad_presentacion",
-        "contenido_neto",
     )
+    assert "contenido_neto" not in CRITERIOS_AGRUPACION_DEFAULT
+    assert "cantidad_presentacion" in CRITERIOS_AGRUPACION_DEFAULT
 
 
 def test_resolve_criterios_override_wins():

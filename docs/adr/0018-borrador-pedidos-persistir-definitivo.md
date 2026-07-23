@@ -17,7 +17,7 @@ Tras grill 2026-07-15: `Procurement.BorradorPedidosCabecera` / `BorradorPedidosL
 9. **Payload:** FE envía `pedido_propuesto` (con `precio`) + `parametros` (snapshot Definitivo: nivel, base_preset, cobertura, criterios, filtros, overrides, overrides_applied); el server **no** re-corre el motor ni reconsulta Mercado.
 10. **Txn:** all-or-nothing. Proveedor que queda en 0 líneas tras filtros → no crear cabecera vacía; Guardar OK si queda ≥1 cabecera útil; si ninguna → error.
 11. **ParametrosJson:** columna `NVARCHAR(MAX)` en cabecera; **mismo** JSON en cada cabecera del Guardar (auditoría por proveedor sin tabla batch).
-12. **Fuera de P1:** listar/editar/borrar borradores; FTP/envío; leer borrador de vuelta al Generar.
+12. **Fuera de P1 (histórico):** listar/editar/borrar borradores; leer borrador de vuelta al Generar. **Envío FTP/API:** ver ADR-0029 (supersede este punto para envío).
 
 ## API / FE (P1)
 
