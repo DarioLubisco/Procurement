@@ -230,6 +230,8 @@ def distribute_parcial(
                         "barra_propuesto": barra_p,
                         "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
                         "top_n_hermanos": herm.get("top_n_hermanos"),
+                        "oferta_baseline": herm.get("oferta_baseline"),
+                        "rivales": herm.get("rivales") or [],
                     },
                 )
             )
@@ -467,6 +469,8 @@ def _allocation_sucedaneo_from_offers(
                     "barra_propuesto": barra_p,
                     "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
                     "top_n_hermanos": herm.get("top_n_hermanos"),
+                    "oferta_baseline": herm.get("oferta_baseline"),
+                    "rivales": herm.get("rivales") or [],
                 },
             )
         )

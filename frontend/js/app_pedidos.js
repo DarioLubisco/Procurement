@@ -571,13 +571,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join(' · ');
     }
 
+    function findOfertaBaseline(row) {
+        const bb = String(row?.barra_baseline || '').trim();
+        if (!bb) return null;
+        const factores = row.justificacion_factores || [];
+        for (const f of factores) {
+            const d = f.datos || {};
+            if (d.oferta_baseline && String(d.oferta_baseline.barra || '').trim() === bb) {
+                return d.oferta_baseline;
+            }
+        }
+        // Fallback: rivales top-N may include the baseline barcode
+        for (const f of factores) {
+            const rivales = (f.datos || {}).rivales || [];
+            const hit = rivales.find(r => String(r.barra || '').trim() === bb);
+            if (hit) return hit;
+        }
+        return null;
+    }
+
+    function renderReemplazoBaselineBlock(row) {
+        const bb = String(row?.barra_baseline || '').trim();
+        const bp = String(row?.barra_propuesto || '').trim();
+        if (!bb || !bp || bb === bp) return '';
+        const oferta = findOfertaBaseline(row);
+        const px = oferta && oferta.precio != null
+            ? `$${Number(oferta.precio).toFixed(4)}`
+            : '—';
+        const prov = oferta && oferta.proveedor
+            ? escapeHtml(oferta.proveedor)
+            : '—';
+        const media = oferta && oferta.media_de_mediana != null
+            ? ` · media hist. $${Number(oferta.media_de_mediana).toFixed(4)}`
+            : '';
+        const desc = escapeHtml(row.desc_baseline || '');
+        return `
+            <div style="margin:0.5rem 0; padding:0.5rem 0.65rem; border-left:3px solid var(--barra-cambio, #c4783a); background:var(--barra-cambio-bg, rgba(196,120,58,0.18)); border-radius:4px; font-size:0.78rem;">
+                <div style="font-weight:700; color:var(--barra-cambio, #c4783a); margin-bottom:0.25rem;">Producto reemplazado (baseline)</div>
+                <div><code class="barra-cambio" style="font-size:0.75rem;">${escapeHtml(bb)}</code></div>
+                <div style="opacity:0.9; margin:0.2rem 0;">${desc || '—'}</div>
+                <div>Mejor oferta baseline: <strong>${prov}</strong> <strong>${px}</strong>${media}</div>
+                <div style="opacity:0.75; margin-top:0.25rem;">vs propuesto <code>${escapeHtml(bp)}</code></div>
+            </div>`;
+    }
+
     function renderCompetenciaBlock(datos) {
         if (!datos) return '';
         const rivales = datos.rivales || [];
         const hermanos = datos.hermanos_reemplazables || [];
         const hasHeader = datos.precio != null || datos.media_de_mediana != null;
-        if (!rivales.length && !hermanos.length && !hasHeader) return '';
+        const hasBaseline = !!datos.oferta_baseline;
+        if (!rivales.length && !hermanos.length && !hasHeader && !hasBaseline) return '';
         let html = '<div style="margin-top:0.45rem; padding:0.5rem 0.65rem; background:rgba(255,255,255,0.04); border-radius:6px; font-size:0.78rem;">';
+
+        if (hasBaseline) {
+            const ob = datos.oferta_baseline;
+            const px = ob.precio != null ? `$${Number(ob.precio).toFixed(4)}` : '—';
+            html += `<div style="margin-bottom:0.45rem; padding:0.35rem 0.45rem; background:var(--barra-cambio-bg, rgba(196,120,58,0.18)); border-radius:4px;">
+                <div style="font-weight:600; color:var(--barra-cambio, #c4783a);">Reemplazado · <code>${escapeHtml(ob.barra || '')}</code></div>
+                <div><strong>${escapeHtml(ob.proveedor || '—')}</strong> ${px}</div>
+            </div>`;
+        }
 
         // Cabecera elegida: precio · media hist · Δ$ · % (siempre USD)
         if (hasHeader) {
@@ -605,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (datos.pdr_semaforo) {
                 line += ` <span style="opacity:0.75;">[PDR:${escapeHtml(String(datos.pdr_semaforo))}]</span>`;
             }
-            html += `<div style="margin-bottom:0.35rem;">${line}</div>`;
+            html += `<div style="margin-bottom:0.35rem;"><span style="opacity:0.75;">Elegida · </span>${line}</div>`;
         }
 
         if (rivales.length) {
@@ -801,6 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${warn.overGrupo ? 'Σ propuesto del Grupo &gt; Σ baselines.' : ''}
                </div>`
             : '';
+        const reemplazoHtml = renderReemplazoBaselineBlock(row);
         body.innerHTML = `
             ${warnHtml}
             <div style="font-weight:600; color:var(--text-primary); margin-bottom:0.25rem;">Línea</div>
@@ -810,9 +865,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <div>Backorder: <strong>${Number(row.backorder_qty) || 0}</strong></div>
             <div>Stock oferta: <strong>${stockOferta}</strong></div>
             <div>Proveedor: <strong>${escapeHtml(row.proveedor || '—')}</strong></div>
+            ${reemplazoHtml}
             <div style="font-weight:600; color:var(--text-primary); margin:0.65rem 0 0.25rem;">Grupo</div>
             <div>Σ propuesto / Σ baseline: <strong>${Number(row.grupo_sum_propuesto) || 0}</strong> / <strong>${Number(row.grupo_sum_baseline) || 0}</strong></div>
-            <div style="font-weight:600; color:var(--text-primary); margin:0.65rem 0 0.25rem;">Competencia</div>
+            <div style="font-weight:600; color:var(--text-primary); margin:0.65rem 0 0.25rem;">Competencia (elegida)</div>
             ${competenciaHtml}
         `;
         drawer.style.display = 'block';
@@ -915,9 +971,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const boTxt = String(Number(row.backorder_qty) || 0);
             const exTxt = row.existen != null ? String(row.existen) : '—';
             const hoverTitle = (factorsHoverText(factores) || resumen || '').replace(/[\r\n]+/g, ' · ');
+            const ofertaBase = isBarraCambio ? findOfertaBaseline(row) : null;
+            const baselinePrecioHtml = (ofertaBase && ofertaBase.precio != null)
+                ? `<div style="font-size:0.68rem; color:var(--barra-cambio, #c4783a); margin-top:0.2rem;">precio baseline <strong>$${Number(ofertaBase.precio).toFixed(4)}</strong>${ofertaBase.proveedor ? ` · ${escapeHtml(ofertaBase.proveedor)}` : ''}</div>`
+                : (isBarraCambio
+                    ? `<div style="font-size:0.65rem; color:var(--text-secondary); margin-top:0.2rem;">precio baseline: regenere Generar para ver oferta</div>`
+                    : '');
             tr.innerHTML = `
                 <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_baseline)}</td>
-                <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}</td>
+                <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}${baselinePrecioHtml}</td>
                 <td style="padding:0.5rem; text-align:right;">${row.qty_baseline}</td>
                 <td style="padding:0.5rem;">${barraPropHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_propuesto || '')}</td>

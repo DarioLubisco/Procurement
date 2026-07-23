@@ -134,6 +134,54 @@ def hermanos_reemplazables_top_n(
     return out
 
 
+def best_offer_for_barra(
+    scored: pd.DataFrame,
+    *,
+    barra: str,
+) -> Optional[Dict[str, Any]]:
+    """Best scored offer for a specific BARRA (used to show precio del producto reemplazado)."""
+    target = str(barra or "").strip()
+    if scored is None or scored.empty or not target:
+        return None
+    best: Optional[Dict[str, Any]] = None
+    best_score = float("-inf")
+    for _, row in scored.iterrows():
+        b = str(row.get("barra") or "").strip()
+        if b != target:
+            continue
+        score = _f(row, "_score", default=float("-inf"))
+        if score is None:
+            score = float("-inf")
+        if best is not None and score <= best_score:
+            continue
+        best_score = score
+        precio = _f(row, "precio")
+        best = {
+            "barra": b,
+            "proveedor": str(row.get("proveedor") or "").strip(),
+            "precio": round(precio, 4) if precio is not None else None,
+            "score": round(score, 4) if score != float("-inf") else None,
+            "desvio": (
+                round(_f(row, "desvio"), 6) if _f(row, "desvio") is not None else None
+            ),
+            "lead_time_dias": (
+                round(_f(row, "lead_time_dias"), 1)
+                if _f(row, "lead_time_dias") is not None
+                else None
+            ),
+            "descripcion": (
+                str(row.get("descripcion"))
+                if "descripcion" in row.index and pd.notna(row.get("descripcion"))
+                else None
+            ),
+            "media_de_mediana": _f(row, "media_de_mediana"),
+            "pdr_semaforo": str(row.get("pdr_semaforo")).strip().upper()
+            if "pdr_semaforo" in row.index and pd.notna(row.get("pdr_semaforo"))
+            else None,
+        }
+    return best
+
+
 def competencia_payload(
     scored: pd.DataFrame,
     *,
@@ -153,10 +201,12 @@ def competencia_payload(
     hermanos = hermanos_reemplazables_top_n(
         scored, baseline_barra=baseline_barra, top_n=hermanos_n
     )
+    oferta_baseline = best_offer_for_barra(scored, barra=baseline_barra)
     return {
         "top_n_rivales": clamp_top_n(rivales_n),
         "top_n_hermanos": clamp_top_n(hermanos_n),
         "rivales": rivales,
         "hermanos_reemplazables": hermanos,
+        "oferta_baseline": oferta_baseline,
         "n_candidatos": int(len(scored)) if scored is not None else 0,
     }
