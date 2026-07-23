@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/pedidos", tags=["Pedidos"])
 class ValidarMinimosRequest(BaseModel):
     action: str = Field(
         ...,
-        description="evaluar | recalcular | aceptar | rechazar",
+        description="evaluar | recalcular | aceptar | rechazar | redistribuir",
     )
     cobertura: int = Field(..., ge=1, le=365)
     criterios_agrupacion: Optional[List[str]] = None
@@ -30,6 +30,8 @@ class ValidarMinimosRequest(BaseModel):
     pct_extra: float = 50.0
     panel_ack: bool = False
     intentos_recalc: Optional[Dict[str, int]] = None
+    # Barras a mover al 2º / huérfano. Omitidas = se quedan con el lab.
+    barras_redistribuir: Optional[List[str]] = None
     catalog: Optional[List[Dict[str, Any]]] = None
     market_offers: Optional[List[Dict[str, Any]]] = None
     minimos_usd: Optional[Dict[str, Optional[float]]] = None
@@ -142,10 +144,10 @@ async def validar_minimos(body: ValidarMinimosRequest):
     )
 
     action = (body.action or "").strip().lower()
-    if action not in ("evaluar", "recalcular", "aceptar", "rechazar"):
+    if action not in ("evaluar", "recalcular", "aceptar", "rechazar", "redistribuir"):
         raise HTTPException(
             status_code=400,
-            detail="action must be evaluar|recalcular|aceptar|rechazar",
+            detail="action must be evaluar|recalcular|aceptar|rechazar|redistribuir",
         )
 
     if not body.criterios_agrupacion:
@@ -281,12 +283,24 @@ async def validar_minimos(body: ValidarMinimosRequest):
             ),
         )
 
+    # rechazar (legacy full) o redistribuir (parcial vía barras_redistribuir)
+    barras = body.barras_redistribuir
+    if action == "redistribuir":
+        if barras is None:
+            raise HTTPException(
+                status_code=400,
+                detail="barras_redistribuir required for action=redistribuir (lista de barras a mover; vacía = no mueve nada)",
+            )
+    elif action == "rechazar":
+        barras = None  # all lines of lab
+
     state, orphans = reject_proveedor(
         state,
         proveedor=prov,
         catalog_rows=catalog,
         market_offers=offers,
         groups=groups,
+        barras_redistribuir=barras,
     )
     queue = _queue()
     return _payload(
@@ -297,6 +311,6 @@ async def validar_minimos(body: ValidarMinimosRequest):
             panel=_panel_for(queue[0].proveedor) if queue else None,
             intentos_recalc=state.intentos_recalc,
             orphans=orphans,
-            decision="rechazar",
+            decision="redistribuir" if action == "redistribuir" else "rechazar",
         ),
     )

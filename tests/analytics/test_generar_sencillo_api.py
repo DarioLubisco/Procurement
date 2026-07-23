@@ -65,10 +65,40 @@ def test_run_generar_sencillo_returns_comparativa_and_propuesto_with_proveedor()
         "desc_propuesto",
         "qty_propuesto",
         "justificacion_delta",
+        "proveedor",
+        "existen",
+        "backorder_qty",
+        "stock_oferta",
+        "grupo_key",
+        "grupo_sum_baseline",
+        "grupo_sum_propuesto",
     ):
         assert key in row
+    assert row["proveedor"] == "BARATO"
+    assert row["existen"] == 40.0
+    assert row["backorder_qty"] == 0
+    assert row["stock_oferta"] == 1000
+    assert row["grupo_sum_baseline"] == row["qty_baseline"]
+    assert row["grupo_sum_propuesto"] == row["qty_propuesto"]
     assert payload["meta"]["artifact_primary"] == "comparativa_propuesto"
     assert payload["meta"]["nivel"] == "Sencillo"
+
+
+def test_comparativa_contexto_incluye_backorder():
+    catalog, offers = _fixture_catalog_and_offers()
+    payload = run_generar_sencillo(
+        cobertura=30,
+        catalog_rows=catalog,
+        market_offers_rows=offers,
+        preset="Conservador",
+        criterios_agrupacion=[],
+        backorder_rows=[{"barra": "111", "cantidad": 10}],
+    )
+    row = payload["comparativa_cantidades"][0]
+    assert row["backorder_qty"] == 10
+    assert row["existen"] == 40.0
+    # Baseline after BO: 100 - 40 - 10 = 50
+    assert row["qty_baseline"] == 50
 
 
 def test_criterios_agrupacion_sent_on_request_are_effective():

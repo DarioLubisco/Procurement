@@ -1,0 +1,2254 @@
+{
+  "version": 2,
+  "source": {
+    "name": "MDM orchestrator taxonomias_v2",
+    "file": "backend/data/taxonomias_v2.txt",
+    "repo_authority": "DarioLubisco/Clasificacion-Medicamentos",
+    "note": "Non-medicine domains only; MEDICAMENTO_ALOPATICO / Softland Medicinas preserved untouched"
+  },
+  "preserve": {
+    "root_descrip": "Medicinas",
+    "note": "Do not mutate Softland Medicinas subtree"
+  },
+  "id_ranges": {
+    "legacy_root": 2999,
+    "dominios": "3000-3099",
+    "categorias": "3100-3199",
+    "subcategorias": "3200-3999"
+  },
+  "legacy_root": {
+    "cod_inst": 2999,
+    "descrip": "LEGACY_NO_MEDICINA"
+  },
+  "domains_included": [
+    "COSMETICO_CUIDADO_PERSONAL",
+    "MATERIAL_MEDICO_INSUMO",
+    "MISCELANEO",
+    "PRODUCTO_NATURAL_HOMEOPATICO",
+    "SUPLEMENTO_VITAMINICO"
+  ],
+  "domain_ids": {
+    "COSMETICO_CUIDADO_PERSONAL": 3000,
+    "MATERIAL_MEDICO_INSUMO": 3001,
+    "MISCELANEO": 3002,
+    "PRODUCTO_NATURAL_HOMEOPATICO": 3003,
+    "SUPLEMENTO_VITAMINICO": 3004
+  },
+  "nodes": [
+    {
+      "cod_inst": 2999,
+      "descrip": "LEGACY_NO_MEDICINA",
+      "ins_padre": 0,
+      "role": "legacy_root",
+      "dominio": null,
+      "categoria": null,
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 2,
+      "descrip": "Medicinas",
+      "ins_padre": 0,
+      "role": "preserve_root",
+      "dominio": null,
+      "categoria": null,
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3000,
+      "descrip": "COSMETICO_CUIDADO_PERSONAL",
+      "ins_padre": 0,
+      "role": "dominio",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": null,
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3100,
+      "descrip": "AFEITADO Y DEPILACION",
+      "ins_padre": 3000,
+      "role": "categoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "AFEITADO Y DEPILACION",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3200,
+      "descrip": "PRODUCTOS PARA AFEITADO",
+      "ins_padre": 3100,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "AFEITADO Y DEPILACION",
+      "subcategoria": "PRODUCTOS PARA AFEITADO"
+    },
+    {
+      "cod_inst": 3101,
+      "descrip": "CUIDADO BUCAL",
+      "ins_padre": 3000,
+      "role": "categoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3201,
+      "descrip": "CEPILLOS DENTALES",
+      "ins_padre": 3101,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": "CEPILLOS DENTALES"
+    },
+    {
+      "cod_inst": 3202,
+      "descrip": "CREMAS DENTALES",
+      "ins_padre": 3101,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": "CREMAS DENTALES"
+    },
+    {
+      "cod_inst": 3203,
+      "descrip": "ENJUAGUES BUCALES",
+      "ins_padre": 3101,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": "ENJUAGUES BUCALES"
+    },
+    {
+      "cod_inst": 3102,
+      "descrip": "CUIDADO CAPILAR",
+      "ins_padre": 3000,
+      "role": "categoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3204,
+      "descrip": "CHAMPU Y ACONDICIONADOR",
+      "ins_padre": 3102,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": "CHAMPU Y ACONDICIONADOR"
+    },
+    {
+      "cod_inst": 3205,
+      "descrip": "TINTES Y COLORACION",
+      "ins_padre": 3102,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": "TINTES Y COLORACION"
+    },
+    {
+      "cod_inst": 3206,
+      "descrip": "TRATAMIENTOS CAPILARES",
+      "ins_padre": 3102,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": "TRATAMIENTOS CAPILARES"
+    },
+    {
+      "cod_inst": 3103,
+      "descrip": "CUIDADO CORPORAL",
+      "ins_padre": 3000,
+      "role": "categoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3207,
+      "descrip": "CUIDADO DE MANOS Y PIES",
+      "ins_padre": 3103,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "CUIDADO DE MANOS Y PIES"
+    },
+    {
+      "cod_inst": 3208,
+      "descrip": "DESODORANTES Y ANTITRANSPIRANTES",
+      "ins_padre": 3103,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "DESODORANTES Y ANTITRANSPIRANTES"
+    },
+    {
+      "cod_inst": 3209,
+      "descrip": "HIDRATANTES CORPORALES",
+      "ins_padre": 3103,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "HIDRATANTES CORPORALES"
+    },
+    {
+      "cod_inst": 3210,
+      "descrip": "JABONES DE DUCHA Y BAÑO",
+      "ins_padre": 3103,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "JABONES DE DUCHA Y BAÑO"
+    },
+    {
+      "cod_inst": 3211,
+      "descrip": "PROTECTORES SOLARES CORPORALES",
+      "ins_padre": 3103,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "PROTECTORES SOLARES CORPORALES"
+    },
+    {
+      "cod_inst": 3104,
+      "descrip": "CUIDADO DEL BEBE",
+      "ins_padre": 3000,
+      "role": "categoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO DEL BEBE",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3212,
+      "descrip": "HIGIENE Y CUIDADO DE LA PIEL",
+      "ins_padre": 3104,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO DEL BEBE",
+      "subcategoria": "HIGIENE Y CUIDADO DE LA PIEL"
+    },
+    {
+      "cod_inst": 3213,
+      "descrip": "PAÑALES Y TOALLITAS HUMEDAS",
+      "ins_padre": 3104,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO DEL BEBE",
+      "subcategoria": "PAÑALES Y TOALLITAS HUMEDAS"
+    },
+    {
+      "cod_inst": 3105,
+      "descrip": "CUIDADO FACIAL",
+      "ins_padre": 3000,
+      "role": "categoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3214,
+      "descrip": "HIDRATANTES Y SERUMS",
+      "ins_padre": 3105,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "HIDRATANTES Y SERUMS"
+    },
+    {
+      "cod_inst": 3215,
+      "descrip": "LIMPIADORES Y DESMAQUILLANTES",
+      "ins_padre": 3105,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "LIMPIADORES Y DESMAQUILLANTES"
+    },
+    {
+      "cod_inst": 3216,
+      "descrip": "PROTECTORES SOLARES FACIALES",
+      "ins_padre": 3105,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "PROTECTORES SOLARES FACIALES"
+    },
+    {
+      "cod_inst": 3217,
+      "descrip": "TRATAMIENTOS ANTIACNE",
+      "ins_padre": 3105,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "TRATAMIENTOS ANTIACNE"
+    },
+    {
+      "cod_inst": 3218,
+      "descrip": "TRATAMIENTOS ANTIEDAD",
+      "ins_padre": 3105,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "TRATAMIENTOS ANTIEDAD"
+    },
+    {
+      "cod_inst": 3106,
+      "descrip": "HIGIENE INTIMA",
+      "ins_padre": 3000,
+      "role": "categoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "HIGIENE INTIMA",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3219,
+      "descrip": "JABONES Y LIMPIADORES INTIMOS",
+      "ins_padre": 3106,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "HIGIENE INTIMA",
+      "subcategoria": "JABONES Y LIMPIADORES INTIMOS"
+    },
+    {
+      "cod_inst": 3220,
+      "descrip": "PROTECCION FEMENINA",
+      "ins_padre": 3106,
+      "role": "subcategoria",
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "HIGIENE INTIMA",
+      "subcategoria": "PROTECCION FEMENINA"
+    },
+    {
+      "cod_inst": 3001,
+      "descrip": "MATERIAL_MEDICO_INSUMO",
+      "ins_padre": 0,
+      "role": "dominio",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": null,
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3107,
+      "descrip": "CUIDADO DEL PACIENTE",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO DEL PACIENTE",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3221,
+      "descrip": "BOLSAS RECOLECTORAS",
+      "ins_padre": 3107,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO DEL PACIENTE",
+      "subcategoria": "BOLSAS RECOLECTORAS"
+    },
+    {
+      "cod_inst": 3222,
+      "descrip": "PAÑALES PARA ADULTO",
+      "ins_padre": 3107,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO DEL PACIENTE",
+      "subcategoria": "PAÑALES PARA ADULTO"
+    },
+    {
+      "cod_inst": 3108,
+      "descrip": "CUIDADO RESPIRATORIO",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO RESPIRATORIO",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3223,
+      "descrip": "NEBULIZADORES Y ACCESORIOS",
+      "ins_padre": 3108,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO RESPIRATORIO",
+      "subcategoria": "NEBULIZADORES Y ACCESORIOS"
+    },
+    {
+      "cod_inst": 3109,
+      "descrip": "EQUIPOS DE DIAGNOSTICO",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3224,
+      "descrip": "GLUCOMETROS",
+      "ins_padre": 3109,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": "GLUCOMETROS"
+    },
+    {
+      "cod_inst": 3225,
+      "descrip": "TENSIOMETROS",
+      "ins_padre": 3109,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": "TENSIOMETROS"
+    },
+    {
+      "cod_inst": 3226,
+      "descrip": "TERMOMETROS",
+      "ins_padre": 3109,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": "TERMOMETROS"
+    },
+    {
+      "cod_inst": 3110,
+      "descrip": "INSUMOS PARA DIABETES",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INSUMOS PARA DIABETES",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3227,
+      "descrip": "LANCETAS",
+      "ins_padre": 3110,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INSUMOS PARA DIABETES",
+      "subcategoria": "LANCETAS"
+    },
+    {
+      "cod_inst": 3228,
+      "descrip": "TIRAS REACTIVAS DE GLUCOSA",
+      "ins_padre": 3110,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INSUMOS PARA DIABETES",
+      "subcategoria": "TIRAS REACTIVAS DE GLUCOSA"
+    },
+    {
+      "cod_inst": 3111,
+      "descrip": "INYECTOLOGIA",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3229,
+      "descrip": "AGUJAS HIPODERMICAS",
+      "ins_padre": 3111,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "AGUJAS HIPODERMICAS"
+    },
+    {
+      "cod_inst": 3230,
+      "descrip": "CATETERES Y SONDAS",
+      "ins_padre": 3111,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "CATETERES Y SONDAS"
+    },
+    {
+      "cod_inst": 3231,
+      "descrip": "EQUIPOS DE INFUSION",
+      "ins_padre": 3111,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "EQUIPOS DE INFUSION"
+    },
+    {
+      "cod_inst": 3232,
+      "descrip": "JERINGAS CON AGUJA",
+      "ins_padre": 3111,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "JERINGAS CON AGUJA"
+    },
+    {
+      "cod_inst": 3112,
+      "descrip": "MATERIAL DE CURACION",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3233,
+      "descrip": "ALGODON",
+      "ins_padre": 3112,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "ALGODON"
+    },
+    {
+      "cod_inst": 3234,
+      "descrip": "ANTISEPTICOS Y DESINFECTANTES",
+      "ins_padre": 3112,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "ANTISEPTICOS Y DESINFECTANTES"
+    },
+    {
+      "cod_inst": 3235,
+      "descrip": "GASAS Y APOSITOS",
+      "ins_padre": 3112,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "GASAS Y APOSITOS"
+    },
+    {
+      "cod_inst": 3236,
+      "descrip": "MASCARILLAS Y PROTECCION",
+      "ins_padre": 3112,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "MASCARILLAS Y PROTECCION"
+    },
+    {
+      "cod_inst": 3237,
+      "descrip": "ROPA QUIRURGICA DESCARTABLE",
+      "ins_padre": 3112,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "ROPA QUIRURGICA DESCARTABLE"
+    },
+    {
+      "cod_inst": 3238,
+      "descrip": "VENDAS Y CINTAS",
+      "ins_padre": 3112,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "VENDAS Y CINTAS"
+    },
+    {
+      "cod_inst": 3113,
+      "descrip": "ORTOPEDIA LIGERA",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3239,
+      "descrip": "FAJAS Y SOPORTES LUMBARES",
+      "ins_padre": 3113,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": "FAJAS Y SOPORTES LUMBARES"
+    },
+    {
+      "cod_inst": 3240,
+      "descrip": "MEDIAS DE COMPRESION",
+      "ins_padre": 3113,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": "MEDIAS DE COMPRESION"
+    },
+    {
+      "cod_inst": 3241,
+      "descrip": "RODILLERAS Y TOBILLERAS",
+      "ins_padre": 3113,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": "RODILLERAS Y TOBILLERAS"
+    },
+    {
+      "cod_inst": 3114,
+      "descrip": "PRIMEROS AUXILIOS",
+      "ins_padre": 3001,
+      "role": "categoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "PRIMEROS AUXILIOS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3242,
+      "descrip": "BOTIQUINES EQUIPADOS",
+      "ins_padre": 3114,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "PRIMEROS AUXILIOS",
+      "subcategoria": "BOTIQUINES EQUIPADOS"
+    },
+    {
+      "cod_inst": 3243,
+      "descrip": "GUANTES DESECHABLES",
+      "ins_padre": 3114,
+      "role": "subcategoria",
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "PRIMEROS AUXILIOS",
+      "subcategoria": "GUANTES DESECHABLES"
+    },
+    {
+      "cod_inst": 3002,
+      "descrip": "MISCELANEO",
+      "ins_padre": 0,
+      "role": "dominio",
+      "dominio": "MISCELANEO",
+      "categoria": null,
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3115,
+      "descrip": "ALIMENTOS",
+      "ins_padre": 3002,
+      "role": "categoria",
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3244,
+      "descrip": "ALIMENTOS INFANTILES",
+      "ins_padre": 3115,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "ALIMENTOS INFANTILES"
+    },
+    {
+      "cod_inst": 3245,
+      "descrip": "BARRAS DE CEREAL Y ENERGETICAS",
+      "ins_padre": 3115,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "BARRAS DE CEREAL Y ENERGETICAS"
+    },
+    {
+      "cod_inst": 3246,
+      "descrip": "EDULCORANTES",
+      "ins_padre": 3115,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "EDULCORANTES"
+    },
+    {
+      "cod_inst": 3247,
+      "descrip": "FORMULAS INFANTILES",
+      "ins_padre": 3115,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "FORMULAS INFANTILES"
+    },
+    {
+      "cod_inst": 3248,
+      "descrip": "SNACKS SALUDABLES",
+      "ins_padre": 3115,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "SNACKS SALUDABLES"
+    },
+    {
+      "cod_inst": 3116,
+      "descrip": "BEBIDAS",
+      "ins_padre": 3002,
+      "role": "categoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3249,
+      "descrip": "AGUA EMBOTELLADA",
+      "ins_padre": 3116,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": "AGUA EMBOTELLADA"
+    },
+    {
+      "cod_inst": 3250,
+      "descrip": "BEBIDAS HIDRATANTES Y DEPORTIVAS",
+      "ins_padre": 3116,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": "BEBIDAS HIDRATANTES Y DEPORTIVAS"
+    },
+    {
+      "cod_inst": 3251,
+      "descrip": "TES Y BEBIDAS FUNCIONALES",
+      "ins_padre": 3116,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": "TES Y BEBIDAS FUNCIONALES"
+    },
+    {
+      "cod_inst": 3117,
+      "descrip": "BIENESTAR SEXUAL",
+      "ins_padre": 3002,
+      "role": "categoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3252,
+      "descrip": "LUBRICANTES",
+      "ins_padre": 3117,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": "LUBRICANTES"
+    },
+    {
+      "cod_inst": 3253,
+      "descrip": "PRESERVATIVOS",
+      "ins_padre": 3117,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": "PRESERVATIVOS"
+    },
+    {
+      "cod_inst": 3254,
+      "descrip": "PRUEBAS DE EMBARAZO Y OVULACION",
+      "ins_padre": 3117,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": "PRUEBAS DE EMBARAZO Y OVULACION"
+    },
+    {
+      "cod_inst": 3118,
+      "descrip": "CUIDADO DEL HOGAR",
+      "ins_padre": 3002,
+      "role": "categoria",
+      "dominio": "MISCELANEO",
+      "categoria": "CUIDADO DEL HOGAR",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3255,
+      "descrip": "REPELENTES DE INSECTOS",
+      "ins_padre": 3118,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "CUIDADO DEL HOGAR",
+      "subcategoria": "REPELENTES DE INSECTOS"
+    },
+    {
+      "cod_inst": 3119,
+      "descrip": "MASCOTAS",
+      "ins_padre": 3002,
+      "role": "categoria",
+      "dominio": "MISCELANEO",
+      "categoria": "MASCOTAS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3256,
+      "descrip": "ANTIPULGAS Y GARRAPATAS",
+      "ins_padre": 3119,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "MASCOTAS",
+      "subcategoria": "ANTIPULGAS Y GARRAPATAS"
+    },
+    {
+      "cod_inst": 3120,
+      "descrip": "OPTICA",
+      "ins_padre": 3002,
+      "role": "categoria",
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3257,
+      "descrip": "GOTAS LUBRICANTES OCULARES",
+      "ins_padre": 3120,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": "GOTAS LUBRICANTES OCULARES"
+    },
+    {
+      "cod_inst": 3258,
+      "descrip": "LENTES DE LECTURA",
+      "ins_padre": 3120,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": "LENTES DE LECTURA"
+    },
+    {
+      "cod_inst": 3259,
+      "descrip": "SOLUCIONES PARA LENTES DE CONTACTO",
+      "ins_padre": 3120,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": "SOLUCIONES PARA LENTES DE CONTACTO"
+    },
+    {
+      "cod_inst": 3121,
+      "descrip": "VARIOS",
+      "ins_padre": 3002,
+      "role": "categoria",
+      "dominio": "MISCELANEO",
+      "categoria": "VARIOS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3260,
+      "descrip": "BATERIAS",
+      "ins_padre": 3121,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "VARIOS",
+      "subcategoria": "BATERIAS"
+    },
+    {
+      "cod_inst": 3261,
+      "descrip": "DULCES Y GOMAS DE MASCAR",
+      "ins_padre": 3121,
+      "role": "subcategoria",
+      "dominio": "MISCELANEO",
+      "categoria": "VARIOS",
+      "subcategoria": "DULCES Y GOMAS DE MASCAR"
+    },
+    {
+      "cod_inst": 3003,
+      "descrip": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "ins_padre": 0,
+      "role": "dominio",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": null,
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3122,
+      "descrip": "AROMATERAPIA",
+      "ins_padre": 3003,
+      "role": "categoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "AROMATERAPIA",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3262,
+      "descrip": "ACEITES ESENCIALES",
+      "ins_padre": 3122,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "AROMATERAPIA",
+      "subcategoria": "ACEITES ESENCIALES"
+    },
+    {
+      "cod_inst": 3123,
+      "descrip": "FITOTERAPIA",
+      "ins_padre": 3003,
+      "role": "categoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3263,
+      "descrip": "CIRCULATORIOS",
+      "ins_padre": 3123,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "CIRCULATORIOS"
+    },
+    {
+      "cod_inst": 3264,
+      "descrip": "CONTROL DE PESO",
+      "ins_padre": 3123,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "CONTROL DE PESO"
+    },
+    {
+      "cod_inst": 3265,
+      "descrip": "DEFENSAS Y SISTEMA INMUNE",
+      "ins_padre": 3123,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "DEFENSAS Y SISTEMA INMUNE"
+    },
+    {
+      "cod_inst": 3266,
+      "descrip": "DIGESTIVOS",
+      "ins_padre": 3123,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "DIGESTIVOS"
+    },
+    {
+      "cod_inst": 3267,
+      "descrip": "ESTIMULANTES Y ENERGIZANTES",
+      "ins_padre": 3123,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "ESTIMULANTES Y ENERGIZANTES"
+    },
+    {
+      "cod_inst": 3268,
+      "descrip": "MEMORIA Y CONCENTRACION",
+      "ins_padre": 3123,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "MEMORIA Y CONCENTRACION"
+    },
+    {
+      "cod_inst": 3269,
+      "descrip": "RELAJANTES Y SEDANTES",
+      "ins_padre": 3123,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "RELAJANTES Y SEDANTES"
+    },
+    {
+      "cod_inst": 3124,
+      "descrip": "FLORES DE BACH",
+      "ins_padre": 3003,
+      "role": "categoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FLORES DE BACH",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3270,
+      "descrip": "FORMULAS FLORALES",
+      "ins_padre": 3124,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FLORES DE BACH",
+      "subcategoria": "FORMULAS FLORALES"
+    },
+    {
+      "cod_inst": 3125,
+      "descrip": "HOMEOPATIA",
+      "ins_padre": 3003,
+      "role": "categoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "HOMEOPATIA",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3271,
+      "descrip": "GOTAS Y SOLUCIONES",
+      "ins_padre": 3125,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "HOMEOPATIA",
+      "subcategoria": "GOTAS Y SOLUCIONES"
+    },
+    {
+      "cod_inst": 3272,
+      "descrip": "GRANULOS Y GLOBULOS",
+      "ins_padre": 3125,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "HOMEOPATIA",
+      "subcategoria": "GRANULOS Y GLOBULOS"
+    },
+    {
+      "cod_inst": 3126,
+      "descrip": "INFUSIONES HERBALES",
+      "ins_padre": 3003,
+      "role": "categoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "INFUSIONES HERBALES",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3273,
+      "descrip": "INFUSIONES DIGESTIVAS",
+      "ins_padre": 3126,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "INFUSIONES HERBALES",
+      "subcategoria": "INFUSIONES DIGESTIVAS"
+    },
+    {
+      "cod_inst": 3274,
+      "descrip": "INFUSIONES RELAJANTES",
+      "ins_padre": 3126,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "INFUSIONES HERBALES",
+      "subcategoria": "INFUSIONES RELAJANTES"
+    },
+    {
+      "cod_inst": 3127,
+      "descrip": "SUPLEMENTOS APICOLAS",
+      "ins_padre": 3003,
+      "role": "categoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS APICOLAS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3275,
+      "descrip": "JALEA REAL",
+      "ins_padre": 3127,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS APICOLAS",
+      "subcategoria": "JALEA REAL"
+    },
+    {
+      "cod_inst": 3276,
+      "descrip": "PROPOLEO",
+      "ins_padre": 3127,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS APICOLAS",
+      "subcategoria": "PROPOLEO"
+    },
+    {
+      "cod_inst": 3128,
+      "descrip": "SUPLEMENTOS HERBALES",
+      "ins_padre": 3003,
+      "role": "categoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS HERBALES",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3277,
+      "descrip": "CURCUMA",
+      "ins_padre": 3128,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS HERBALES",
+      "subcategoria": "CURCUMA"
+    },
+    {
+      "cod_inst": 3278,
+      "descrip": "ESPIRULINA",
+      "ins_padre": 3128,
+      "role": "subcategoria",
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS HERBALES",
+      "subcategoria": "ESPIRULINA"
+    },
+    {
+      "cod_inst": 3004,
+      "descrip": "SUPLEMENTO_VITAMINICO",
+      "ins_padre": 0,
+      "role": "dominio",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": null,
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3129,
+      "descrip": "ACIDOS GRASOS",
+      "ins_padre": 3004,
+      "role": "categoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ACIDOS GRASOS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3279,
+      "descrip": "OMEGA 3-6-9",
+      "ins_padre": 3129,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ACIDOS GRASOS",
+      "subcategoria": "OMEGA 3-6-9"
+    },
+    {
+      "cod_inst": 3130,
+      "descrip": "ANTIOXIDANTES",
+      "ins_padre": 3004,
+      "role": "categoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ANTIOXIDANTES",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3280,
+      "descrip": "COENZIMA Q10",
+      "ins_padre": 3130,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ANTIOXIDANTES",
+      "subcategoria": "COENZIMA Q10"
+    },
+    {
+      "cod_inst": 3131,
+      "descrip": "MINERALES",
+      "ins_padre": 3004,
+      "role": "categoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3281,
+      "descrip": "CALCIO",
+      "ins_padre": 3131,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "CALCIO"
+    },
+    {
+      "cod_inst": 3282,
+      "descrip": "HIERRO",
+      "ins_padre": 3131,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "HIERRO"
+    },
+    {
+      "cod_inst": 3283,
+      "descrip": "MAGNESIO",
+      "ins_padre": 3131,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "MAGNESIO"
+    },
+    {
+      "cod_inst": 3284,
+      "descrip": "ZINC",
+      "ins_padre": 3131,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "ZINC"
+    },
+    {
+      "cod_inst": 3132,
+      "descrip": "MULTIVITAMINICOS",
+      "ins_padre": 3004,
+      "role": "categoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3285,
+      "descrip": "MULTIVITAMINICOS ADULTO",
+      "ins_padre": 3132,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS ADULTO"
+    },
+    {
+      "cod_inst": 3286,
+      "descrip": "MULTIVITAMINICOS HOMBRE",
+      "ins_padre": 3132,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS HOMBRE"
+    },
+    {
+      "cod_inst": 3287,
+      "descrip": "MULTIVITAMINICOS INFANTIL",
+      "ins_padre": 3132,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS INFANTIL"
+    },
+    {
+      "cod_inst": 3288,
+      "descrip": "MULTIVITAMINICOS MUJER",
+      "ins_padre": 3132,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS MUJER"
+    },
+    {
+      "cod_inst": 3289,
+      "descrip": "PRENATALES",
+      "ins_padre": 3132,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "PRENATALES"
+    },
+    {
+      "cod_inst": 3133,
+      "descrip": "PROBIOTICOS",
+      "ins_padre": 3004,
+      "role": "categoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROBIOTICOS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3290,
+      "descrip": "PROBIOTICOS ADULTO",
+      "ins_padre": 3133,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROBIOTICOS",
+      "subcategoria": "PROBIOTICOS ADULTO"
+    },
+    {
+      "cod_inst": 3291,
+      "descrip": "PROBIOTICOS INFANTIL",
+      "ins_padre": 3133,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROBIOTICOS",
+      "subcategoria": "PROBIOTICOS INFANTIL"
+    },
+    {
+      "cod_inst": 3134,
+      "descrip": "PROTEINAS Y AMINOACIDOS",
+      "ins_padre": 3004,
+      "role": "categoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROTEINAS Y AMINOACIDOS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3292,
+      "descrip": "COLAGENO",
+      "ins_padre": 3134,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROTEINAS Y AMINOACIDOS",
+      "subcategoria": "COLAGENO"
+    },
+    {
+      "cod_inst": 3293,
+      "descrip": "PROTEINA EN POLVO",
+      "ins_padre": 3134,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROTEINAS Y AMINOACIDOS",
+      "subcategoria": "PROTEINA EN POLVO"
+    },
+    {
+      "cod_inst": 3135,
+      "descrip": "VITAMINAS",
+      "ins_padre": 3004,
+      "role": "categoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": null
+    },
+    {
+      "cod_inst": 3294,
+      "descrip": "COMPLEJO B",
+      "ins_padre": 3135,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "COMPLEJO B"
+    },
+    {
+      "cod_inst": 3295,
+      "descrip": "VITAMINA C",
+      "ins_padre": 3135,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "VITAMINA C"
+    },
+    {
+      "cod_inst": 3296,
+      "descrip": "VITAMINA D",
+      "ins_padre": 3135,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "VITAMINA D"
+    },
+    {
+      "cod_inst": 3297,
+      "descrip": "VITAMINA E",
+      "ins_padre": 3135,
+      "role": "subcategoria",
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "VITAMINA E"
+    }
+  ],
+  "stats": {
+    "dominios": 5,
+    "categorias": 36,
+    "subcategorias": 98,
+    "insertable": 140
+  },
+  "mdm_path_to_cod_inst": [
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "AFEITADO Y DEPILACION",
+      "subcategoria": null,
+      "cod_inst": 3100,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "AFEITADO Y DEPILACION",
+      "subcategoria": "PRODUCTOS PARA AFEITADO",
+      "cod_inst": 3200,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": null,
+      "cod_inst": 3101,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": "CEPILLOS DENTALES",
+      "cod_inst": 3201,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": "CREMAS DENTALES",
+      "cod_inst": 3202,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO BUCAL",
+      "subcategoria": "ENJUAGUES BUCALES",
+      "cod_inst": 3203,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": null,
+      "cod_inst": 3102,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": "CHAMPU Y ACONDICIONADOR",
+      "cod_inst": 3204,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": "TINTES Y COLORACION",
+      "cod_inst": 3205,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CAPILAR",
+      "subcategoria": "TRATAMIENTOS CAPILARES",
+      "cod_inst": 3206,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": null,
+      "cod_inst": 3103,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "CUIDADO DE MANOS Y PIES",
+      "cod_inst": 3207,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "DESODORANTES Y ANTITRANSPIRANTES",
+      "cod_inst": 3208,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "HIDRATANTES CORPORALES",
+      "cod_inst": 3209,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "JABONES DE DUCHA Y BAÑO",
+      "cod_inst": 3210,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO CORPORAL",
+      "subcategoria": "PROTECTORES SOLARES CORPORALES",
+      "cod_inst": 3211,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO DEL BEBE",
+      "subcategoria": null,
+      "cod_inst": 3104,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO DEL BEBE",
+      "subcategoria": "HIGIENE Y CUIDADO DE LA PIEL",
+      "cod_inst": 3212,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO DEL BEBE",
+      "subcategoria": "PAÑALES Y TOALLITAS HUMEDAS",
+      "cod_inst": 3213,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": null,
+      "cod_inst": 3105,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "HIDRATANTES Y SERUMS",
+      "cod_inst": 3214,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "LIMPIADORES Y DESMAQUILLANTES",
+      "cod_inst": 3215,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "PROTECTORES SOLARES FACIALES",
+      "cod_inst": 3216,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "TRATAMIENTOS ANTIACNE",
+      "cod_inst": 3217,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "CUIDADO FACIAL",
+      "subcategoria": "TRATAMIENTOS ANTIEDAD",
+      "cod_inst": 3218,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "HIGIENE INTIMA",
+      "subcategoria": null,
+      "cod_inst": 3106,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "HIGIENE INTIMA",
+      "subcategoria": "JABONES Y LIMPIADORES INTIMOS",
+      "cod_inst": 3219,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "COSMETICO_CUIDADO_PERSONAL",
+      "categoria": "HIGIENE INTIMA",
+      "subcategoria": "PROTECCION FEMENINA",
+      "cod_inst": 3220,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO DEL PACIENTE",
+      "subcategoria": null,
+      "cod_inst": 3107,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO DEL PACIENTE",
+      "subcategoria": "BOLSAS RECOLECTORAS",
+      "cod_inst": 3221,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO DEL PACIENTE",
+      "subcategoria": "PAÑALES PARA ADULTO",
+      "cod_inst": 3222,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO RESPIRATORIO",
+      "subcategoria": null,
+      "cod_inst": 3108,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "CUIDADO RESPIRATORIO",
+      "subcategoria": "NEBULIZADORES Y ACCESORIOS",
+      "cod_inst": 3223,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": null,
+      "cod_inst": 3109,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": "GLUCOMETROS",
+      "cod_inst": 3224,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": "TENSIOMETROS",
+      "cod_inst": 3225,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "EQUIPOS DE DIAGNOSTICO",
+      "subcategoria": "TERMOMETROS",
+      "cod_inst": 3226,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INSUMOS PARA DIABETES",
+      "subcategoria": null,
+      "cod_inst": 3110,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INSUMOS PARA DIABETES",
+      "subcategoria": "LANCETAS",
+      "cod_inst": 3227,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INSUMOS PARA DIABETES",
+      "subcategoria": "TIRAS REACTIVAS DE GLUCOSA",
+      "cod_inst": 3228,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": null,
+      "cod_inst": 3111,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "AGUJAS HIPODERMICAS",
+      "cod_inst": 3229,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "CATETERES Y SONDAS",
+      "cod_inst": 3230,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "EQUIPOS DE INFUSION",
+      "cod_inst": 3231,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "INYECTOLOGIA",
+      "subcategoria": "JERINGAS CON AGUJA",
+      "cod_inst": 3232,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": null,
+      "cod_inst": 3112,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "ALGODON",
+      "cod_inst": 3233,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "ANTISEPTICOS Y DESINFECTANTES",
+      "cod_inst": 3234,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "GASAS Y APOSITOS",
+      "cod_inst": 3235,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "MASCARILLAS Y PROTECCION",
+      "cod_inst": 3236,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "ROPA QUIRURGICA DESCARTABLE",
+      "cod_inst": 3237,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "MATERIAL DE CURACION",
+      "subcategoria": "VENDAS Y CINTAS",
+      "cod_inst": 3238,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": null,
+      "cod_inst": 3113,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": "FAJAS Y SOPORTES LUMBARES",
+      "cod_inst": 3239,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": "MEDIAS DE COMPRESION",
+      "cod_inst": 3240,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "ORTOPEDIA LIGERA",
+      "subcategoria": "RODILLERAS Y TOBILLERAS",
+      "cod_inst": 3241,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "PRIMEROS AUXILIOS",
+      "subcategoria": null,
+      "cod_inst": 3114,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "PRIMEROS AUXILIOS",
+      "subcategoria": "BOTIQUINES EQUIPADOS",
+      "cod_inst": 3242,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MATERIAL_MEDICO_INSUMO",
+      "categoria": "PRIMEROS AUXILIOS",
+      "subcategoria": "GUANTES DESECHABLES",
+      "cod_inst": 3243,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": null,
+      "cod_inst": 3115,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "ALIMENTOS INFANTILES",
+      "cod_inst": 3244,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "BARRAS DE CEREAL Y ENERGETICAS",
+      "cod_inst": 3245,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "EDULCORANTES",
+      "cod_inst": 3246,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "FORMULAS INFANTILES",
+      "cod_inst": 3247,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "ALIMENTOS",
+      "subcategoria": "SNACKS SALUDABLES",
+      "cod_inst": 3248,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": null,
+      "cod_inst": 3116,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": "AGUA EMBOTELLADA",
+      "cod_inst": 3249,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": "BEBIDAS HIDRATANTES Y DEPORTIVAS",
+      "cod_inst": 3250,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BEBIDAS",
+      "subcategoria": "TES Y BEBIDAS FUNCIONALES",
+      "cod_inst": 3251,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": null,
+      "cod_inst": 3117,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": "LUBRICANTES",
+      "cod_inst": 3252,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": "PRESERVATIVOS",
+      "cod_inst": 3253,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "BIENESTAR SEXUAL",
+      "subcategoria": "PRUEBAS DE EMBARAZO Y OVULACION",
+      "cod_inst": 3254,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "CUIDADO DEL HOGAR",
+      "subcategoria": null,
+      "cod_inst": 3118,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "CUIDADO DEL HOGAR",
+      "subcategoria": "REPELENTES DE INSECTOS",
+      "cod_inst": 3255,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "MASCOTAS",
+      "subcategoria": null,
+      "cod_inst": 3119,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "MASCOTAS",
+      "subcategoria": "ANTIPULGAS Y GARRAPATAS",
+      "cod_inst": 3256,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": null,
+      "cod_inst": 3120,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": "GOTAS LUBRICANTES OCULARES",
+      "cod_inst": 3257,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": "LENTES DE LECTURA",
+      "cod_inst": 3258,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "OPTICA",
+      "subcategoria": "SOLUCIONES PARA LENTES DE CONTACTO",
+      "cod_inst": 3259,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "VARIOS",
+      "subcategoria": null,
+      "cod_inst": 3121,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "VARIOS",
+      "subcategoria": "BATERIAS",
+      "cod_inst": 3260,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "MISCELANEO",
+      "categoria": "VARIOS",
+      "subcategoria": "DULCES Y GOMAS DE MASCAR",
+      "cod_inst": 3261,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "AROMATERAPIA",
+      "subcategoria": null,
+      "cod_inst": 3122,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "AROMATERAPIA",
+      "subcategoria": "ACEITES ESENCIALES",
+      "cod_inst": 3262,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": null,
+      "cod_inst": 3123,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "CIRCULATORIOS",
+      "cod_inst": 3263,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "CONTROL DE PESO",
+      "cod_inst": 3264,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "DEFENSAS Y SISTEMA INMUNE",
+      "cod_inst": 3265,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "DIGESTIVOS",
+      "cod_inst": 3266,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "ESTIMULANTES Y ENERGIZANTES",
+      "cod_inst": 3267,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "MEMORIA Y CONCENTRACION",
+      "cod_inst": 3268,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FITOTERAPIA",
+      "subcategoria": "RELAJANTES Y SEDANTES",
+      "cod_inst": 3269,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FLORES DE BACH",
+      "subcategoria": null,
+      "cod_inst": 3124,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "FLORES DE BACH",
+      "subcategoria": "FORMULAS FLORALES",
+      "cod_inst": 3270,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "HOMEOPATIA",
+      "subcategoria": null,
+      "cod_inst": 3125,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "HOMEOPATIA",
+      "subcategoria": "GOTAS Y SOLUCIONES",
+      "cod_inst": 3271,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "HOMEOPATIA",
+      "subcategoria": "GRANULOS Y GLOBULOS",
+      "cod_inst": 3272,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "INFUSIONES HERBALES",
+      "subcategoria": null,
+      "cod_inst": 3126,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "INFUSIONES HERBALES",
+      "subcategoria": "INFUSIONES DIGESTIVAS",
+      "cod_inst": 3273,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "INFUSIONES HERBALES",
+      "subcategoria": "INFUSIONES RELAJANTES",
+      "cod_inst": 3274,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS APICOLAS",
+      "subcategoria": null,
+      "cod_inst": 3127,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS APICOLAS",
+      "subcategoria": "JALEA REAL",
+      "cod_inst": 3275,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS APICOLAS",
+      "subcategoria": "PROPOLEO",
+      "cod_inst": 3276,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS HERBALES",
+      "subcategoria": null,
+      "cod_inst": 3128,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS HERBALES",
+      "subcategoria": "CURCUMA",
+      "cod_inst": 3277,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "PRODUCTO_NATURAL_HOMEOPATICO",
+      "categoria": "SUPLEMENTOS HERBALES",
+      "subcategoria": "ESPIRULINA",
+      "cod_inst": 3278,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ACIDOS GRASOS",
+      "subcategoria": null,
+      "cod_inst": 3129,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ACIDOS GRASOS",
+      "subcategoria": "OMEGA 3-6-9",
+      "cod_inst": 3279,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ANTIOXIDANTES",
+      "subcategoria": null,
+      "cod_inst": 3130,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "ANTIOXIDANTES",
+      "subcategoria": "COENZIMA Q10",
+      "cod_inst": 3280,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": null,
+      "cod_inst": 3131,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "CALCIO",
+      "cod_inst": 3281,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "HIERRO",
+      "cod_inst": 3282,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "MAGNESIO",
+      "cod_inst": 3283,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MINERALES",
+      "subcategoria": "ZINC",
+      "cod_inst": 3284,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": null,
+      "cod_inst": 3132,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS ADULTO",
+      "cod_inst": 3285,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS HOMBRE",
+      "cod_inst": 3286,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS INFANTIL",
+      "cod_inst": 3287,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "MULTIVITAMINICOS MUJER",
+      "cod_inst": 3288,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "MULTIVITAMINICOS",
+      "subcategoria": "PRENATALES",
+      "cod_inst": 3289,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROBIOTICOS",
+      "subcategoria": null,
+      "cod_inst": 3133,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROBIOTICOS",
+      "subcategoria": "PROBIOTICOS ADULTO",
+      "cod_inst": 3290,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROBIOTICOS",
+      "subcategoria": "PROBIOTICOS INFANTIL",
+      "cod_inst": 3291,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROTEINAS Y AMINOACIDOS",
+      "subcategoria": null,
+      "cod_inst": 3134,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROTEINAS Y AMINOACIDOS",
+      "subcategoria": "COLAGENO",
+      "cod_inst": 3292,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "PROTEINAS Y AMINOACIDOS",
+      "subcategoria": "PROTEINA EN POLVO",
+      "cod_inst": 3293,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": null,
+      "cod_inst": 3135,
+      "prefer": "categoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "COMPLEJO B",
+      "cod_inst": 3294,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "VITAMINA C",
+      "cod_inst": 3295,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "VITAMINA D",
+      "cod_inst": 3296,
+      "prefer": "subcategoria"
+    },
+    {
+      "dominio": "SUPLEMENTO_VITAMINICO",
+      "categoria": "VITAMINAS",
+      "subcategoria": "VITAMINA E",
+      "cod_inst": 3297,
+      "prefer": "subcategoria"
+    }
+  ]
+}

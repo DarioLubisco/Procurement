@@ -27,6 +27,35 @@ document.addEventListener('DOMContentLoaded', () => {
     let definitivoReadyForBorrador = false;
     let lastDefinitivoParams = null;
     let configCollapsed = false;
+    let fxState = { moneda_trabajo: 'USD', dolarbcv: null };
+    // ADR-0027: qty overrides (clave barra_propuesto||proveedor → qty)
+    let qtyOverridesPending = null;
+
+    function getFx() {
+        const meta = (lastGenerarResult && lastGenerarResult.meta) || {};
+        return {
+            moneda_trabajo: (meta.moneda_trabajo || fxState.moneda_trabajo || 'USD').toUpperCase(),
+            dolarbcv: meta.dolarbcv != null ? Number(meta.dolarbcv) : fxState.dolarbcv,
+        };
+    }
+
+    /** Motor always USD; display in Bs when MonedaTrabajo=VES. */
+    function moneyDisplay(amountUsd, { digits = 2 } = {}) {
+        if (amountUsd == null || amountUsd === '' || Number.isNaN(Number(amountUsd))) {
+            return '—';
+        }
+        const fx = getFx();
+        const usd = Number(amountUsd);
+        if (fx.moneda_trabajo === 'VES' && fx.dolarbcv && fx.dolarbcv > 0) {
+            const bs = usd * fx.dolarbcv;
+            return `Bs ${bs.toLocaleString('es-VE', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+        }
+        return `$${usd.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+    }
+
+    function moneyUnitLabel() {
+        return getFx().moneda_trabajo === 'VES' ? 'Bs' : 'USD';
+    }
 
     const CRITERIOS_DEFAULT = [
         'principio_activo',
@@ -45,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { nombre_campo: 'contenido_neto', etiqueta: 'Contenido Neto', activo: true },
         { nombre_campo: 'generico', etiqueta: 'Genérico', activo: true },
         { nombre_campo: 'marca', etiqueta: 'Marca', activo: true },
-        { nombre_campo: 'blister', etiqueta: 'Blister', activo: true },
     ];
 
     function setDefinitivoReadyForBorrador(ready) {
@@ -370,7 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCriteriosAgrupacion(atributos) {
         const host = document.getElementById('criteriosAgrupacion');
         if (!host) return;
-        const list = (atributos || []).filter(a => a && a.activo !== false && a.nombre_campo);
+        const list = (atributos || []).filter(
+            a => a && a.activo !== false && a.nombre_campo && a.nombre_campo !== 'blister'
+        );
         const effective = list.length ? list : CRITERIOS_FALLBACK;
         const defaultSet = new Set(CRITERIOS_DEFAULT);
         host.innerHTML = '';
@@ -538,7 +568,126 @@ document.addEventListener('DOMContentLoaded', () => {
             const t = f.titulo || f.codigo || '';
             const d = f.detalle || '';
             return d ? `${t}: ${d}` : t;
-        }).join('\n');
+        }).join(' · ');
+    }
+
+    function findOfertaBaseline(row) {
+        const bb = String(row?.barra_baseline || '').trim();
+        if (!bb) return null;
+        const factores = row.justificacion_factores || [];
+        for (const f of factores) {
+            const d = f.datos || {};
+            if (d.oferta_baseline && String(d.oferta_baseline.barra || '').trim() === bb) {
+                return d.oferta_baseline;
+            }
+        }
+        // Fallback: rivales top-N may include the baseline barcode
+        for (const f of factores) {
+            const rivales = (f.datos || {}).rivales || [];
+            const hit = rivales.find(r => String(r.barra || '').trim() === bb);
+            if (hit) return hit;
+        }
+        return null;
+    }
+
+    function renderReemplazoBaselineBlock(row) {
+        const bb = String(row?.barra_baseline || '').trim();
+        const bp = String(row?.barra_propuesto || '').trim();
+        if (!bb || !bp || bb === bp) return '';
+        const oferta = findOfertaBaseline(row);
+        const px = oferta && oferta.precio != null
+            ? `$${Number(oferta.precio).toFixed(4)}`
+            : '—';
+        const prov = oferta && oferta.proveedor
+            ? escapeHtml(oferta.proveedor)
+            : '—';
+        const media = oferta && oferta.media_de_mediana != null
+            ? ` · media hist. $${Number(oferta.media_de_mediana).toFixed(4)}`
+            : '';
+        const desc = escapeHtml(row.desc_baseline || '');
+        return `
+            <div style="margin:0.5rem 0; padding:0.5rem 0.65rem; border-left:3px solid var(--barra-cambio, #c4783a); background:var(--barra-cambio-bg, rgba(196,120,58,0.18)); border-radius:4px; font-size:0.78rem;">
+                <div style="font-weight:700; color:var(--barra-cambio, #c4783a); margin-bottom:0.25rem;">Producto reemplazado (baseline)</div>
+                <div><code class="barra-cambio" style="font-size:0.75rem;">${escapeHtml(bb)}</code></div>
+                <div style="opacity:0.9; margin:0.2rem 0;">${desc || '—'}</div>
+                <div>Mejor oferta baseline: <strong>${prov}</strong> <strong>${px}</strong>${media}</div>
+                <div style="opacity:0.75; margin-top:0.25rem;">vs propuesto <code>${escapeHtml(bp)}</code></div>
+            </div>`;
+    }
+
+    function renderCompetenciaBlock(datos) {
+        if (!datos) return '';
+        const rivales = datos.rivales || [];
+        const hermanos = datos.hermanos_reemplazables || [];
+        const hasHeader = datos.precio != null || datos.media_de_mediana != null;
+        const hasBaseline = !!datos.oferta_baseline;
+        if (!rivales.length && !hermanos.length && !hasHeader && !hasBaseline) return '';
+        let html = '<div style="margin-top:0.45rem; padding:0.5rem 0.65rem; background:rgba(255,255,255,0.04); border-radius:6px; font-size:0.78rem;">';
+
+        if (hasBaseline) {
+            const ob = datos.oferta_baseline;
+            const px = ob.precio != null ? `$${Number(ob.precio).toFixed(4)}` : '—';
+            html += `<div style="margin-bottom:0.45rem; padding:0.35rem 0.45rem; background:var(--barra-cambio-bg, rgba(196,120,58,0.18)); border-radius:4px;">
+                <div style="font-weight:600; color:var(--barra-cambio, #c4783a);">Reemplazado · <code>${escapeHtml(ob.barra || '')}</code></div>
+                <div><strong>${escapeHtml(ob.proveedor || '—')}</strong> ${px}</div>
+            </div>`;
+        }
+
+        // Cabecera elegida: precio · media hist · Δ$ · % (siempre USD)
+        if (hasHeader) {
+            const px = datos.precio != null ? `$${Number(datos.precio).toFixed(4)}` : '—';
+            let line = `<strong>${escapeHtml(datos.proveedor || 'Oferta')}</strong> ${px}`;
+            if (datos.media_de_mediana != null) {
+                const media = Number(datos.media_de_mediana);
+                const delta = datos.delta_vs_media_usd != null
+                    ? Number(datos.delta_vs_media_usd)
+                    : (datos.precio != null ? Number(datos.precio) - media : null);
+                line += ` · media hist. $${media.toFixed(4)}`;
+                if (delta != null) {
+                    const sign = delta >= 0 ? '+' : '';
+                    line += ` · Δ $${sign}${delta.toFixed(4)}`;
+                }
+                if (datos.desvio != null) {
+                    line += ` (${(Number(datos.desvio) * 100).toFixed(1)}%)`;
+                }
+            } else if (datos.desvio != null) {
+                line += ` · desvío ${(Number(datos.desvio) * 100).toFixed(1)}%`;
+            }
+            if (datos.fuente_baseline) {
+                line += ` <span style="opacity:0.75;">[${escapeHtml(datos.fuente_baseline)}]</span>`;
+            }
+            if (datos.pdr_semaforo) {
+                line += ` <span style="opacity:0.75;">[PDR:${escapeHtml(String(datos.pdr_semaforo))}]</span>`;
+            }
+            html += `<div style="margin-bottom:0.35rem;"><span style="opacity:0.75;">Elegida · </span>${line}</div>`;
+        }
+
+        if (rivales.length) {
+            html += '<div style="font-weight:600; margin-bottom:0.25rem;">¿Por qué esta oferta? (top ' +
+                (datos.top_n_rivales || rivales.length) + ')</div>';
+            html += '<ol style="margin:0; padding-left:1.2rem;">';
+            rivales.forEach(r => {
+                const mark = r.elegida ? ' ← elegida' : '';
+                const px = r.precio != null ? `$${Number(r.precio).toFixed(4)}` : '—';
+                const dv = r.desvio != null ? ` · desvío ${(Number(r.desvio) * 100).toFixed(1)}%` : '';
+                const lt = r.lead_time_dias != null ? ` · LT ${r.lead_time_dias}d` : '';
+                html += `<li><strong>${escapeHtml(r.proveedor)}</strong> / ${escapeHtml(r.barra)} — ${px}${dv}${lt}${mark}</li>`;
+            });
+            html += '</ol>';
+        }
+        if (hermanos.length) {
+            html += '<div style="font-weight:600; margin:0.5rem 0 0.25rem;">Hermanos reemplazables (top ' +
+                (datos.top_n_hermanos || hermanos.length) + ')</div>';
+            html += '<ol style="margin:0; padding-left:1.2rem;">';
+            hermanos.forEach(h => {
+                const px = h.precio != null ? `$${Number(h.precio).toFixed(4)}` : '—';
+                const desc = h.descripcion ? ` — ${escapeHtml(h.descripcion)}` : '';
+                html += `<li><code>${escapeHtml(h.barra)}</code> via <strong>${escapeHtml(h.proveedor)}</strong> ${px}${desc}</li>`;
+            });
+            html += '</ol>';
+        }
+        html += '</div>';
+        return html;
     }
 
     function renderFactoresAccordion(factores) {
@@ -549,18 +698,208 @@ document.addEventListener('DOMContentLoaded', () => {
             factores.map(f => {
                 const t = escapeHtml(f.titulo || f.codigo || '');
                 const d = escapeHtml(f.detalle || '');
-                return `<li style="margin-bottom:0.35rem;"><strong>${t}</strong>${d ? ` — ${d}` : ''}</li>`;
+                const extra = renderCompetenciaBlock(f.datos || {});
+                return `<li style="margin-bottom:0.35rem;"><strong>${t}</strong>${d ? ` — ${d}` : ''}${extra}</li>`;
             }).join('') +
             '</ul>';
     }
 
+    function overrideKey(row) {
+        return `${String(row.barra_propuesto || '')}||${String(row.proveedor || '')}`;
+    }
+
+    function collectQtyOverrides(data) {
+        const map = {};
+        (data?.comparativa_cantidades || []).forEach(row => {
+            if (!row.qty_editado) return;
+            map[overrideKey(row)] = Number(row.qty_propuesto);
+        });
+        return map;
+    }
+
+    function hasQtyOverrides(data) {
+        return Object.keys(collectQtyOverrides(data)).length > 0;
+    }
+
+    function promptOverridesBeforeGenerar() {
+        if (!lastGenerarResult || !hasQtyOverrides(lastGenerarResult)) {
+            qtyOverridesPending = null;
+            return true;
+        }
+        const n = Object.keys(collectQtyOverrides(lastGenerarResult)).length;
+        const ok = window.confirm(
+            `Hay ${n} qty editada(s) en Comparativa.\n\n` +
+            'Aceptar = Descartar overrides y usar el nuevo Generar.\n' +
+            'Cancelar = Reaplicar overrides sobre el resultado (si la clave barra+proveedor sigue existiendo).'
+        );
+        if (ok) {
+            qtyOverridesPending = null;
+            return true;
+        }
+        qtyOverridesPending = collectQtyOverrides(lastGenerarResult);
+        return true;
+    }
+
+    function applyPendingOverrides(data) {
+        if (!qtyOverridesPending || !data?.comparativa_cantidades) {
+            qtyOverridesPending = null;
+            return data;
+        }
+        const map = qtyOverridesPending;
+        qtyOverridesPending = null;
+        data.comparativa_cantidades.forEach(row => {
+            const k = overrideKey(row);
+            if (!(k in map)) return;
+            const newQty = Math.max(0, Math.round(Number(map[k]) || 0));
+            if (row.qty_propuesto_original == null) {
+                row.qty_propuesto_original = Number(row.qty_propuesto);
+            }
+            row.qty_propuesto = newQty;
+            row.qty_editado = newQty !== Number(row.qty_propuesto_original);
+            syncPedidoPropuestoPrimary(data, row, newQty);
+        });
+        refreshGrupoSumsInPlace(data.comparativa_cantidades);
+        return data;
+    }
+
+    function refreshGrupoSumsInPlace(rows) {
+        const sumBase = {};
+        const sumProp = {};
+        rows.forEach(r => {
+            const gk = String(r.grupo_key || '');
+            sumBase[gk] = (sumBase[gk] || 0) + (Number(r.qty_baseline) || 0);
+            sumProp[gk] = (sumProp[gk] || 0) + (Number(r.qty_propuesto) || 0);
+        });
+        rows.forEach(r => {
+            const gk = String(r.grupo_key || '');
+            r.grupo_sum_baseline = sumBase[gk] || 0;
+            r.grupo_sum_propuesto = sumProp[gk] || 0;
+        });
+    }
+
+    /** SplitLeadTime: delta solo en pierna primaria; extras fijas (ADR-0027). */
+    function syncPedidoPropuestoPrimary(data, row, newTotalQty) {
+        if (!data) return;
+        const barra = String(row.barra_propuesto || '');
+        const proveedor = String(row.proveedor || '');
+        const extras = Math.max(0, Number(row.extra_legs_qty) || 0);
+        let primaryQty = Math.max(0, Math.round(Number(newTotalQty) || 0) - extras);
+        const lines = data.pedido_propuesto || [];
+        const idx = lines.findIndex(
+            l => String(l.barra || '') === barra && String(l.proveedor || '') === proveedor
+        );
+        if (primaryQty <= 0) {
+            if (idx >= 0) lines.splice(idx, 1);
+            data.pedido_propuesto = lines;
+            return;
+        }
+        if (idx >= 0) {
+            lines[idx].cantidad = primaryQty;
+        } else if (proveedor) {
+            lines.push({
+                barra,
+                descripcion: row.desc_propuesto || '',
+                proveedor,
+                cantidad: primaryQty,
+                precio: null,
+            });
+        }
+        data.pedido_propuesto = lines;
+    }
+
+    function qtyWarnFlags(row) {
+        const qty = Number(row.qty_propuesto) || 0;
+        const base = Number(row.qty_baseline) || 0;
+        const gProp = Number(row.grupo_sum_propuesto) || 0;
+        const gBase = Number(row.grupo_sum_baseline) || 0;
+        return {
+            overLine: qty > base,
+            overGrupo: gProp > gBase,
+        };
+    }
+
+    function clearComparativaActiveRow() {
+        document.querySelectorAll('#comparativaTableBody tr.comparativa-main-row.is-qty-focus')
+            .forEach(el => el.classList.remove('is-qty-focus'));
+    }
+
+    function setComparativaActiveRow(tr) {
+        clearComparativaActiveRow();
+        if (tr) tr.classList.add('is-qty-focus');
+    }
+
+    function closeQtyContextoDrawer() {
+        const drawer = document.getElementById('qtyContextoDrawer');
+        if (drawer) drawer.style.display = 'none';
+        clearComparativaActiveRow();
+    }
+
+    function openQtyContextoDrawer(row, tr = null) {
+        const drawer = document.getElementById('qtyContextoDrawer');
+        const body = document.getElementById('qtyContextoDrawerBody');
+        if (!drawer || !body) return;
+        if (tr) setComparativaActiveRow(tr);
+        const warn = qtyWarnFlags(row);
+        const stockOferta = row.stock_oferta != null ? row.stock_oferta : '—';
+        let competenciaHtml = '';
+        (row.justificacion_factores || []).forEach(f => {
+            const block = renderCompetenciaBlock(f.datos || {});
+            if (block) competenciaHtml += block;
+        });
+        if (!competenciaHtml) {
+            competenciaHtml = '<div style="opacity:0.7;">Sin rivales/hermanos en justificación.</div>';
+        }
+        const warnHtml = (warn.overLine || warn.overGrupo)
+            ? `<div style="margin:0.5rem 0; padding:0.4rem 0.5rem; border-left:3px solid #f59e0b; background:rgba(245,158,11,0.12); color:var(--text-primary);">
+                ${warn.overLine ? 'Qty fila &gt; baseline.<br>' : ''}
+                ${warn.overGrupo ? 'Σ propuesto del Grupo &gt; Σ baselines.' : ''}
+               </div>`
+            : '';
+        const reemplazoHtml = renderReemplazoBaselineBlock(row);
+        body.innerHTML = `
+            ${warnHtml}
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:0.25rem;">Línea</div>
+            <div>Baseline neto: <strong>${Number(row.qty_baseline) || 0}</strong></div>
+            <div>Qty propuesto: <strong>${Number(row.qty_propuesto) || 0}</strong></div>
+            <div>Existen: <strong>${row.existen != null ? row.existen : '—'}</strong></div>
+            <div>Backorder: <strong>${Number(row.backorder_qty) || 0}</strong></div>
+            <div>Stock oferta: <strong>${stockOferta}</strong></div>
+            <div>Proveedor: <strong>${escapeHtml(row.proveedor || '—')}</strong></div>
+            ${reemplazoHtml}
+            <div style="font-weight:600; color:var(--text-primary); margin:0.65rem 0 0.25rem;">Grupo</div>
+            <div>Σ propuesto / Σ baseline: <strong>${Number(row.grupo_sum_propuesto) || 0}</strong> / <strong>${Number(row.grupo_sum_baseline) || 0}</strong></div>
+            <div style="font-weight:600; color:var(--text-primary); margin:0.65rem 0 0.25rem;">Competencia (elegida)</div>
+            ${competenciaHtml}
+        `;
+        drawer.style.display = 'block';
+    }
+
+    document.getElementById('qtyContextoDrawerClose')?.addEventListener('click', closeQtyContextoDrawer);
+
+    function onQtyPropuestoEdit(row, inputEl) {
+        const raw = inputEl.value;
+        let newQty = Math.max(0, Math.round(Number(raw) || 0));
+        if (String(raw) !== String(newQty)) inputEl.value = String(newQty);
+        if (row.qty_propuesto_original == null) {
+            row.qty_propuesto_original = Number(row.qty_propuesto);
+        }
+        row.qty_propuesto = newQty;
+        row.qty_editado = newQty !== Number(row.qty_propuesto_original);
+        if (lastGenerarResult) {
+            syncPedidoPropuestoPrimary(lastGenerarResult, row, newQty);
+            refreshGrupoSumsInPlace(lastGenerarResult.comparativa_cantidades || []);
+            renderGenerarResult(lastGenerarResult, { scroll: false, keepDrawerRow: row });
+        }
+    }
+
     function isComparativaIdentityRow(row) {
+        if (row.qty_editado) return false;
         const sameBarra = String(row.barra_baseline || '') === String(row.barra_propuesto || '');
         const sameQty = Number(row.qty_baseline) === Number(row.qty_propuesto);
         return sameBarra && sameQty;
     }
 
-    function renderGenerarResult(data) {
+    function renderGenerarResult(data, { scroll = true, keepDrawerRow = null } = {}) {
         const section = document.getElementById('generarResultSection');
         const compBody = document.getElementById('comparativaTableBody');
         const propBody = document.getElementById('propuestoTableBody');
@@ -574,36 +913,111 @@ document.addEventListener('DOMContentLoaded', () => {
         const hiddenN = allRows.length - visibleRows.length;
         const hint = document.getElementById('comparativaFilterHint');
         if (hint) {
-            hint.textContent = soloCambios && hiddenN > 0
-                ? `Ocultas ${hiddenN} filas sin cambio (misma barra y qty). Desmarque «Solo cambios» para verlas.`
-                : (allRows.length ? `${allRows.length} filas en Comparativa.` : '');
+            if (!allRows.length) {
+                hint.textContent = 'Comparativa vacía: el motor no devolvió filas.';
+            } else if (soloCambios && visibleRows.length === 0) {
+                hint.textContent = `Ningún cambio de unidad/barra (${allRows.length} filas ocultas). Desmarque «Solo cambios» para verlas, o revise desvío/amplificador.`;
+            } else if (soloCambios && hiddenN > 0) {
+                hint.textContent = `Mostrando ${visibleRows.length} cambios · ocultas ${hiddenN} sin cambio de barra/qty.`;
+            } else {
+                hint.textContent = `${allRows.length} filas en Comparativa` +
+                    (visibleRows.length !== allRows.length ? ` (${visibleRows.length} visibles).` : '.');
+            }
         }
 
         compBody.innerHTML = '';
         let openJustRow = null;
+
+        if (!visibleRows.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td colspan="7" style="padding:1rem; color:var(--text-secondary); text-align:center;">
+                ${soloCambios && allRows.length
+                    ? 'Sin diferencias de unidad/barra con el filtro «Solo cambios». Desmarque el checkbox arriba para ver todas las filas.'
+                    : 'Sin filas para mostrar.'}
+            </td>`;
+            compBody.appendChild(tr);
+        }
+
         visibleRows.forEach((row, idx) => {
             const tr = document.createElement('tr');
             tr.className = 'comparativa-main-row';
             tr.dataset.justIdx = String(idx);
+            tr.dataset.barra = String(row.barra_propuesto || row.barra_baseline || '');
+            tr.dataset.proveedor = String(row.proveedor || '');
             const resumen = row.justificacion_delta || '';
             const factores = row.justificacion_factores || [];
-            const hover = factorsHoverText(factores) || resumen;
             const hasDetail = factores.length > 0 || !!resumen;
+            const warn = qtyWarnFlags(row);
+            const warnBorder = (warn.overLine || warn.overGrupo)
+                ? 'outline:2px solid #f59e0b; outline-offset:1px; border:1px solid #f59e0b;'
+                : 'border:1px solid var(--border-subtle);';
+            if (warn.overLine || warn.overGrupo) {
+                tr.style.background = 'rgba(245,158,11,0.08)';
+            }
+            const bb = String(row.barra_baseline || '').trim();
+            const bp = String(row.barra_propuesto || '').trim();
+            const isBarraCambio = !!(bb && bp && bb !== bp);
+            if (isBarraCambio) tr.classList.add('is-barra-cambio');
+            const editBadge = row.qty_editado
+                ? ' <span style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.04em; color:#f59e0b; font-weight:700;">editado</span>'
+                : '';
+            const barraCambioBadge = isBarraCambio
+                ? ' <span class="barra-cambio-badge" title="Código distinto vs Pedido Sencillo">barra distinta</span>'
+                : '';
+            const barraPropHtml = isBarraCambio
+                ? `<span class="barra-cambio" title="Sucedáneo / cambio de barra vs Sencillo">${escapeHtml(row.barra_propuesto)}</span>${barraCambioBadge}`
+                : `<span style="font-family:monospace;">${escapeHtml(row.barra_propuesto)}</span>`;
+            const stockTxt = row.stock_oferta != null ? String(row.stock_oferta) : '—';
+            const boTxt = String(Number(row.backorder_qty) || 0);
+            const exTxt = row.existen != null ? String(row.existen) : '—';
+            const hoverTitle = (factorsHoverText(factores) || resumen || '').replace(/[\r\n]+/g, ' · ');
+            const ofertaBase = isBarraCambio ? findOfertaBaseline(row) : null;
+            const baselinePrecioHtml = (ofertaBase && ofertaBase.precio != null)
+                ? `<div style="font-size:0.68rem; color:var(--barra-cambio, #c4783a); margin-top:0.2rem;">precio baseline <strong>$${Number(ofertaBase.precio).toFixed(4)}</strong>${ofertaBase.proveedor ? ` · ${escapeHtml(ofertaBase.proveedor)}` : ''}</div>`
+                : (isBarraCambio
+                    ? `<div style="font-size:0.65rem; color:var(--text-secondary); margin-top:0.2rem;">precio baseline: regenere Generar para ver oferta</div>`
+                    : '');
             tr.innerHTML = `
                 <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_baseline)}</td>
-                <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}</td>
+                <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}${baselinePrecioHtml}</td>
                 <td style="padding:0.5rem; text-align:right;">${row.qty_baseline}</td>
-                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_propuesto)}</td>
+                <td style="padding:0.5rem;">${barraPropHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_propuesto || '')}</td>
-                <td style="padding:0.5rem; text-align:right;">${row.qty_propuesto}</td>
+                <td style="padding:0.5rem; text-align:right; white-space:nowrap;">
+                    <input type="number" min="0" step="1" class="qty-propuesto-input"
+                        value="${Number(row.qty_propuesto) || 0}"
+                        style="width:4.5rem; text-align:right; padding:0.25rem 0.35rem; border-radius:4px; background:rgba(0,0,0,0.25); color:inherit; ${warnBorder}"
+                        title="${warn.overLine || warn.overGrupo ? 'Qty por encima del baseline (informativo)' : 'Editar qty propuesto'}">
+                    ${editBadge}
+                    <div style="font-size:0.68rem; color:var(--text-secondary); margin-top:0.2rem; line-height:1.35; text-align:right;">
+                        stock oferta <strong style="color:var(--text-primary);">${escapeHtml(stockTxt)}</strong>
+                        · BO <strong style="color:var(--text-primary);">${escapeHtml(boTxt)}</strong>
+                        · existen <strong style="color:var(--text-primary);">${escapeHtml(exTxt)}</strong>
+                    </div>
+                </td>
                 <td class="justificacion-cell" style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary); max-width:220px; cursor:${hasDetail ? 'pointer' : 'default'};">
-                    <span class="justificacion-resumen" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-bottom:${hasDetail ? '1px dotted var(--text-secondary)' : 'none'};" title="${escapeHtml(hover)}">${escapeHtml(resumen) || '—'}</span>
+                    <span class="justificacion-resumen" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-bottom:${hasDetail ? '1px dotted var(--text-secondary)' : 'none'};">${escapeHtml(resumen) || '—'}</span>
                 </td>
             `;
+            const justSpan = tr.querySelector('.justificacion-resumen');
+            if (justSpan && hoverTitle) {
+                justSpan.setAttribute('title', hoverTitle);
+            }
+            const qtyInput = tr.querySelector('.qty-propuesto-input');
+            qtyInput.addEventListener('focus', () => openQtyContextoDrawer(row, tr));
+            qtyInput.addEventListener('change', () => onQtyPropuestoEdit(row, qtyInput));
+            qtyInput.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    qtyInput.blur();
+                }
+            });
+
             const detailTr = document.createElement('tr');
             detailTr.className = 'comparativa-detail-row';
             detailTr.style.display = 'none';
-            detailTr.innerHTML = `<td colspan="7" style="background:rgba(0,0,0,0.15); border-bottom:1px solid var(--border-subtle); padding:0;">${renderFactoresAccordion(factores)}</td>`;
+            // Lazy: do not expand rivales/hermanos HTML for every row up-front (kills UI on Agresivo).
+            detailTr.innerHTML = `<td colspan="7" style="background:rgba(0,0,0,0.15); border-bottom:1px solid var(--border-subtle); padding:0.75rem; color:var(--text-secondary); font-size:0.8rem;">Cargando detalle…</td>`;
 
             if (hasDetail) {
                 tr.querySelector('.justificacion-cell').addEventListener('click', (ev) => {
@@ -611,6 +1025,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const opening = detailTr.style.display === 'none';
                     if (openJustRow && openJustRow !== detailTr) {
                         openJustRow.style.display = 'none';
+                    }
+                    if (opening && detailTr.dataset.rendered !== '1') {
+                        detailTr.innerHTML = `<td colspan="7" style="background:rgba(0,0,0,0.15); border-bottom:1px solid var(--border-subtle); padding:0;">${renderFactoresAccordion(factores)}</td>`;
+                        detailTr.dataset.rendered = '1';
                     }
                     detailTr.style.display = opening ? 'table-row' : 'none';
                     openJustRow = opening ? detailTr : null;
@@ -622,28 +1040,79 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         propBody.innerHTML = '';
+        const thPrecio = document.querySelector('#propuestoTableBody')?.closest('table')?.querySelector('thead th:nth-child(4)');
+        if (thPrecio) thPrecio.textContent = `Precio (${moneyUnitLabel()})`;
+        const thTotal = document.querySelector('#propuestoTableBody')?.closest('table')?.querySelector('thead th:nth-child(6)');
+        if (thTotal) thTotal.textContent = `Total (${moneyUnitLabel()})`;
+
         (data.pedido_propuesto || []).forEach(line => {
+            const qty = Number(line.cantidad) || 0;
+            const pxUsd = line.precio != null ? Number(line.precio) : null;
+            const totalUsd = pxUsd != null ? pxUsd * qty : null;
+            const barra = String(line.barra || '');
+            const isBarraCambio = (data.comparativa_cantidades || []).some(r => {
+                const bb = String(r.barra_baseline || '').trim();
+                const bp = String(r.barra_propuesto || '').trim();
+                return bb && bp && bb !== bp && bp === barra.trim();
+            });
+            const barraHtml = isBarraCambio
+                ? `<span class="barra-cambio" title="Esta barra sustituye a otra del Pedido Sencillo">${escapeHtml(barra)}</span>`
+                : escapeHtml(barra);
             const tr = document.createElement('tr');
+            if (isBarraCambio) tr.classList.add('is-barra-cambio');
             tr.innerHTML = `
-                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(line.barra)}</td>
+                <td style="padding:0.5rem;">${barraHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(line.descripcion || '')}</td>
                 <td style="padding:0.5rem; font-weight:600;">${escapeHtml(line.proveedor || '')}</td>
-                <td style="padding:0.5rem; text-align:right;">${line.cantidad}</td>
+                <td style="padding:0.5rem; text-align:right; font-variant-numeric:tabular-nums;">${moneyDisplay(pxUsd, { digits: 4 })}</td>
+                <td style="padding:0.5rem; text-align:right;">${qty}</td>
+                <td style="padding:0.5rem; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${moneyDisplay(totalUsd)}</td>
             `;
             propBody.appendChild(tr);
         });
 
         section.style.display = 'block';
         setConfigCollapsed(true);
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (keepDrawerRow) {
+            const kBarra = String(keepDrawerRow.barra_propuesto || keepDrawerRow.barra_baseline || '');
+            const kProv = String(keepDrawerRow.proveedor || '');
+            const matchTr = Array.from(
+                compBody.querySelectorAll('tr.comparativa-main-row')
+            ).find(el =>
+                String(el.dataset.barra || '') === kBarra
+                && String(el.dataset.proveedor || '') === kProv
+            );
+            openQtyContextoDrawer(keepDrawerRow, matchTr || null);
+            if (matchTr) {
+                const inp = matchTr.querySelector('.qty-propuesto-input');
+                if (inp && document.activeElement !== inp) {
+                    // Restore focus after re-render without scrolling page
+                    try { inp.focus({ preventScroll: true }); } catch (_) { inp.focus(); }
+                }
+            }
+        } else if (!scroll) {
+            // keep drawer as-is on silent re-render without keepDrawerRow
+        } else {
+            closeQtyContextoDrawer();
+        }
+        if (scroll) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     document.getElementById('comparativaSoloCambios')?.addEventListener('change', () => {
-        if (lastGenerarResult) renderGenerarResult(lastGenerarResult);
+        if (lastGenerarResult) renderGenerarResult(lastGenerarResult, { scroll: false });
     });
 
     function stashGenerarResult(data, { resetVm = true } = {}) {
+        applyPendingOverrides(data);
         lastGenerarResult = data;
+        window.lastGenerarResult = data;
+        window.stashGenerarResult = stashGenerarResult;
+        if (data && data.meta) {
+            if (data.meta.moneda_trabajo) fxState.moneda_trabajo = String(data.meta.moneda_trabajo).toUpperCase();
+            if (data.meta.dolarbcv != null) fxState.dolarbcv = Number(data.meta.dolarbcv);
+        }
         if (resetVm) {
             vmIntentosRecalc = {};
             vmActivoProveedor = null;
@@ -662,11 +1131,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const vm = (data.meta && data.meta.validar_minimos) || {};
         vmIntentosRecalc = vm.intentos_recalc || vmIntentosRecalc;
         vmActivoProveedor = vm.activo || null;
-        renderGenerarResult(lastGenerarResult);
+        renderGenerarResult(lastGenerarResult, { scroll: false });
         renderValidarMinimosUI(vm);
         if (vm.requiere_panel_antes_recalc) {
             vmPanelAck = true;
         }
+        // Stay on Validar mínimos panel (do not jump to Comparativa top).
+        const vmSection = document.getElementById('validarMinimosSection');
+        if (vmSection) {
+            vmSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    function scrollToPedidoBarra(barra) {
+        const b = String(barra || '').trim();
+        if (!b) return;
+        const el = document.querySelector(`#propuestoTableBody tr[data-barra="${b.replace(/"/g, '')}"]`)
+            || document.querySelector(`#comparativaTableBody tr[data-barra="${b.replace(/"/g, '')}"]`);
+        if (!el) {
+            showAlert(`No encontré la línea ${b} en el pedido visible.`, false);
+            return;
+        }
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.outline = '2px solid var(--primary-accent)';
+        setTimeout(() => { el.style.outline = ''; }, 2200);
     }
 
     function renderValidarMinimosUI(vm) {
@@ -681,47 +1169,129 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function panelHtml(p) {
             if (!p) return '';
-            const idLabel = p.proveedor_id != null ? `#${p.proveedor_id} ` : '';
             const name = p.nombre_corto || p.proveedor;
             const aliases = (p.aliases || []).length
                 ? ` <span style="color:var(--text-secondary);font-size:0.8em;">[${(p.aliases || []).join(', ')}]</span>`
                 : '';
-            const reps = (p.reemplazos || []).slice(0, 8).map(r =>
-                `${r.barra_actual}→${r.proveedor_alt}/${r.barra_alternativa} (ahorro línea $${r.ahorro_usd})`
-            ).join('<br>');
-            const huerf = (p.huerfanos_si_rechaza || []).map(h => h.barra).join(', ') || 'ninguno';
             const deficit = Number(p.deficit_usd || 0);
             const okBadge = deficit <= 0
                 ? ' <span style="color:#10b981;font-weight:600;">(cumple mínimo)</span>'
                 : '';
+
+            const rows = [];
+            (p.reemplazos || []).forEach(r => {
+                const unreliable = !!(r.precio_actual_missing || r.precio_actual_invalido || r.ahorro_usd == null);
+                const checked = r.redistribuible_default !== false && !unreliable;
+                const desc = r.descripcion_actual || r.descripcion_alt || '';
+                const dest = `${r.proveedor_alt}/${r.barra_alternativa}`;
+                let deltaCell = '—';
+                if (!unreliable) {
+                    const delta = Number(r.ahorro_usd);
+                    const sign = delta >= 0 ? '+' : '';
+                    deltaCell = `${sign}${moneyDisplay(delta)}`;
+                    if (r.delta_pct != null) {
+                        const pct = Number(r.delta_pct);
+                        deltaCell += ` (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+                    }
+                } else {
+                    deltaCell = '⚠ no confiable';
+                }
+                rows.push({
+                    barra: r.barra_actual,
+                    desc,
+                    dest: `${r.proveedor_actual || p.proveedor} → ${dest}`,
+                    deltaCell,
+                    checked,
+                    kind: 'reemplazo',
+                    disabled: false,
+                });
+            });
+            (p.huerfanos_si_rechaza || []).forEach(h => {
+                rows.push({
+                    barra: h.barra,
+                    desc: h.descripcion || '',
+                    dest: 'sin 2º (huérfano si se saca del lab)',
+                    deltaCell: '—',
+                    checked: false,
+                    kind: 'huerfano',
+                    disabled: false,
+                });
+            });
+
+            const tableRows = rows.map(row => `
+                <tr>
+                  <td style="padding:0.35rem 0.4rem; vertical-align:top;">
+                    <input type="checkbox" class="vm-redis-cb" data-barra="${escapeHtml(row.barra)}"
+                      ${row.checked ? 'checked' : ''} ${row.disabled ? 'disabled' : ''}
+                      title="${row.kind === 'huerfano' ? 'Si marca: saca del lab → huérfano' : 'Si marca: mueve al 2º'}">
+                  </td>
+                  <td style="padding:0.35rem 0.4rem;">
+                    <a href="#" class="vm-jump-barra" data-barra="${escapeHtml(row.barra)}"
+                       style="color:var(--text-primary); text-decoration:underline; text-underline-offset:2px;">
+                      ${escapeHtml(row.desc || '(sin descripción)')}
+                    </a>
+                    <div style="font-family:monospace; font-size:0.72rem; color:var(--text-secondary);">${escapeHtml(row.barra)}</div>
+                  </td>
+                  <td style="padding:0.35rem 0.4rem; font-size:0.8rem;">${escapeHtml(row.dest)}</td>
+                  <td style="padding:0.35rem 0.4rem; text-align:right; white-space:nowrap;">${row.deltaCell}</td>
+                </tr>`).join('');
+
             return `
-                <div><strong>Activo:</strong> ${idLabel}${name} <code>${p.proveedor}</code>${aliases} — total <strong>$${p.total_usd}</strong>, mín $${p.minimo_usd}, déficit <strong>$${p.deficit_usd}</strong>${okBadge}</div>
-                <div><strong>Ahorro vs 2º (barra→Grupo):</strong> $${p.ahorro_vs_segundo_usd}</div>
-                <div style="margin-top:0.4rem;"><strong>Reemplazos:</strong><br>${reps || '—'}</div>
-                <div style="margin-top:0.4rem;"><strong>Huérfanos si rechaza:</strong> ${huerf}</div>
+                <div style="margin-bottom:0.5rem;">
+                  <strong>En turno:</strong> ${escapeHtml(name)} <code>${escapeHtml(p.proveedor)}</code>${aliases}
+                  — total <strong>${moneyDisplay(p.total_usd)}</strong>, mín ${moneyDisplay(p.minimo_usd)},
+                  déficit <strong>${moneyDisplay(p.deficit_usd)}</strong>${okBadge}
+                </div>
+                <div style="margin-bottom:0.5rem; font-size:0.85rem;">
+                  <strong>Δ si mueve todo lo confiable:</strong> ${moneyDisplay(p.ahorro_vs_segundo_usd)}
+                  <span style="color:var(--text-secondary);">(solo líneas con precio OK; motor USD)</span>
+                </div>
+                <div style="overflow:auto; max-height:320px; border:1px solid var(--border-subtle);">
+                  <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                    <thead style="position:sticky; top:0; background:var(--bg-surface);">
+                      <tr>
+                        <th style="padding:0.4rem; text-align:left; width:2rem;">Mover</th>
+                        <th style="padding:0.4rem; text-align:left;">Descripción</th>
+                        <th style="padding:0.4rem; text-align:left;">Destino</th>
+                        <th style="padding:0.4rem; text-align:right;">Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody>${tableRows || '<tr><td colspan="4" style="padding:0.75rem;">Sin líneas de este lab.</td></tr>'}</tbody>
+                  </table>
+                </div>
+                <p style="margin:0.5rem 0 0; font-size:0.75rem; color:var(--text-secondary);">
+                  Marcadas = van al 2º (o huérfano). Sin marcar = se quedan con <strong>${escapeHtml(name)}</strong> (submínimo parcial).
+                  Clic en la descripción para ir a la línea del pedido.
+                </p>
             `;
         }
 
         if (!cola.length) {
             colaEl.innerHTML = '<strong style="color:#10b981;">Todos los proveedores cumplen el mínimo (o no tienen mínimo configurado).</strong>';
             detEl.innerHTML = panelHtml(p);
-            if (hint) hint.textContent = p
-                ? 'Montos actualizados tras la última acción.'
-                : '';
+            if (hint) hint.textContent = p ? 'Montos actualizados tras la última acción.' : '';
             return;
         }
         colaEl.innerHTML = '<strong>Cola (mayor déficit primero):</strong><ul style="margin:0.4rem 0 0 1.2rem;">' +
-            cola.map(d => {
-                const id = d.proveedor_id != null ? `#${d.proveedor_id} ` : '';
+            cola.map((d, i) => {
                 const label = d.nombre_corto || d.proveedor;
-                return `<li>${id}<strong>${label}</strong> <code>${d.proveedor}</code> total $${d.total_usd} / mín $${d.minimo_usd} (déficit $${d.deficit_usd})</li>`;
+                const enTurno = i === 0 ? ' <span style="color:var(--primary-accent);font-weight:600;">← en turno</span>' : '';
+                return `<li><strong>${escapeHtml(label)}</strong> <code>${escapeHtml(d.proveedor)}</code>
+                  total ${moneyDisplay(d.total_usd)} / mín ${moneyDisplay(d.minimo_usd)}
+                  (déficit ${moneyDisplay(d.deficit_usd)})${enTurno}</li>`;
             }).join('') +
             '</ul>';
         detEl.innerHTML = panelHtml(p);
+        detEl.querySelectorAll('.vm-jump-barra').forEach(a => {
+            a.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                scrollToPedidoBarra(a.getAttribute('data-barra'));
+            });
+        });
         if (hint) {
             hint.textContent = vm.requiere_panel_antes_recalc
-                ? 'Tras el 1er recálculo debe revisar el panel (costo de rechazo / reemplazos) antes de otro %. Pulse Recalcular de nuevo para confirmar (panel_ack).'
-                : 'Sugerencia: +50% cobertura solo en SKUs de este proveedor. Puede aceptar submínimo o rechazar.';
+                ? 'Tras el 1er recálculo revise la tabla (confiables marcados por defecto) antes de otro %. Pulse Recalcular de nuevo para confirmar.'
+                : 'Marque qué líneas redistribuir. «Aceptar submínimo» = quedarse con el lab. «Aplicar redistribución» = mover solo las marcadas.';
         }
         if (vm.requiere_panel_antes_recalc) {
             vmPanelAck = true;
@@ -745,6 +1315,9 @@ document.addEventListener('DOMContentLoaded', () => {
             pct_extra: Number(document.getElementById('vmPctExtra')?.value || 50),
             panel_ack: !!extra.panel_ack || (action === 'recalcular' && vmPanelAck),
         };
+        if (extra.barras_redistribuir !== undefined) {
+            payload.barras_redistribuir = extra.barras_redistribuir;
+        }
         const response = await fetch('/api/pedidos/validar-minimos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -760,8 +1333,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (action === 'evaluar' && !(vm.cola || []).length) {
             showAlert('Sin proveedores bajo mínimo.', true);
         } else if (action === 'recalcular' && vm.requiere_panel_antes_recalc && (lastGenerarResult.pedido_propuesto || []).length) {
-            // if qty unchanged because ack required first time — message already in hint
             showAlert(`Validar mínimos: revise panel de ${vm.activo || ''}.`, true);
+        } else if (action === 'redistribuir') {
+            showAlert(`Redistribución aplicada (${(extra.barras_redistribuir || []).length} líneas). Cola: ${(vm.cola || []).length}`, true);
         } else {
             showAlert(`Validar mínimos (${action}) — cola: ${(vm.cola || []).length}`, true);
         }
@@ -788,9 +1362,18 @@ document.addEventListener('DOMContentLoaded', () => {
             showAlert(e.message, false);
         }
     });
-    document.getElementById('btnVmRechazar')?.addEventListener('click', async () => {
+    document.getElementById('btnVmRedistribuir')?.addEventListener('click', async () => {
         try {
-            await callValidarMinimos('rechazar');
+            const cbs = [...document.querySelectorAll('.vm-redis-cb:checked')];
+            const barras = cbs.map(cb => cb.getAttribute('data-barra')).filter(Boolean);
+            if (!barras.length) {
+                showAlert('No hay líneas marcadas. Marque qué redistribuir, o use «Aceptar submínimo».', false);
+                return;
+            }
+            if (!confirm(`¿Mover ${barras.length} línea(s) al 2º proveedor (o huérfano)?\nLas no marcadas se quedan con el lab actual.`)) {
+                return;
+            }
+            await callValidarMinimos('redistribuir', { barras_redistribuir: barras });
         } catch (e) {
             showAlert(e.message, false);
         }
@@ -1125,6 +1708,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showAlert("Primero ejecute Generar (Sencillo) para ver la Comparativa.", false);
                 return;
             }
+            promptOverridesBeforeGenerar();
             btnRegenerarDefinitivo.disabled = true;
             const original = btnRegenerarDefinitivo.innerHTML;
             btnRegenerarDefinitivo.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Regenerando Definitivo...';
@@ -1220,6 +1804,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const btnEnviarPedido = document.getElementById('btnEnviarPedido');
+    if (btnEnviarPedido) {
+        btnEnviarPedido.addEventListener('click', async () => {
+            if (window.__bandejaMode && window.__bandejaMode.propuesta_id) {
+                try {
+                    const id = window.__bandejaMode.propuesta_id;
+                    const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
+                    const comparativa = (lastGenerarResult && lastGenerarResult.comparativa_cantidades) || [];
+                    await fetch(`/api/pedidos/bandeja/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            pedido_propuesto: propuesto,
+                            comparativa_cantidades: comparativa,
+                        }),
+                    });
+                    const r = await fetch(`/api/pedidos/bandeja/${id}/enviar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            revision: window.__bandejaMode.revision,
+                            snapshot_hash: window.__bandejaMode.snapshot_hash,
+                        }),
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (!r.ok) {
+                        const d = data.detail;
+                        if (d && d.error === 'requiere_analizar') {
+                            showAlert(d.message || 'Hay desvíos: revise Comparativa.', false);
+                            return;
+                        }
+                        throw new Error(typeof d === 'string' ? d : 'Error al enviar');
+                    }
+                    showAlert(data.aviso || `Enviando #${id}`, true);
+                    if (typeof window.refreshBandejaBadges === 'function') window.refreshBandejaBadges();
+                } catch (err) {
+                    showAlert(err.message || String(err), false);
+                }
+                return;
+            }
+            showAlert(
+                'Enviar pedido (FTP/Telegram): abra Bandeja de pedidos o cargue una propuesta con Analizar. Spec ADR-0029/0030.',
+                false
+            );
+        });
+    }
+
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1245,6 +1876,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            promptOverridesBeforeGenerar();
+
             try {
                 const response = await fetch('/api/pedidos/generar-sencillo', {
                     method: 'POST',
@@ -1260,7 +1893,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 setDefinitivoReadyForBorrador(false);
                 const nComp = (data.comparativa_cantidades || []).length;
                 const nProp = (data.pedido_propuesto || []).length;
-                showAlert(`Generar Sencillo listo: ${nComp} filas Comparativa, ${nProp} líneas Propuesto (${data.meta?.preset || ''}).`, true);
+                const nChg = (data.comparativa_cantidades || []).filter(r =>
+                    !isComparativaIdentityRow(r)
+                ).length;
+                showAlert(
+                    `Generar Sencillo listo: ${nComp} filas Comparativa (${nChg} con cambio unidad/barra), ${nProp} líneas Propuesto (${data.meta?.preset || ''}).`,
+                    true
+                );
             } catch (error) {
                 showAlert(error.message, false);
             } finally {
@@ -1416,4 +2055,102 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedFiles = [];
         renderFileList();
     }
+
+    // --- Moneda trabajo + MonedaOferta por lab ---
+    async function loadMonedaConfig() {
+        const sel = document.getElementById('monedaTrabajo');
+        const bcvEl = document.getElementById('dolarbcvLabel');
+        const table = document.getElementById('proveedorMonedaTable');
+        try {
+            const resp = await fetch('/api/pedidos/moneda-config');
+            if (!resp.ok) throw new Error('No se pudo cargar moneda-config');
+            const data = await resp.json();
+            fxState.moneda_trabajo = (data.moneda_trabajo || 'USD').toUpperCase();
+            fxState.dolarbcv = data.dolarbcv != null ? Number(data.dolarbcv) : null;
+            if (sel) sel.value = fxState.moneda_trabajo === 'VES' ? 'VES' : 'USD';
+            if (bcvEl) {
+                bcvEl.textContent = fxState.dolarbcv
+                    ? Number(fxState.dolarbcv).toLocaleString('es-VE', { maximumFractionDigits: 4 })
+                    : 'n/d';
+            }
+            if (table) {
+                const rows = (data.proveedores || []).map(p => {
+                    const mon = (p.moneda_oferta || 'USD').toUpperCase();
+                    return `<tr>
+                        <td style="padding:0.35rem 0.5rem;">${escapeHtml(p.nombre_corto || p.cod_prov)}</td>
+                        <td style="padding:0.35rem 0.5rem; font-family:monospace; font-size:0.75rem;">${escapeHtml(p.cod_prov)}</td>
+                        <td style="padding:0.35rem 0.5rem;">
+                          <select data-prov-id="${p.proveedor_id}" class="prov-moneda-sel form-control" style="height:32px; font-size:0.8rem;">
+                            <option value="USD" ${mon === 'USD' ? 'selected' : ''}>USD</option>
+                            <option value="VES" ${mon === 'VES' ? 'selected' : ''}>VES (Bs)</option>
+                          </select>
+                        </td>
+                      </tr>`;
+                }).join('');
+                table.innerHTML = `
+                  <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr>
+                      <th style="text-align:left; padding:0.35rem 0.5rem;">Lab</th>
+                      <th style="text-align:left; padding:0.35rem 0.5rem;">CodProv</th>
+                      <th style="text-align:left; padding:0.35rem 0.5rem;">Oferta en</th>
+                    </tr></thead>
+                    <tbody>${rows || '<tr><td colspan="3" style="padding:0.5rem;">Sin proveedores</td></tr>'}</tbody>
+                  </table>`;
+                table.querySelectorAll('.prov-moneda-sel').forEach(s => {
+                    s.addEventListener('change', async () => {
+                        const id = s.getAttribute('data-prov-id');
+                        try {
+                            const r = await fetch(`/api/pedidos/moneda-config/proveedor/${id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ moneda_oferta: s.value }),
+                            });
+                            if (!r.ok) {
+                                const err = await r.json().catch(() => ({}));
+                                throw new Error(err.detail || 'Error al guardar');
+                            }
+                            showAlert(`Moneda oferta actualizada (${s.value}).`, true);
+                        } catch (e) {
+                            showAlert(e.message, false);
+                        }
+                    });
+                });
+            }
+        } catch (e) {
+            if (bcvEl) bcvEl.textContent = 'error';
+            console.warn(e);
+        }
+    }
+
+    document.getElementById('monedaTrabajo')?.addEventListener('change', async (ev) => {
+        const val = ev.target.value;
+        try {
+            const r = await fetch('/api/pedidos/moneda-config/trabajo', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ moneda_trabajo: val }),
+            });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                throw new Error(err.detail || 'Error al guardar');
+            }
+            const data = await r.json();
+            fxState.moneda_trabajo = (data.moneda_trabajo || val).toUpperCase();
+            if (data.dolarbcv != null) fxState.dolarbcv = Number(data.dolarbcv);
+            if (lastGenerarResult) {
+                lastGenerarResult.meta = { ...(lastGenerarResult.meta || {}), ...fxState };
+                renderGenerarResult(lastGenerarResult, { scroll: false });
+            }
+            showAlert(
+                fxState.moneda_trabajo === 'VES'
+                    ? 'Pantalla en bolívares (desvío sigue en USD; Δ reconvertido con BCV).'
+                    : 'Pantalla en dólares.',
+                true
+            );
+        } catch (e) {
+            showAlert(e.message, false);
+        }
+    });
+
+    loadMonedaConfig();
 });

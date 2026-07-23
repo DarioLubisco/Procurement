@@ -172,6 +172,23 @@ async def generar_sencillo(body: GenerarSencilloRequest):
         load_ms=load_ms,
         data_source=data_source,
     )
+    try:
+        import database
+        try:
+            from backend.services.pedido_app_config import fx_meta
+        except ImportError:
+            from services.pedido_app_config import fx_meta  # type: ignore
+
+        conn = database.get_db_connection()
+        try:
+            payload.setdefault("meta", {}).update(fx_meta(conn))
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    except Exception as exc:
+        logging.warning("fx_meta attach skipped: %s", exc)
     return JSONResponse(payload)
 
 
@@ -245,4 +262,21 @@ async def regenerar_definitivo(body: RegenerarDefinitivoRequest):
         load_ms=load_ms,
         data_source=data_source,
     )
+    try:
+        import database
+        try:
+            from backend.services.pedido_app_config import fx_meta
+        except ImportError:
+            from services.pedido_app_config import fx_meta  # type: ignore
+
+        conn = database.get_db_connection()
+        try:
+            payload.setdefault("meta", {}).update(fx_meta(conn))
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    except Exception as exc:
+        logging.warning("fx_meta attach skipped: %s", exc)
     return JSONResponse(payload)

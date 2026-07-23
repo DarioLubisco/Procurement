@@ -90,6 +90,10 @@ from routers.validar_minimos import router as validar_minimos_router
 app.include_router(validar_minimos_router)
 from routers.guardar_borrador import router as guardar_borrador_router
 app.include_router(guardar_borrador_router)
+from routers.bandeja import router as bandeja_router
+app.include_router(bandeja_router)
+from routers.pedido_moneda import router as pedido_moneda_router
+app.include_router(pedido_moneda_router)
 from routers.pedido_presets import router as pedido_presets_router
 app.include_router(pedido_presets_router)
 app.include_router(inventario_router)
