@@ -378,6 +378,38 @@
       box-shadow: 0 0 0 2px rgba(139, 58, 74, 0.45);
     }
 
+    /* ADR-0030 / PDF: misma barra distinta vs Sencillo (sucedáneo) */
+    :root {
+      --barra-cambio: #c4783a;
+      --barra-cambio-fg: #d4a574;
+      --barra-cambio-bg: rgba(196, 120, 58, 0.22);
+    }
+    .comparativa-main-row.is-barra-cambio {
+      box-shadow: inset 3px 0 0 var(--barra-cambio);
+      background: rgba(196, 120, 58, 0.06);
+    }
+    .barra-cambio {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 700;
+      color: var(--barra-cambio-fg);
+      background: var(--barra-cambio-bg);
+      border: 1px solid var(--barra-cambio);
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      letter-spacing: 0.02em;
+    }
+    .barra-cambio-badge {
+      display: inline-block;
+      margin-left: 0.35rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--barra-cambio);
+      vertical-align: middle;
+    }
+
     #categoriesModal .modal-content {
       max-width: 640px;
       width: 92%;
@@ -873,7 +905,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js?v=20260723-bandeja"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260723-recover-pdr"></script>
+<script src="js/app_pedidos.js?v=20260723-barra-cambio"></script>
 <script src="js/bandeja_pedidos.js?v=20260723-pdf-tg"></script>
 
 <script>

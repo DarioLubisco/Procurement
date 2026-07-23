@@ -898,9 +898,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warn.overLine || warn.overGrupo) {
                 tr.style.background = 'rgba(245,158,11,0.08)';
             }
+            const bb = String(row.barra_baseline || '').trim();
+            const bp = String(row.barra_propuesto || '').trim();
+            const isBarraCambio = !!(bb && bp && bb !== bp);
+            if (isBarraCambio) tr.classList.add('is-barra-cambio');
             const editBadge = row.qty_editado
                 ? ' <span style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.04em; color:#f59e0b; font-weight:700;">editado</span>'
                 : '';
+            const barraCambioBadge = isBarraCambio
+                ? ' <span class="barra-cambio-badge" title="Código distinto vs Pedido Sencillo">barra distinta</span>'
+                : '';
+            const barraPropHtml = isBarraCambio
+                ? `<span class="barra-cambio" title="Sucedáneo / cambio de barra vs Sencillo">${escapeHtml(row.barra_propuesto)}</span>${barraCambioBadge}`
+                : `<span style="font-family:monospace;">${escapeHtml(row.barra_propuesto)}</span>`;
             const stockTxt = row.stock_oferta != null ? String(row.stock_oferta) : '—';
             const boTxt = String(Number(row.backorder_qty) || 0);
             const exTxt = row.existen != null ? String(row.existen) : '—';
@@ -909,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_baseline)}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}</td>
                 <td style="padding:0.5rem; text-align:right;">${row.qty_baseline}</td>
-                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_propuesto)}</td>
+                <td style="padding:0.5rem;">${barraPropHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_propuesto || '')}</td>
                 <td style="padding:0.5rem; text-align:right; white-space:nowrap;">
                     <input type="number" min="0" step="1" class="qty-propuesto-input"
@@ -977,10 +987,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const qty = Number(line.cantidad) || 0;
             const pxUsd = line.precio != null ? Number(line.precio) : null;
             const totalUsd = pxUsd != null ? pxUsd * qty : null;
+            const barra = String(line.barra || '');
+            const isBarraCambio = (data.comparativa_cantidades || []).some(r => {
+                const bb = String(r.barra_baseline || '').trim();
+                const bp = String(r.barra_propuesto || '').trim();
+                return bb && bp && bb !== bp && bp === barra.trim();
+            });
+            const barraHtml = isBarraCambio
+                ? `<span class="barra-cambio" title="Esta barra sustituye a otra del Pedido Sencillo">${escapeHtml(barra)}</span>`
+                : escapeHtml(barra);
             const tr = document.createElement('tr');
-            tr.dataset.barra = String(line.barra || '');
+            if (isBarraCambio) tr.classList.add('is-barra-cambio');
             tr.innerHTML = `
-                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(line.barra)}</td>
+                <td style="padding:0.5rem;">${barraHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(line.descripcion || '')}</td>
                 <td style="padding:0.5rem; font-weight:600;">${escapeHtml(line.proveedor || '')}</td>
                 <td style="padding:0.5rem; text-align:right; font-variant-numeric:tabular-nums;">${moneyDisplay(pxUsd, { digits: 4 })}</td>
