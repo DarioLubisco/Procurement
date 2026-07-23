@@ -41,38 +41,50 @@ def _load_credentials_file() -> None:
 
 def get_telegram_config() -> Tuple[str, str]:
     """
-    Bot + chat for pedidos administrativos (ADR-0029 AMC_Administrativo).
+    Bot + chat for pedidos (ADR-0029 → AMC_Administrativo).
 
-    Priority:
-      1. PEDIDOS_TELEGRAM_BOT + PEDIDOS_TELEGRAM_CHAT_ID / AMC_ADMINISTRATIVO_CHAT_ID
-      2. TELEGRAM_AMC_NOTIFICACION_BOT + ERROR_CHAT_ID (reachable today)
-      3. TELEGRAM_AMC_ADMIN_BOT + chat (only if PEDIDOS_USE_ADMIN_BOT=1)
+    Priority (bot):
+      1. PEDIDOS_TELEGRAM_BOT
+      2. TELEGRAM_AMC_ADMIN_BOT  (@AMC_Administrativo_bot)
+    Priority (chat):
+      1. PEDIDOS_TELEGRAM_CHAT_ID
+      2. AMC_ADMINISTRATIVO_CHAT_ID  (grupo Gestión Administrativa)
+    Escape hatch only if PEDIDOS_TELEGRAM_FALLBACK_NOTIFICACION=1:
+      TELEGRAM_AMC_NOTIFICACION_BOT + ERROR_CHAT_ID (alertas sistema; no pedidos).
     """
     _load_credentials_file()
-    chat = (
-        os.getenv("PEDIDOS_TELEGRAM_CHAT_ID")
-        or os.getenv("AMC_ADMINISTRATIVO_CHAT_ID")
-        or os.getenv("ERROR_CHAT_ID")
-        or os.getenv("TELEGRAM_CHAT_ID")
-        or ""
-    ).strip()
-    if os.getenv("PEDIDOS_USE_ADMIN_BOT", "").strip() in ("1", "true", "yes"):
+    use_notif_fallback = os.getenv(
+        "PEDIDOS_TELEGRAM_FALLBACK_NOTIFICACION", ""
+    ).strip().lower() in ("1", "true", "yes")
+
+    if use_notif_fallback:
         token = (
             os.getenv("PEDIDOS_TELEGRAM_BOT")
-            or os.getenv("TELEGRAM_AMC_ADMIN_BOT")
+            or os.getenv("TELEGRAM_AMC_NOTIFICACION_BOT")
+            or ""
+        ).strip()
+        chat = (
+            os.getenv("PEDIDOS_TELEGRAM_CHAT_ID")
+            or os.getenv("ERROR_CHAT_ID")
             or ""
         ).strip()
     else:
         token = (
             os.getenv("PEDIDOS_TELEGRAM_BOT")
-            or os.getenv("TELEGRAM_AMC_NOTIFICACION_BOT")
-            or os.getenv("TELEGRAM_TOKEN")
             or os.getenv("TELEGRAM_AMC_ADMIN_BOT")
             or ""
         ).strip()
+        chat = (
+            os.getenv("PEDIDOS_TELEGRAM_CHAT_ID")
+            or os.getenv("AMC_ADMINISTRATIVO_CHAT_ID")
+            or ""
+        ).strip()
+
     if not token or not chat:
         raise RuntimeError(
-            "Telegram no configurado (PEDIDOS_TELEGRAM_* o TELEGRAM_AMC_NOTIFICACION_BOT + ERROR_CHAT_ID)"
+            "Telegram pedidos no configurado: hace falta "
+            "TELEGRAM_AMC_ADMIN_BOT + AMC_ADMINISTRATIVO_CHAT_ID "
+            "(o PEDIDOS_TELEGRAM_BOT + PEDIDOS_TELEGRAM_CHAT_ID)"
         )
     return token, chat
 
