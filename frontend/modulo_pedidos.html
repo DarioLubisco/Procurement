@@ -86,6 +86,41 @@
       margin: 0;
     }
 
+    .batch-results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.65rem;
+    }
+
+    .batch-results-col {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 0.75rem 0.85rem;
+      background: rgba(0, 0, 0, 0.14);
+      cursor: default;
+    }
+
+    .batch-results-col .batch-col-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.35rem;
+      color: var(--text-primary);
+    }
+
+    .batch-results-col .batch-col-total {
+      font-size: 1.05rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary);
+    }
+
+    .batch-results-col .batch-col-meta {
+      margin-top: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+    }
+
     #generateForm.config-form-compact .input-group label,
     #generateForm.config-form-compact .cfg-label {
       font-size: 0.7rem;
@@ -623,6 +658,37 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="cfg-block">
+                    <p class="cfg-block-title">Perfiles a generar <span style="font-weight:400; text-transform:none; letter-spacing:0;">(hasta 3 · fábrica o custom)</span></p>
+                    <div class="cfg-row cfg-row-primary">
+                        <div class="input-group">
+                            <label for="batchPerfilSlot1">Perfil 1</label>
+                            <select id="batchPerfilSlot1" class="form-control batch-perfil-slot" data-slot="1">
+                                <option value="factory:Conservador" selected>Conservador</option>
+                                <option value="factory:Normal">Normal</option>
+                                <option value="factory:Agresivo">Agresivo</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="batchPerfilSlot2">Perfil 2</label>
+                            <select id="batchPerfilSlot2" class="form-control batch-perfil-slot" data-slot="2">
+                                <option value="factory:Conservador">Conservador</option>
+                                <option value="factory:Normal" selected>Normal</option>
+                                <option value="factory:Agresivo">Agresivo</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="batchPerfilSlot3">Perfil 3</label>
+                            <select id="batchPerfilSlot3" class="form-control batch-perfil-slot" data-slot="3">
+                                <option value="factory:Conservador">Conservador</option>
+                                <option value="factory:Normal">Normal</option>
+                                <option value="factory:Agresivo" selected>Agresivo</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="cfg-row-inline">
                     <span class="cfg-label" style="margin:0;">Incluir</span>
                     <label class="cfg-check" for="includeGenerics">
@@ -666,7 +732,7 @@
                 </details>
 
                 <button type="submit" id="submitBtn" class="btn btn-primary btn-generar-compact">
-                    <i class="fas fa-bolt"></i> <span id="btnText">Generar (Sencillo)</span>
+                    <i class="fas fa-bolt"></i> <span id="btnText">Generar</span>
                 </button>
 
             </form>
@@ -674,6 +740,15 @@
         </section>
 
             <div id="alertBox" class="alert" style="display:none; margin-top: 0; padding: 1rem; border-radius: var(--radius-lg);"></div>
+
+            <!-- Generación única: grilla de perfiles (ticket 06) -->
+            <div id="batchResultsSection" class="section-card" style="display:none;">
+                <h3 style="margin:0 0 0.35rem 0;"><i class="fas fa-th"></i> Resultados por perfil</h3>
+                <p id="batchResultsHint" style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.75rem 0;">
+                    Totales vs PedidoBaseline · formato <code>N (Δ −86)</code>. Sin top proveedor ni Δ variables.
+                </p>
+                <div id="batchResultsGrid" class="batch-results-grid" role="list"></div>
+            </div>
 
             <!-- Comparativa + Propuesto (salida primaria) -->
             <div id="generarResultSection" class="section-card" style="display: none;">
@@ -923,7 +998,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js?v=20260723-bandeja"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260723-precio-baseline"></script>
+<script src="js/app_pedidos.js?v=20260726-generacion-unica-batch"></script>
 <script src="js/bandeja_pedidos.js?v=20260723-pdf-tg"></script>
 
 <script>

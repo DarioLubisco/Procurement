@@ -16,7 +16,7 @@ def test_fe_has_sencillo_controls_and_comparativa_tables():
     assert 'id="propuestoTableBody"' in HTML
     assert "Justificación" in HTML
     assert "Proveedor" in HTML
-    assert "Generar (Sencillo)" in HTML
+    assert 'id="btnText">Generar</span>' in HTML or ">Generar<" in HTML
     assert 'id="categoriesBar"' in HTML or 'id="btnEditCategories"' in HTML
     assert 'id="categoriesModal"' in HTML
     assert 'id="configBody"' in HTML

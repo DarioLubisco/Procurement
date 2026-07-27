@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let categoryMap = {};
     let categoryTree = [];
     let lastGenerarResult = null;
+    let lastBatchResult = null;
+    let activeBatchPerfilId = null;
     let vmIntentosRecalc = {};
     let vmActivoProveedor = null;
     let vmPanelAck = false;
@@ -585,6 +587,164 @@ document.addEventListener('DOMContentLoaded', () => {
             presupuesto_maximo: presupuesto,
             overrides: collectCompetenciaOverrides(),
         };
+    }
+
+    /** Grill format: `938 (Δ −86)` — unicode minus, no top-proveedor, no Δ-knobs. */
+    function formatTotalWithDelta(total, delta) {
+        if (total == null || Number.isNaN(Number(total))) return '—';
+        const n = Math.round(Number(total));
+        if (delta == null || Number.isNaN(Number(delta))) return String(n);
+        const d = Math.round(Number(delta));
+        const abs = Math.abs(d);
+        const sign = d > 0 ? '+' : (d < 0 ? '\u2212' : '');
+        return `${n} (\u0394 ${sign}${abs})`;
+    }
+
+    function precioFromFactores(row, preferBaseline) {
+        const factores = row?.justificacion_factores || [];
+        for (const f of factores) {
+            const d = f.datos || {};
+            if (preferBaseline && d.oferta_baseline && d.oferta_baseline.precio != null) {
+                return Number(d.oferta_baseline.precio);
+            }
+        }
+        for (const f of factores) {
+            const d = f.datos || {};
+            if (!preferBaseline && d.precio != null) return Number(d.precio);
+        }
+        return null;
+    }
+
+    function summarizePerfilMonto(result) {
+        const prop = (result && result.pedido_propuesto) || [];
+        const comp = (result && result.comparativa_cantidades) || [];
+        let monto = 0;
+        let priced = 0;
+        let baseMonto = 0;
+        let basePriced = 0;
+        prop.forEach((line) => {
+            const q = Number(line.cantidad) || 0;
+            const px = line.precio != null ? Number(line.precio) : null;
+            if (px != null && q > 0 && !Number.isNaN(px)) {
+                monto += px * q;
+                priced += 1;
+            }
+        });
+        comp.forEach((row) => {
+            const qb = Number(row.qty_baseline) || 0;
+            const pxB = precioFromFactores(row, true);
+            if (pxB != null && qb > 0 && !Number.isNaN(pxB)) {
+                baseMonto += pxB * qb;
+                basePriced += 1;
+            }
+        });
+        return {
+            montoUsd: priced ? Math.round(monto) : null,
+            baseMontoUsd: basePriced ? Math.round(baseMonto) : null,
+            deltaVsBaseline: (priced && basePriced) ? Math.round(monto - baseMonto) : null,
+            nLineas: prop.length,
+        };
+    }
+
+    function collectBatchPerfilSlots() {
+        const slots = [];
+        document.querySelectorAll('.batch-perfil-slot').forEach((sel) => {
+            const raw = String(sel.value || '').trim();
+            if (!raw) return;
+            const label = (sel.options[sel.selectedIndex]?.textContent || raw).trim();
+            if (raw.startsWith('factory:')) {
+                const preset = raw.slice('factory:'.length);
+                slots.push({
+                    id: `factory-${preset}`,
+                    label,
+                    preset,
+                    nivel: 'Sencillo',
+                });
+                return;
+            }
+            if (raw.startsWith('custom:')) {
+                const id = raw.slice('custom:'.length);
+                const opt = sel.options[sel.selectedIndex];
+                const base = opt?.dataset?.basePreset || 'Normal';
+                let overrides = null;
+                try {
+                    overrides = JSON.parse(opt?.dataset?.overrides || 'null');
+                } catch (_) {
+                    overrides = null;
+                }
+                slots.push({
+                    id: `custom-${id}`,
+                    label,
+                    preset: base,
+                    nivel: 'Sencillo',
+                    overrides: overrides && typeof overrides === 'object' ? overrides : null,
+                });
+            }
+        });
+        // Dedupe by id, keep ≤3
+        const seen = new Set();
+        const out = [];
+        for (const s of slots) {
+            if (seen.has(s.id)) continue;
+            seen.add(s.id);
+            out.push(s);
+            if (out.length >= 3) break;
+        }
+        return out;
+    }
+
+    function buildBatchPayload() {
+        const base = buildSencilloPayload();
+        return {
+            ...base,
+            perfiles: collectBatchPerfilSlots(),
+        };
+    }
+
+    function renderBatchResultsGrid(batchData) {
+        const section = document.getElementById('batchResultsSection');
+        const grid = document.getElementById('batchResultsGrid');
+        const hint = document.getElementById('batchResultsHint');
+        if (!section || !grid) return;
+        const perfiles = (batchData && batchData.perfiles) || [];
+        if (!perfiles.length) {
+            section.style.display = 'none';
+            grid.innerHTML = '';
+            return;
+        }
+        section.style.display = 'block';
+        if (hint) {
+            hint.textContent = 'Totales vs PedidoBaseline · formato N (Δ −86). Sin top proveedor ni Δ variables.';
+        }
+        grid.innerHTML = '';
+        perfiles.forEach((slot) => {
+            const result = slot.result || {};
+            const sum = summarizePerfilMonto(result);
+            const col = document.createElement('div');
+            col.className = 'batch-results-col';
+            col.setAttribute('role', 'listitem');
+            col.dataset.perfilId = slot.id || '';
+            col.innerHTML = `
+                <div class="batch-col-label">${escapeHtml(slot.label || slot.id || 'Perfil')}</div>
+                <div class="batch-col-total">${escapeHtml(formatTotalWithDelta(sum.montoUsd, sum.deltaVsBaseline))}</div>
+                <div class="batch-col-meta">${sum.nLineas} líneas propuesto</div>
+            `;
+            // Intentionally no top-proveedor, no Δ-knobs card (grill).
+            grid.appendChild(col);
+        });
+    }
+
+    function stashBatchResult(batchData) {
+        lastBatchResult = batchData;
+        window.lastBatchResult = batchData;
+        activeBatchPerfilId = null;
+        renderBatchResultsGrid(batchData);
+        // Comparativa waits for column click (ticket 07); clear prior single-result view.
+        const genSec = document.getElementById('generarResultSection');
+        if (genSec) genSec.style.display = 'none';
+        lastGenerarResult = null;
+        window.lastGenerarResult = null;
+        setDefinitivoReadyForBorrador(false);
     }
 
     function escapeHtml(s) {
@@ -1630,30 +1790,71 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     loadDefinitivoOverrideSchema(0);
 
+    function factoryOptionsHtml(selectedValue) {
+        const factories = ['Conservador', 'Normal', 'Agresivo'];
+        return factories.map((name) => {
+            const sel = selectedValue && name === selectedValue ? ' selected' : '';
+            return `<option value="factory:${name}"${sel}>${name}</option>`;
+        }).join('');
+    }
+
+    function syncBatchPerfilSlotOptions(presets) {
+        const defaults = { 1: 'Conservador', 2: 'Normal', 3: 'Agresivo' };
+        document.querySelectorAll('.batch-perfil-slot').forEach((sel) => {
+            const prev = sel.value;
+            const slotN = Number(sel.dataset.slot || 0);
+            let selectedFactory = null;
+            if (prev.startsWith('factory:')) {
+                selectedFactory = prev.slice('factory:'.length);
+            } else if (!prev) {
+                selectedFactory = defaults[slotN] || 'Normal';
+            }
+            sel.innerHTML = factoryOptionsHtml(selectedFactory);
+            (presets || []).forEach((p) => {
+                const o = document.createElement('option');
+                o.value = `custom:${p.preset_id}`;
+                o.textContent = `${p.nombre} (custom)`;
+                o.dataset.basePreset = p.base_preset || 'Normal';
+                o.dataset.nivel = p.nivel || 'Sencillo';
+                o.dataset.overrides = JSON.stringify(p.overrides || {});
+                if (prev === o.value) o.selected = true;
+                sel.appendChild(o);
+            });
+            if (prev && [...sel.options].some((o) => o.value === prev)) {
+                sel.value = prev;
+            } else if (selectedFactory) {
+                sel.value = `factory:${selectedFactory}`;
+            }
+        });
+    }
+
     async function refreshCustomPresetsList() {
         const sel = document.getElementById('customPresetSelect');
-        if (!sel) return;
+        let presets = [];
         try {
             const response = await fetch('/api/pedidos/presets');
             if (!response.ok) throw new Error(`presets HTTP ${response.status}`);
             const data = await response.json();
-            const presets = data.presets || [];
-            const prev = sel.value;
-            sel.innerHTML = '<option value="">Mis presets…</option>';
-            presets.forEach((p) => {
-                const o = document.createElement('option');
-                o.value = String(p.preset_id);
-                o.textContent = `${p.nombre} (${p.nivel}/${p.base_preset})`;
-                o.dataset.nombre = p.nombre;
-                o.dataset.nivel = p.nivel;
-                o.dataset.basePreset = p.base_preset;
-                o.dataset.overrides = JSON.stringify(p.overrides || {});
-                sel.appendChild(o);
-            });
-            if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+            presets = data.presets || [];
+            if (sel) {
+                const prev = sel.value;
+                sel.innerHTML = '<option value="">Mis presets…</option>';
+                presets.forEach((p) => {
+                    const o = document.createElement('option');
+                    o.value = String(p.preset_id);
+                    o.textContent = `${p.nombre} (${p.nivel}/${p.base_preset})`;
+                    o.dataset.nombre = p.nombre;
+                    o.dataset.nivel = p.nivel;
+                    o.dataset.basePreset = p.base_preset;
+                    o.dataset.overrides = JSON.stringify(p.overrides || {});
+                    sel.appendChild(o);
+                });
+                if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+            }
         } catch (err) {
             console.warn('custom presets list failed', err);
         }
+        syncBatchPerfilSlotOptions(presets);
     }
 
     document.getElementById('btnSaveCustomPreset')?.addEventListener('click', async () => {
@@ -1895,49 +2096,51 @@ document.addEventListener('DOMContentLoaded', () => {
             const excludedSection = document.getElementById('excludedSection');
             if (excludedSection) excludedSection.style.display = 'none';
 
-            const payload = buildSencilloPayload();
+            const payload = buildBatchPayload();
             if (!payload.categorias || payload.categorias.length === 0) {
                 showAlert("Debe seleccionar al menos una familia.", false);
                 submitBtn.disabled = false;
-                btnText.innerHTML = 'Generar (Sencillo)';
+                btnText.innerHTML = 'Generar';
                 return;
             }
             if (!payload.criterios_agrupacion.length) {
                 showAlert("Seleccione al menos un Criterio de Agrupación.", false);
                 submitBtn.disabled = false;
-                btnText.innerHTML = 'Generar (Sencillo)';
+                btnText.innerHTML = 'Generar';
+                return;
+            }
+            if (!payload.perfiles || !payload.perfiles.length) {
+                showAlert("Seleccione al menos un perfil para generar.", false);
+                submitBtn.disabled = false;
+                btnText.innerHTML = 'Generar';
                 return;
             }
 
             promptOverridesBeforeGenerar();
 
             try {
-                const response = await fetch('/api/pedidos/generar-sencillo', {
+                const response = await fetch('/api/pedidos/generar-batch', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || "Error en Generar Sencillo");
+                    throw new Error(errorData.detail || "Error en Generar batch");
                 }
                 const data = await response.json();
-                stashGenerarResult(data);
-                setDefinitivoReadyForBorrador(false);
-                const nComp = (data.comparativa_cantidades || []).length;
-                const nProp = (data.pedido_propuesto || []).length;
-                const nChg = (data.comparativa_cantidades || []).filter(r =>
-                    !isComparativaIdentityRow(r)
-                ).length;
+                stashBatchResult(data);
+                const n = (data.perfiles || []).length;
+                const nBase = (data.pedido_baseline || []).length;
                 showAlert(
-                    `Generar Sencillo listo: ${nComp} filas Comparativa (${nChg} con cambio unidad/barra), ${nProp} líneas Propuesto (${data.meta?.preset || ''}).`,
+                    `Generación única: Baseline ${nBase} barras · ${n} perfil(es). Elija una columna para Comparativa.`,
                     true
                 );
             } catch (error) {
                 showAlert(error.message, false);
             } finally {
                 submitBtn.disabled = false;
-                btnText.innerHTML = 'Generar (Sencillo)';
+                btnText.innerHTML = 'Generar';
             }
         });
     }
