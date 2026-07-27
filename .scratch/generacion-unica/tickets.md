@@ -117,11 +117,13 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** Config Pedido UI: hermanos / rivales / ofertas por rival; Payload hermanos + rivales honors knobs; FE clic columna → Comparativa única
 
-- [ ] Context menu / right-click on propuesta BARRA opens the modal
-- [ ] Blocks show Original (hermanos/original) and Rivales with required commercial fields
-- [ ] Offer counts respect the three knobs
-- [ ] Applying a choice updates the active perfil Comparativa/Propuesto line coherently
-- [ ] Left-click behaviour of the grid/Comparativa remains unchanged
+**Status:** resolved (see `issues/09-modal-clic-derecho-rivales.md`)
+
+- [x] Context menu / right-click on propuesta BARRA opens the modal
+- [x] Blocks show Original (hermanos/original) and Rivales with required commercial fields
+- [x] Offer counts respect the three knobs
+- [x] Applying a choice updates the active perfil Comparativa/Propuesto line coherently
+- [x] Left-click behaviour of the grid/Comparativa remains unchanged
 
 ## Comparador vertical + re-gen solo activo
 

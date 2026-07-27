@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 09-modal-clic-derecho-rivales
 
@@ -11,16 +11,20 @@ Right-click on a propuesta BARRA opens a modal with Original | Rivales blocks (d
 
 ## Acceptance criteria
 
-- [ ] Context menu / right-click on propuesta BARRA opens the modal
-- [ ] Blocks show Original (hermanos/original) and Rivales with required commercial fields
-- [ ] Offer counts respect the three knobs
-- [ ] Applying a choice updates the active perfil Comparativa/Propuesto line coherently
-- [ ] Left-click behaviour of the grid/Comparativa remains unchanged
+- [x] Context menu / right-click on propuesta BARRA opens the modal
+- [x] Blocks show Original (hermanos/original) and Rivales with required commercial fields
+- [x] Offer counts respect the three knobs
+- [x] Applying a choice updates the active perfil Comparativa/Propuesto line coherently
+- [x] Left-click behaviour of the grid/Comparativa remains unchanged
 
 ## Blocked by
 
 - 04-config-pedido-knobs-ui
 - 05-payload-hermanos-rivales
 - 07-fe-clic-columna-comparativa
+
+## Answer
+
+`#reemplazoModal` + `openReemplazoModal` on `contextmenu` of `.barra-propuesto-cell`. Original = `oferta_baseline` + `hermanos_reemplazables`; Rivales = nested `ofertas[]` sliced by `top_n_*` / `ofertas_por_rival`. `applyReemplazoOffer` updates Comparativa + PedidoPropuesto (and active batch slot). Left-click justificacion accordion unchanged.
 
 ## Comments

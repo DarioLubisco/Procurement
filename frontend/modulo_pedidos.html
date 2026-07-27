@@ -961,6 +961,30 @@
   </main>
 </div>
 
+<!-- Modal reemplazo Original | Rivales (ticket 09 / generación única) -->
+<div id="reemplazoModal" class="modal" aria-hidden="true">
+  <div class="modal-content" style="max-width:720px; width:94%; max-height:85vh; display:flex; flex-direction:column; padding:1.25rem 1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+      <h3 style="margin:0; font-size:1.1rem;"><i class="fas fa-exchange-alt"></i> Reemplazar línea</h3>
+      <button type="button" id="btnCloseReemplazoModalX" class="btn btn-secondary" style="padding:0.3rem 0.6rem;" aria-label="Cerrar">&times;</button>
+    </div>
+    <p id="reemplazoModalHint" style="margin:0 0 0.75rem; font-size:0.8rem; color:var(--text-secondary);">
+      Original (baseline / hermanos) y Rivales según knobs de Config Pedido. Elegí una oferta para actualizar la Comparativa activa.
+    </p>
+    <div id="reemplazoModalBody" style="overflow-y:auto; flex:1 1 auto; min-height:120px;">
+      <section style="margin-bottom:1rem;">
+        <h4 style="margin:0 0 0.5rem; font-size:0.95rem;">Original</h4>
+        <div id="reemplazoOriginalList" class="reemplazo-offer-list"></div>
+      </section>
+      <section>
+        <h4 style="margin:0 0 0.5rem; font-size:0.95rem;">Rivales</h4>
+        <div id="reemplazoRivalesList" class="reemplazo-offer-list"></div>
+      </section>
+    </div>
+    <button type="button" id="btnCloseReemplazoModal" class="btn btn-secondary" style="margin-top:1rem; width:100%;">Cerrar</button>
+  </div>
+</div>
+
 <!-- Modal categorías -->
 <div id="categoriesModal" class="modal" aria-hidden="true">
   <div class="modal-content">
@@ -1009,7 +1033,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js?v=20260723-bandeja"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260726-justif-nombre-precio"></script>
+<script src="js/app_pedidos.js?v=20260726-reemplazo-modal"></script>
 <script src="js/bandeja_pedidos.js?v=20260723-pdf-tg"></script>
 
 <script>

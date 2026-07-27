@@ -878,6 +878,212 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
+    let reemplazoModalRow = null;
+
+    /** Merge rivales/hermanos/oferta_baseline from ADR-0019 factors (ticket 05 payload). */
+    function extractCompetenciaFromRow(row) {
+        const factores = row?.justificacion_factores || [];
+        let best = null;
+        let bestScore = -1;
+        for (const f of factores) {
+            const d = f.datos || {};
+            const score = (d.rivales || []).length
+                + (d.hermanos_reemplazables || []).length
+                + (d.oferta_baseline ? 1 : 0);
+            if (score > bestScore) {
+                bestScore = score;
+                best = d;
+            }
+        }
+        return best || {};
+    }
+
+    function closeReemplazoModal() {
+        const modal = document.getElementById('reemplazoModal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        reemplazoModalRow = null;
+    }
+
+    function renderReemplazoOfferButton(offer, { badge } = {}) {
+        const nombre = offer.descripcion || '—';
+        const prov = offer.proveedor || '—';
+        const px = offer.precio != null ? `$${Number(offer.precio).toFixed(4)}` : '—';
+        const barra = offer.barra || '';
+        const badgeHtml = badge
+            ? `<span style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.04em; opacity:0.8; margin-left:0.35rem;">${escapeHtml(badge)}</span>`
+            : '';
+        return `
+            <button type="button" class="reemplazo-offer-btn btn btn-secondary"
+                style="display:block; width:100%; text-align:left; margin:0 0 0.4rem; padding:0.55rem 0.7rem; white-space:normal; line-height:1.35;"
+                data-barra="${escapeHtml(barra)}"
+                data-proveedor="${escapeHtml(prov)}"
+                data-precio="${offer.precio != null ? Number(offer.precio) : ''}"
+                data-descripcion="${escapeHtml(nombre)}">
+                <div style="font-weight:600; color:var(--text-primary);">${escapeHtml(nombre)}${badgeHtml}</div>
+                <div><strong>${escapeHtml(prov)}</strong> · ${px}</div>
+                ${barra ? `<div class="competencia-barra" style="font-family:monospace; font-size:0.72rem; opacity:0.75; margin-top:0.15rem;">BARRA ${escapeHtml(barra)}</div>` : ''}
+            </button>`;
+    }
+
+    function openReemplazoModal(row) {
+        const modal = document.getElementById('reemplazoModal');
+        const origList = document.getElementById('reemplazoOriginalList');
+        const rivList = document.getElementById('reemplazoRivalesList');
+        const hint = document.getElementById('reemplazoModalHint');
+        if (!modal || !origList || !rivList || !row) return;
+        reemplazoModalRow = row;
+        const comp = extractCompetenciaFromRow(row);
+        const topH = comp.top_n_hermanos != null ? Number(comp.top_n_hermanos) : null;
+        const topR = comp.top_n_rivales != null ? Number(comp.top_n_rivales) : null;
+        const opR = comp.ofertas_por_rival != null ? Number(comp.ofertas_por_rival) : null;
+        if (hint) {
+            const bits = [];
+            if (topH != null) bits.push(`hermanos≤${topH}`);
+            if (topR != null) bits.push(`rivales≤${topR}`);
+            if (opR != null) bits.push(`ofertas/rival≤${opR}`);
+            hint.textContent = bits.length
+                ? `Original | Rivales · knobs ${bits.join(' · ')}. Elegí una oferta para actualizar la Comparativa activa.`
+                : 'Original (baseline / hermanos) y Rivales. Elegí una oferta para actualizar la Comparativa activa.';
+        }
+
+        let origHtml = '';
+        const ob = comp.oferta_baseline;
+        if (ob && (ob.barra || ob.proveedor)) {
+            origHtml += renderReemplazoOfferButton(ob, { badge: 'baseline' });
+        }
+        const hermanos = (comp.hermanos_reemplazables || []).slice(0, topH != null ? topH : undefined);
+        hermanos.forEach((h) => {
+            origHtml += renderReemplazoOfferButton(h, { badge: 'hermano' });
+        });
+        origList.innerHTML = origHtml || '<div style="opacity:0.7; font-size:0.8rem;">Sin opciones Original en el payload.</div>';
+
+        let rivHtml = '';
+        const rivales = (comp.rivales || []).slice(0, topR != null ? topR : undefined);
+        rivales.forEach((r) => {
+            const ofertasRaw = Array.isArray(r.ofertas) && r.ofertas.length
+                ? r.ofertas
+                : [{
+                    barra: r.barra,
+                    proveedor: r.proveedor,
+                    precio: r.precio,
+                    descripcion: r.descripcion,
+                }];
+            const ofertas = ofertasRaw.slice(0, opR != null ? opR : undefined);
+            const groupLabel = escapeHtml(r.proveedor || 'Rival');
+            rivHtml += `<div style="margin-bottom:0.65rem; padding:0.45rem 0.5rem; border:1px solid var(--border-subtle); border-radius:6px;">
+                <div style="font-weight:600; margin-bottom:0.35rem; font-size:0.82rem;">${groupLabel}${r.elegida ? ' · elegida' : ''}</div>`;
+            ofertas.forEach((o) => {
+                const offer = {
+                    barra: o.barra || r.barra,
+                    proveedor: o.proveedor || r.proveedor,
+                    precio: o.precio != null ? o.precio : r.precio,
+                    descripcion: o.descripcion || r.descripcion || null,
+                };
+                rivHtml += renderReemplazoOfferButton(offer);
+            });
+            rivHtml += '</div>';
+        });
+        rivList.innerHTML = rivHtml || '<div style="opacity:0.7; font-size:0.8rem;">Sin rivales en el payload.</div>';
+
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function applyReemplazoOffer(row, offer) {
+        if (!lastGenerarResult || !row || !offer) return false;
+        const newBarra = String(offer.barra || '').trim();
+        const newProv = String(offer.proveedor || '').trim();
+        if (!newBarra || !newProv) return false;
+
+        const oldBarra = String(row.barra_propuesto || '');
+        const oldProv = String(row.proveedor || '');
+        const qty = Math.max(0, Math.round(Number(row.qty_propuesto) || 0));
+        const extras = Math.max(0, Number(row.extra_legs_qty) || 0);
+        const primaryQty = Math.max(0, qty - extras);
+        const desc = String(offer.descripcion || row.desc_propuesto || '').trim();
+        const precio = offer.precio != null && offer.precio !== ''
+            ? Number(offer.precio)
+            : null;
+
+        row.barra_propuesto = newBarra;
+        if (desc) row.desc_propuesto = desc;
+        row.proveedor = newProv;
+        row.reemplazo_manual = true;
+
+        const factores = row.justificacion_factores || [];
+        for (const f of factores) {
+            if (f.codigo === 'oferta' && f.datos) {
+                f.datos.proveedor = newProv;
+                f.datos.precio = precio;
+                f.datos.barra = newBarra;
+                if (desc) f.datos.descripcion = desc;
+                break;
+            }
+        }
+
+        const lines = lastGenerarResult.pedido_propuesto || [];
+        const idx = lines.findIndex(
+            (l) => String(l.barra || '') === oldBarra && String(l.proveedor || '') === oldProv
+        );
+        if (primaryQty <= 0) {
+            if (idx >= 0) lines.splice(idx, 1);
+        } else if (idx >= 0) {
+            lines[idx].barra = newBarra;
+            lines[idx].proveedor = newProv;
+            if (desc) lines[idx].descripcion = desc;
+            lines[idx].cantidad = primaryQty;
+            if (precio != null && !Number.isNaN(precio)) lines[idx].precio = precio;
+        } else {
+            lines.push({
+                barra: newBarra,
+                descripcion: desc,
+                proveedor: newProv,
+                cantidad: primaryQty,
+                precio: precio != null && !Number.isNaN(precio) ? precio : null,
+            });
+        }
+        lastGenerarResult.pedido_propuesto = lines;
+
+        if (lastBatchResult && activeBatchPerfilId) {
+            const slot = (lastBatchResult.perfiles || []).find(
+                (p) => String(p.id) === String(activeBatchPerfilId)
+            );
+            if (slot && slot.result) {
+                slot.result.pedido_propuesto = lastGenerarResult.pedido_propuesto;
+                slot.result.comparativa_cantidades = lastGenerarResult.comparativa_cantidades;
+            }
+        }
+
+        closeReemplazoModal();
+        renderGenerarResult(lastGenerarResult, { scroll: false, keepDrawerRow: row });
+        return true;
+    }
+
+    function bindReemplazoModalChrome() {
+        const modal = document.getElementById('reemplazoModal');
+        document.getElementById('btnCloseReemplazoModal')?.addEventListener('click', closeReemplazoModal);
+        document.getElementById('btnCloseReemplazoModalX')?.addEventListener('click', closeReemplazoModal);
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeReemplazoModal();
+            });
+            modal.addEventListener('click', (e) => {
+                const btn = e.target.closest('.reemplazo-offer-btn');
+                if (!btn || !reemplazoModalRow) return;
+                const offer = {
+                    barra: btn.dataset.barra || '',
+                    proveedor: btn.dataset.proveedor || '',
+                    precio: btn.dataset.precio !== '' ? Number(btn.dataset.precio) : null,
+                    descripcion: btn.dataset.descripcion || '',
+                };
+                applyReemplazoOffer(reemplazoModalRow, offer);
+            });
+        }
+    }
+    bindReemplazoModalChrome();
+
     function renderReemplazoBaselineBlock(row) {
         const bb = String(row?.barra_baseline || '').trim();
         const bp = String(row?.barra_propuesto || '').trim();
@@ -1287,7 +1493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_baseline)}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}${baselinePrecioHtml}</td>
                 <td style="padding:0.5rem; text-align:right;">${row.qty_baseline}</td>
-                <td style="padding:0.5rem;">${barraPropHtml}</td>
+                <td class="barra-propuesto-cell" style="padding:0.5rem; cursor:context-menu;" title="Clic derecho: reemplazar (Original | Rivales)">${barraPropHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_propuesto || '')}</td>
                 <td style="padding:0.5rem; text-align:right; white-space:nowrap;">
                     <input type="number" min="0" step="1" class="qty-propuesto-input"
@@ -1318,6 +1524,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     qtyInput.blur();
                 }
             });
+            const barraTd = tr.querySelector('.barra-propuesto-cell');
+            if (barraTd) {
+                barraTd.addEventListener('contextmenu', (ev) => {
+                    ev.preventDefault();
+                    openReemplazoModal(row);
+                });
+            }
 
             const detailTr = document.createElement('tr');
             detailTr.className = 'comparativa-detail-row';
