@@ -25,10 +25,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** Batch engine: Baseline once + ≤3 perfiles
 
-- [ ] API returns `{ PedidoBaseline, perfiles: [{ id, label, knobs_efectivos, GenerarResult }] }` (shape may nest Baseline inside meta; FE can parse it)
-- [ ] Callers cannot get three independent full Generars that re-sample Baseline
-- [ ] Catalog/offers/backorder load is not tripled wastefully when using DB path
-- [ ] Error handling fails the batch coherently (no silent half-grids)
+**Status:** resolved (see `issues/02-batch-http-api.md`)
+
+- [x] API returns `{ PedidoBaseline, perfiles: [{ id, label, knobs_efectivos, GenerarResult }] }` (shape may nest Baseline inside meta; FE can parse it)
+- [x] Callers cannot get three independent full Generars that re-sample Baseline
+- [x] Catalog/offers/backorder load is not tripled wastefully when using DB path
+- [x] Error handling fails the batch coherently (no silent half-grids)
 
 ## Knob `rivales_ofertas_por_rival` + schema
 

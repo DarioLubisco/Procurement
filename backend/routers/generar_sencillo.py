@@ -50,6 +50,31 @@ class RegenerarDefinitivoRequest(BaseModel):
     backorder: Optional[List[Dict[str, Any]]] = None
 
 
+class PerfilBatchItem(BaseModel):
+    id: str = Field(..., min_length=1)
+    label: str = ""
+    preset: str = "Normal"
+    nivel: str = "Sencillo"
+    overrides: Optional[Dict[str, Any]] = None
+
+
+class GenerarBatchRequest(BaseModel):
+    """Generación única — shared filtros + ≤3 perfiles (ticket 02)."""
+
+    cobertura: int = Field(..., ge=1, le=365)
+    criterios_agrupacion: Optional[List[str]] = None
+    categorias: Optional[List[str]] = None
+    include_generics: bool = True
+    include_brands: bool = True
+    umbral_rotacion: float = 0.0
+    num_rows: int = 5000
+    presupuesto_maximo: Optional[float] = None
+    perfiles: List[PerfilBatchItem] = Field(..., min_length=1)
+    catalog: Optional[List[Dict[str, Any]]] = None
+    market_offers: Optional[List[Dict[str, Any]]] = None
+    backorder: Optional[List[Dict[str, Any]]] = None
+
+
 def _load_catalog_offers_backorder(
     *,
     categorias: Optional[List[str]],
@@ -162,6 +187,90 @@ async def generar_sencillo(body: GenerarSencilloRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logging.error("generar-sencillo failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    attach_input_observability_meta(
+        payload,
+        catalog_rows=catalog,
+        market_offers_rows=offers,
+        backorder_rows=backorder_rows,
+        load_ms=load_ms,
+        data_source=data_source,
+    )
+    try:
+        import database
+        try:
+            from backend.services.pedido_app_config import fx_meta
+        except ImportError:
+            from services.pedido_app_config import fx_meta  # type: ignore
+
+        conn = database.get_db_connection()
+        try:
+            payload.setdefault("meta", {}).update(fx_meta(conn))
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    except Exception as exc:
+        logging.warning("fx_meta attach skipped: %s", exc)
+    return JSONResponse(payload)
+
+
+@router.post("/generar-batch")
+async def generar_batch(body: GenerarBatchRequest):
+    """Generación única: one PedidoBaseline + ≤3 perfiles (single DB load).
+
+    Choice (ticket 02): one POST that loads catalog/offers/backorder once and
+    calls `generar_pedido_batch` — not three independent Generars.
+    """
+    from analytics_engine.core.generar_sencillo_api import (
+        attach_input_observability_meta,
+        run_generar_pedido_batch,
+    )
+
+    catalog, offers, backorder_rows, load_ms, data_source = (
+        _load_catalog_offers_backorder(
+            categorias=body.categorias,
+            include_generics=body.include_generics,
+            include_brands=body.include_brands,
+            catalog=body.catalog,
+            market_offers=body.market_offers,
+            backorder=body.backorder,
+            log_label="generar-batch",
+            criterios_agrupacion=body.criterios_agrupacion,
+            cobertura_dias=body.cobertura,
+        )
+    )
+
+    try:
+        payload = run_generar_pedido_batch(
+            cobertura=body.cobertura,
+            catalog_rows=catalog,
+            market_offers_rows=offers,
+            criterios_agrupacion=body.criterios_agrupacion,
+            categorias=body.categorias,
+            include_generics=body.include_generics,
+            include_brands=body.include_brands,
+            umbral_rotacion=body.umbral_rotacion,
+            num_rows=body.num_rows,
+            presupuesto_maximo=body.presupuesto_maximo,
+            backorder_rows=backorder_rows,
+            perfiles=[
+                {
+                    "id": p.id,
+                    "label": p.label or p.id,
+                    "preset": p.preset,
+                    "nivel": p.nivel,
+                    "overrides": p.overrides,
+                }
+                for p in body.perfiles
+            ],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logging.error("generar-batch failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     attach_input_observability_meta(

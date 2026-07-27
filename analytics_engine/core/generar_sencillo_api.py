@@ -5,11 +5,15 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
 
+from .ahorros_motores import attach_ahorros_to_meta
 from .criterios_agrupacion import CRITERIOS_AGRUPACION_DEFAULT
 from .generar_pedido import (
+    FiltrosCompartidos,
     NivelPerfil,
+    PerfilDescriptor,
     PerfilPedido,
     generar_pedido,
+    generar_pedido_batch,
 )
 from .justificacion_factores import factors_to_dicts
 from .pedido_baseline import FiltrosOperativos
@@ -96,7 +100,7 @@ def build_perfil_sencillo(
 
 def serialize_generar_result(result) -> Dict[str, Any]:
     """JSON-friendly GenerarResult for Comparativa + Propuesto UI."""
-    return {
+    payload: Dict[str, Any] = {
         "pedido_baseline": [
             {
                 "barra": line.barra,
@@ -152,6 +156,7 @@ def serialize_generar_result(result) -> Dict[str, Any]:
             "subtraction_files": "contingency_only",
         },
     }
+    return attach_ahorros_to_meta(payload)
 
 
 def run_generar_sencillo(
@@ -198,6 +203,137 @@ def run_generar_sencillo(
         if criterios_agrupacion
         else CRITERIOS_AGRUPACION_DEFAULT
     )
+    return attach_input_observability_meta(
+        payload,
+        catalog_rows=catalog_rows,
+        market_offers_rows=market_offers_rows,
+        backorder_rows=backorder_rows,
+    )
+
+
+def run_generar_pedido_batch(
+    *,
+    cobertura: int,
+    catalog_rows: Sequence[Dict[str, Any]],
+    market_offers_rows: Sequence[Dict[str, Any]],
+    perfiles: Sequence[Dict[str, Any]],
+    criterios_agrupacion: Optional[Sequence[str]] = None,
+    categorias: Optional[Sequence[str]] = None,
+    include_generics: bool = True,
+    include_brands: bool = True,
+    umbral_rotacion: float = 0.0,
+    num_rows: int = 5000,
+    presupuesto_maximo: Optional[float] = None,
+    backorder_rows: Optional[Sequence[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """HTTP/FE adapter for generación única — one Baseline + ≤3 perfiles.
+
+    Catalog/offers/backorder are converted once; engine `generar_pedido_batch`
+    samples PedidoBaseline once. Choice: single batch seam (not N× generar).
+    """
+    if not perfiles:
+        raise ValueError("generar_pedido_batch requires at least 1 perfil")
+    if len(perfiles) > 3:
+        raise ValueError("generar_pedido_batch accepts at most 3 perfiles")
+
+    descriptors: List[PerfilDescriptor] = []
+    for raw in perfiles:
+        pid = str(raw.get("id") or "").strip()
+        label = str(raw.get("label") or pid).strip()
+        if not pid:
+            raise ValueError("cada perfil requiere id")
+        preset_raw = raw.get("preset") or "Normal"
+        try:
+            preset_enum = PresetSencillo(str(preset_raw))
+        except ValueError as exc:
+            raise ValueError(
+                f"preset inválido: {preset_raw!r}; use Conservador|Normal|Agresivo"
+            ) from exc
+        nivel_raw = raw.get("nivel") or "Sencillo"
+        try:
+            nivel_enum = NivelPerfil(str(nivel_raw))
+        except ValueError as exc:
+            raise ValueError(
+                f"nivel inválido: {nivel_raw!r}; use Sencillo|Intermedio|Avanzado"
+            ) from exc
+        overrides = raw.get("overrides")
+        descriptors.append(
+            PerfilDescriptor(
+                id=pid,
+                label=label or pid,
+                nivel=nivel_enum,
+                preset=preset_enum,
+                overrides=dict(overrides) if overrides else None,
+            )
+        )
+
+    shared = FiltrosCompartidos(
+        cobertura=int(cobertura),
+        criterios_agrupacion=list(criterios_agrupacion) if criterios_agrupacion else [],
+        filtros_operativos=FiltrosOperativos(
+            categorias=list(categorias) if categorias else None,
+            include_generics=bool(include_generics),
+            include_brands=bool(include_brands),
+            umbral_rotacion=float(umbral_rotacion),
+            num_rows=int(num_rows),
+        ),
+        presupuesto_maximo=presupuesto_maximo,
+    )
+    catalog = _rows_to_frame(catalog_rows)
+    offers = _rows_to_frame(market_offers_rows)
+    backorder = _rows_to_frame(backorder_rows)
+    batch = generar_pedido_batch(
+        shared,
+        descriptors,
+        catalog=catalog if catalog is not None else pd.DataFrame(),
+        market_offers=offers,
+        backorder=backorder,
+    )
+
+    criterios_eff = list(
+        criterios_agrupacion if criterios_agrupacion else CRITERIOS_AGRUPACION_DEFAULT
+    )
+    desc_by_id = {d.id: d for d in descriptors}
+    perfil_payloads: List[Dict[str, Any]] = []
+    for slot in batch.perfiles:
+        desc = desc_by_id[slot.id]
+        result_payload = serialize_generar_result(slot.result)
+        result_payload["meta"]["nivel"] = desc.nivel.value
+        result_payload["meta"]["preset"] = (
+            desc.preset.value if desc.preset else None
+        )
+        result_payload["meta"]["cobertura"] = cobertura
+        result_payload["meta"]["criterios_agrupacion_efectivos"] = criterios_eff
+        result_payload["meta"]["slot_id"] = slot.id
+        perfil_payloads.append(
+            {
+                "id": slot.id,
+                "label": slot.label,
+                "knobs_efectivos": slot.knobs_efectivos or {},
+                "result": result_payload,
+            }
+        )
+
+    payload: Dict[str, Any] = {
+        "pedido_baseline": [
+            {
+                "barra": line.barra,
+                "descripcion": line.descripcion,
+                "cantidad": line.cantidad,
+            }
+            for line in batch.pedido_baseline
+        ],
+        "perfiles": perfil_payloads,
+        "meta": {
+            "phase": "generacion_unica",
+            "baseline_shared": True,
+            "n_perfiles": len(perfil_payloads),
+            "cobertura": cobertura,
+            "criterios_agrupacion_efectivos": criterios_eff,
+            "criterios_agrupacion_default": list(CRITERIOS_AGRUPACION_DEFAULT),
+            "artifact_primary": "comparativa_propuesto_batch",
+        },
+    }
     return attach_input_observability_meta(
         payload,
         catalog_rows=catalog_rows,
