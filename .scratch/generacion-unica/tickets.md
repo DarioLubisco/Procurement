@@ -12,10 +12,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** None — can start immediately.
 
-- [ ] `generar_pedido_batch` (or equivalent) accepts shared filtros + ≤3 perfil descriptors
-- [ ] PedidoBaseline is computed once and reused; no per-perfil re-sample
-- [ ] Each perfil returns a GenerarResult compatible with current Comparativa/Propuesto consumers
-- [ ] Fixtures assert shared Baseline anchors and distinct Propuesto totals across perfiles
+**Status:** resolved (see `issues/01-batch-engine-baseline-once.md`)
+
+- [x] `generar_pedido_batch` (or equivalent) accepts shared filtros + ≤3 perfil descriptors
+- [x] PedidoBaseline is computed once and reused; no per-perfil re-sample
+- [x] Each perfil returns a GenerarResult compatible with current Comparativa/Propuesto consumers
+- [x] Fixtures assert shared Baseline anchors and distinct Propuesto totals across perfiles
 
 ## Batch HTTP API
 
@@ -34,10 +36,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** None — can start immediately.
 
-- [ ] Knob exists on PresetKnobs (or successor) with default 2 and clamp range
-- [ ] Overrides schema / overrides-schema consumers expose the new knob
-- [ ] Factory presets do not break; missing key resolves to default 2
-- [ ] Unit tests cover clamp and default
+**Status:** resolved (see `issues/03-knob-rivales-ofertas-por-rival.md`)
+
+- [x] Knob exists on PresetKnobs (or successor) with default 2 and clamp range
+- [x] Overrides schema / overrides-schema consumers expose the new knob
+- [x] Factory presets do not break; missing key resolves to default 2
+- [x] Unit tests cover clamp and default
 
 ## Config Pedido UI: hermanos / rivales / ofertas por rival
 
