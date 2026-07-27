@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 11-validar-minimos-post-eleccion
 
@@ -11,14 +11,18 @@ After choosing a perfil, an alarm/CTA offers ValidarMinimosProveedor; opening it
 
 ## Acceptance criteria
 
-- [ ] Batch completion does not force ValidarMinimos UI
-- [ ] After profile selection, alarm/banner + button appear when mínimos apply
-- [ ] Button opens the existing modal/panel flow (cola, %, Aceptar/Rechazar)
-- [ ] Evaluar operates on the active perfil GenerarResult only
-- [ ] ADR-0016 behaviours preserved
+- [x] Batch completion does not force ValidarMinimos UI
+- [x] After profile selection, alarm/banner + button appear when mínimos apply
+- [x] Button opens the existing modal/panel flow (cola, %, Aceptar/Rechazar)
+- [x] Evaluar operates on the active perfil GenerarResult only
+- [x] ADR-0016 behaviours preserved
 
 ## Blocked by
 
 - 07-fe-clic-columna-comparativa
+
+## Answer
+
+`stashBatchResult` never calls VM. Column hydrate → `showValidarMinimosAlarm`. Existing Evaluar/panel ADR-0016. `syncActiveBatchSlotFromLastGenerar` keeps siblings + shared Baseline.
 
 ## Comments

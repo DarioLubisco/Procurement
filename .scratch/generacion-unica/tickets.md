@@ -145,11 +145,13 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** FE clic columna → Comparativa única
 
-- [ ] Batch completion does not force ValidarMinimos UI
-- [ ] After profile selection, alarm/banner + button appear when mínimos apply
-- [ ] Button opens the existing modal/panel flow (cola, %, Aceptar/Rechazar)
-- [ ] Evaluar operates on the active perfil GenerarResult only
-- [ ] ADR-0016 behaviours preserved
+**Status:** resolved (see `issues/11-validar-minimos-post-eleccion.md`)
+
+- [x] Batch completion does not force ValidarMinimos UI
+- [x] After profile selection, alarm/banner + button appear when mínimos apply
+- [x] Button opens the existing modal/panel flow (cola, %, Aceptar/Rechazar)
+- [x] Evaluar operates on the active perfil GenerarResult only
+- [x] ADR-0016 behaviours preserved
 
 ## Guardar v1 solo perfil elegido
 

@@ -820,6 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         stashGenerarResult(hydrated, { resetVm: true });
         updateComparadorActivoCard();
+        showValidarMinimosAlarm({ afterSelection: true });
         if (scroll) {
             const genSec = document.getElementById('generarResultSection');
             if (genSec) genSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -886,6 +887,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.lastGenerarResult = null;
         setDefinitivoReadyForBorrador(false);
         updateComparadorActivoCard();
+        hideValidarMinimosAlarm();
     }
 
     function escapeHtml(s) {
@@ -1728,16 +1730,86 @@ document.addEventListener('DOMContentLoaded', () => {
         updateComparadorActivoCard();
     }
 
+    function hideValidarMinimosAlarm() {
+        const alarm = document.getElementById('validarMinimosAlarm');
+        if (alarm) alarm.style.display = 'none';
+        const panel = document.getElementById('validarMinimosPanel');
+        if (panel) panel.style.display = 'none';
+    }
+
+    /** Post-elección: alarma + CTA; never forced by batch completion (ticket 11). */
+    function showValidarMinimosAlarm({ afterSelection = false, colaN = null } = {}) {
+        const alarm = document.getElementById('validarMinimosAlarm');
+        const text = document.getElementById('validarMinimosAlarmText');
+        const section = document.getElementById('validarMinimosSection');
+        if (!alarm) return;
+        if (!afterSelection && !activeBatchPerfilId) {
+            alarm.style.display = 'none';
+            return;
+        }
+        alarm.style.display = 'block';
+        if (section) section.style.display = 'block';
+        if (text) {
+            const slot = activeBatchPerfilId
+                ? `perfil activo «${activeBatchPerfilId}»`
+                : 'perfil elegido';
+            if (colaN != null && colaN > 0) {
+                text.innerHTML = `Hay <strong>${colaN}</strong> proveedor(es) bajo mínimo en el ${escapeHtml(slot)}. Pulse <em>Evaluar mínimos</em> para abrir cola / % / Aceptar / Redistribuir (ADR-0016).`;
+            } else if (colaN === 0) {
+                text.innerHTML = `Sin proveedores bajo mínimo en el ${escapeHtml(slot)}. Puede re-evaluar tras cambios.`;
+            } else {
+                text.innerHTML = `Tras elegir perfil, evalúe mínimos <em>solo de este ${escapeHtml(slot)}</em>. El batch no corre ValidarMinimos.`;
+            }
+        }
+    }
+
+    function syncActiveBatchSlotFromLastGenerar() {
+        if (!lastBatchResult || !activeBatchPerfilId || !lastGenerarResult) return false;
+        const slot = (lastBatchResult.perfiles || []).find(
+            (p) => String(p.id) === String(activeBatchPerfilId)
+        );
+        if (!slot) return false;
+        const sharedBaseline = lastBatchResult.pedido_baseline
+            || lastGenerarResult.pedido_baseline
+            || [];
+        slot.result = {
+            ...(slot.result || {}),
+            ...lastGenerarResult,
+            pedido_baseline: sharedBaseline,
+            pedido_propuesto: lastGenerarResult.pedido_propuesto,
+            comparativa_cantidades: lastGenerarResult.comparativa_cantidades,
+            meta: {
+                ...(lastGenerarResult.meta || {}),
+                slot_id: slot.id,
+                slot_label: slot.label,
+                baseline_shared: true,
+                phase: 'generacion_unica',
+            },
+        };
+        lastBatchResult.pedido_baseline = sharedBaseline;
+        return true;
+    }
+
     function applyValidarMinimosResponse(data) {
         if (!lastGenerarResult) lastGenerarResult = {};
         lastGenerarResult.pedido_propuesto = data.pedido_propuesto;
         lastGenerarResult.comparativa_cantidades = data.comparativa_cantidades;
-        if (data.pedido_baseline) lastGenerarResult.pedido_baseline = data.pedido_baseline;
+        // Keep shared PedidoBaseline when operating on a batch slot.
+        if (activeBatchPerfilId && lastBatchResult?.pedido_baseline) {
+            lastGenerarResult.pedido_baseline = lastBatchResult.pedido_baseline;
+        } else if (data.pedido_baseline) {
+            lastGenerarResult.pedido_baseline = data.pedido_baseline;
+        }
         const vm = (data.meta && data.meta.validar_minimos) || {};
         vmIntentosRecalc = vm.intentos_recalc || vmIntentosRecalc;
         vmActivoProveedor = vm.activo || null;
+        syncActiveBatchSlotFromLastGenerar();
         renderGenerarResult(lastGenerarResult, { scroll: false });
         renderValidarMinimosUI(vm);
+        showValidarMinimosAlarm({
+            afterSelection: !!activeBatchPerfilId,
+            colaN: (vm.cola || []).length,
+        });
         if (vm.requiere_panel_antes_recalc) {
             vmPanelAck = true;
         }
@@ -1905,7 +1977,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function callValidarMinimos(action, extra = {}) {
         if (!lastGenerarResult) {
-            showAlert('Primero ejecute Generar (Sencillo).', false);
+            showAlert('Primero elija un perfil (clic en columna) o ejecute Generar.', false);
             return;
         }
         const payload = {

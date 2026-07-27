@@ -836,12 +836,18 @@
                     </table>
                 </div>
 
-                <!-- Validar mínimos proveedor (ADR-0016) -->
+                <!-- Validar mínimos proveedor (ADR-0016) — post-elección perfil (ticket 11) -->
                 <div id="validarMinimosSection" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: rgba(245, 158, 11, 0.06);">
+                    <div id="validarMinimosAlarm" style="display:none; margin:0 0 0.75rem; padding:0.65rem 0.75rem; border-left:4px solid #f59e0b; background:rgba(245,158,11,0.18); border-radius:4px;">
+                        <strong style="color:var(--text-primary);"><i class="fas fa-exclamation-triangle"></i> Alarma mínimos</strong>
+                        <div id="validarMinimosAlarmText" style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
+                            Tras elegir perfil, evalúe mínimos <em>solo de este perfil</em>. El batch no corre ValidarMinimos.
+                        </div>
+                    </div>
                     <h3 style="margin: 0 0 0.5rem 0;"><i class="fas fa-dollar-sign"></i> Validar mínimos proveedor</h3>
                     <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-                        Paso explícito tras Generar. Compara total USD por proveedor vs <code>MontoMinimoPedidoUSD</code>.
-                        No altera el primer Generar hasta que usted actúe.
+                        Paso explícito <strong>después de elegir el perfil</strong> (no inline en generación única).
+                        Compara total USD por proveedor vs <code>MontoMinimoPedidoUSD</code>. No altera el pedido hasta que usted actúe.
                     </p>
                     <button type="button" id="btnValidarMinimos" class="btn btn-secondary" style="height: 44px; width: 100%; font-weight: 600;">
                         <i class="fas fa-balance-scale"></i> Evaluar mínimos
@@ -1040,7 +1046,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js?v=20260723-bandeja"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260726-comparador-regen"></script>
+<script src="js/app_pedidos.js?v=20260726-vm-post-eleccion"></script>
 <script src="js/bandeja_pedidos.js?v=20260723-pdf-tg"></script>
 
 <script>
