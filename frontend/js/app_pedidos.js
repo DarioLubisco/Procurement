@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let vmIntentosRecalc = {};
     let vmActivoProveedor = null;
     let vmPanelAck = false;
-    // ADR-0018: Guardar borrador only after Regenerar Definitivo; clear on Sencillo
+    // ADR-0018: Guardar borrador only after Regenerar perfil activo (generación única)
     let definitivoReadyForBorrador = false;
     let lastDefinitivoParams = null;
     let configCollapsed = false;
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
             days: inputDays ? inputDays.value : '30',
             rows: inputRows ? inputRows.value : '5000',
             umbral: inputUmbral ? inputUmbral.value : '0.5',
-            preset: document.getElementById('presetSencillo')?.value || 'Normal',
+            preset: document.getElementById('basePresetDefinitivo')?.value || 'Normal',
             presupuesto: document.getElementById('presupuestoMaximo')?.value || '',
             include_generics: document.getElementById('includeGenerics')?.checked !== false,
             include_brands: document.getElementById('includeBrands')?.checked !== false,
@@ -217,8 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (d.days && inputDays) inputDays.value = d.days;
         if (d.rows && inputRows) inputRows.value = d.rows;
         if (d.umbral != null && d.umbral !== '' && inputUmbral) inputUmbral.value = d.umbral;
-        const preset = document.getElementById('presetSencillo');
-        if (d.preset && preset) preset.value = d.preset;
+        const basePreset = document.getElementById('basePresetDefinitivo');
+        if (d.preset && basePreset) basePreset.value = d.preset;
         const presupuesto = document.getElementById('presupuestoMaximo');
         if (presupuesto && d.presupuesto != null) presupuesto.value = d.presupuesto;
         const gen = document.getElementById('includeGenerics');
@@ -585,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- FORM SUBMISSION (Generar Sencillo → Comparativa + Propuesto) ---
+    // --- FORM SUBMISSION (Generación única → batch → grilla → Comparativa) ---
     function showAlert(msg, isSuccess) {
         if (alertBox) {
             alertBox.textContent = msg;
@@ -641,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ? Number(presupuestoRaw) : null;
         return {
             cobertura: Number(document.getElementById('pedidoDays').value),
-            preset: document.getElementById('presetSencillo')?.value || 'Normal',
+            preset: document.getElementById('basePresetDefinitivo')?.value || 'Normal',
             criterios_agrupacion: collectCriteriosAgrupacion(),
             categorias: selectedCategoryNames,
             include_generics: document.getElementById('includeGenerics')?.checked !== false,
@@ -2489,7 +2489,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hideAlert();
             const resultSection = document.getElementById('generarResultSection');
             if (!resultSection || resultSection.style.display === 'none') {
-                showAlert("Primero ejecute Generar (Sencillo) para ver la Comparativa.", false);
+                showAlert("Primero Generar y elija un perfil en la grilla para ver la Comparativa.", false);
                 return;
             }
             promptOverridesBeforeGenerar();

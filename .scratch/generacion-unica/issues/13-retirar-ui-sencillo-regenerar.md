@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 13-retirar-ui-sencillo-regenerar
 
@@ -11,10 +11,10 @@ Remove the primary-path duplicate Generar Sencillo → Regenerar Definitivo work
 
 ## Acceptance criteria
 
-- [ ] Primary UI no longer presents the old serial Sencillo-then-only-Regenerar compare story as the main path
-- [ ] New Generar → grilla → Comparativa → comparador/mínimos/guardar path remains reachable
-- [ ] `prototype_compare_presets.js`, `.wf3.js`, and NOTES are not deleted
-- [ ] Smoke: one full happy path without using retired controls
+- [x] Primary UI no longer presents the old serial Sencillo-then-only-Regenerar compare story as the main path
+- [x] New Generar → grilla → Comparativa → comparador/mínimos/guardar path remains reachable
+- [x] `prototype_compare_presets.js`, `.wf3.js`, and NOTES are not deleted
+- [x] Smoke: one full happy path without using retired controls
 
 ## Blocked by
 
@@ -22,5 +22,9 @@ Remove the primary-path duplicate Generar Sencillo → Regenerar Definitivo work
 - 10-comparador-regen-activo
 - 11-validar-minimos-post-eleccion
 - 12-guardar-solo-perfil-elegido
+
+## Answer
+
+Removed `#presetSencillo` from Config. Happy path = batch slots → Generar → grilla → Comparativa → comparador/VM/Guardar. Prototypes untouched. Legacy FE tests updated for batch.
 
 ## Comments

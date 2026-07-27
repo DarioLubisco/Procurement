@@ -627,14 +627,6 @@
                         <input type="number" id="numRows" class="form-control" value="5000" min="1"/>
                     </div>
                     <div class="input-group">
-                        <label for="presetSencillo">Preset</label>
-                        <select id="presetSencillo" class="form-control">
-                            <option value="Conservador">Conservador</option>
-                            <option value="Normal" selected>Normal</option>
-                            <option value="Agresivo">Agresivo</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
                         <label for="umbralRotacion">Umbral rotación</label>
                         <input type="number" id="umbralRotacion" class="form-control" value="0.5" step="0.1" min="0"/>
                     </div>
@@ -778,7 +770,7 @@
                         <button type="button" id="btnGuardarCambiosBandeja" class="btn btn-secondary" style="display:none;">
                             <i class="fas fa-save"></i> Guardar cambios
                         </button>
-                        <button type="button" id="btnGuardarBorrador" class="btn btn-primary" disabled title="Disponible tras Regenerar Definitivo">
+                        <button type="button" id="btnGuardarBorrador" class="btn btn-primary" disabled title="Disponible tras Regenerar el perfil activo">
                             <i class="fas fa-save"></i> Guardar borrador
                         </button>
                         <button type="button" id="btnEnviarPedido" class="btn btn-secondary" title="Envío FTP/Telegram — ADR-0029/0030" style="opacity:0.75;">
@@ -1047,7 +1039,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js?v=20260723-bandeja"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260726-guardar-solo-elegido"></script>
+<script src="js/app_pedidos.js?v=20260726-retirar-sencillo-ui"></script>
 <script src="js/bandeja_pedidos.js?v=20260723-pdf-tg"></script>
 
 <script>

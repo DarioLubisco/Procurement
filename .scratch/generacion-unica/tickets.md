@@ -172,10 +172,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** FE clic columna → Comparativa única; Comparador vertical + re-gen solo activo; ValidarMinimos post-elección → alarma → modal; Guardar v1 solo perfil elegido
 
-- [ ] Primary UI no longer presents the old serial Sencillo-then-only-Regenerar compare story as the main path
-- [ ] New Generar → grilla → Comparativa → comparador/mínimos/guardar path remains reachable
-- [ ] `prototype_compare_presets.js`, `.wf3.js`, and NOTES are not deleted
-- [ ] Smoke: one full happy path without using retired controls
+**Status:** resolved (see `issues/13-retirar-ui-sencillo-regenerar.md`)
+
+- [x] Primary UI no longer presents the old serial Sencillo-then-only-Regenerar compare story as the main path
+- [x] New Generar → grilla → Comparativa → comparador/mínimos/guardar path remains reachable
+- [x] `prototype_compare_presets.js`, `.wf3.js`, and NOTES are not deleted
+- [x] Smoke: one full happy path without using retired controls
 
 ## Enmendar ADR-0007 + CONTEXT
 

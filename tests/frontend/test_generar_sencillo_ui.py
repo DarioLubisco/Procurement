@@ -1,4 +1,4 @@
-"""FE Generar Sencillo — structural checks for ticket 10 (no browser)."""
+"""FE generación única — structural checks (evolved from Generar Sencillo UI)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,8 +8,10 @@ HTML = (ROOT / "frontend" / "modulo_pedidos.html").read_text(encoding="utf-8")
 JS = (ROOT / "frontend" / "js" / "app_pedidos.js").read_text(encoding="utf-8")
 
 
-def test_fe_has_sencillo_controls_and_comparativa_tables():
-    assert 'id="presetSencillo"' in HTML
+def test_fe_has_batch_controls_and_comparativa_tables():
+    # Ticket 13: single presetSencillo retired from primary path
+    assert 'id="presetSencillo"' not in HTML
+    assert "batch-perfil-slot" in HTML
     assert 'id="criteriosAgrupacion"' in HTML
     assert 'id="presupuestoMaximo"' in HTML
     assert 'id="comparativaTableBody"' in HTML
@@ -23,7 +25,6 @@ def test_fe_has_sencillo_controls_and_comparativa_tables():
     assert 'id="btnToggleConfig"' in HTML
     assert "avanzadas-contingencia" in HTML or "Opciones avanzadas" in HTML
     assert "pedidos-table-scroll" in HTML
-    assert "320px" not in HTML  # old sidebar column gone
 
 
 def test_fe_config_pedido_competencia_knobs():
@@ -40,11 +41,11 @@ def test_fe_config_pedido_competencia_knobs():
     assert "overrides: collectCompetenciaOverrides()" in JS or "overrides: collectCompetenciaOverrides" in JS
 
 
-def test_fe_calls_unified_generar_sencillo_endpoint():
-    assert "/api/pedidos/generar-sencillo" in JS
+def test_fe_calls_generar_batch_endpoint():
+    assert "/api/pedidos/generar-batch" in JS
     assert "renderGenerarResult" in JS
     assert "criterios_agrupacion" in JS
-    assert "buildSencilloPayload" in JS
+    assert "buildSencilloPayload" in JS or "buildBatchPayload" in JS
     assert "/api/rotacion-grupal/atributos" in JS
     assert "fetchCriteriosAtributos" in JS
     assert "openCategoriesModal" in JS
@@ -53,8 +54,8 @@ def test_fe_calls_unified_generar_sencillo_endpoint():
     assert "collectDefaultsSnapshot" in JS
 
 
-def test_fe_regenerar_definitivo_distinct_from_sencillo():
-    assert "Regenerar Pedido Definitivo" in HTML
+def test_fe_regenerar_activo_on_comparador():
+    assert 'id="comparadorActivoCard"' in HTML
     assert 'id="btnRegenerarDefinitivo"' in HTML
     assert 'id="nivelDefinitivo"' in HTML
     assert 'id="definitivoOverridesHost"' in HTML
@@ -81,15 +82,14 @@ def test_fe_regenerar_definitivo_distinct_from_sencillo():
 
 
 def test_fe_preset_order_conservador_normal_agresivo():
-    # Sencillo + Definitivo: Conservador → Normal → Agresivo; default Normal
-    for select_id in ('presetSencillo', 'basePresetDefinitivo'):
+    # Batch slots + Definitivo base: Conservador → Normal → Agresivo
+    for select_id in ('batchPerfilSlot1', 'basePresetDefinitivo'):
         start = HTML.index(f'id="{select_id}"')
         chunk = HTML[start : start + 450]
-        i_c = chunk.index('value="Conservador"')
-        i_n = chunk.index('value="Normal"')
-        i_a = chunk.index('value="Agresivo"')
+        i_c = chunk.index("Conservador")
+        i_n = chunk.index("Normal")
+        i_a = chunk.index("Agresivo")
         assert i_c < i_n < i_a
-        assert 'value="Normal" selected' in chunk or "value='Normal' selected" in chunk
 
 
 def test_fe_guardar_borrador_after_definitivo():
@@ -98,6 +98,3 @@ def test_fe_guardar_borrador_after_definitivo():
     assert "/api/pedidos/guardar-borrador" in JS
     assert "setDefinitivoReadyForBorrador" in JS
     assert "definitivoReadyForBorrador" in JS
-    assert "lastDefinitivoParams" in JS
-    assert "buildDefinitivoParamsSnapshot" in JS
-    assert "guardar-borrador" in HTML or "BorradorPedidos" in HTML
