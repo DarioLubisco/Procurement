@@ -42,6 +42,7 @@ LIVING_OVERRIDE_KEYS = frozenset(
         "max_sustitucion_base",  # Avanzado only
         "rivales_top_n",  # ADR-0022
         "hermanos_top_n",
+        "rivales_ofertas_por_rival",  # generacion-unica ticket 03
         # ADR-0026 PDR gate
         "pdr_gate_enabled",
         "pdr_gate_stock_max",
@@ -79,6 +80,7 @@ INTERMEDIO_OVERRIDE_KEYS = frozenset(
         "kappa",
         "rivales_top_n",
         "hermanos_top_n",
+        "rivales_ofertas_por_rival",
         "pdr_gate_enabled",
         "pdr_gate_stock_max",
     }
@@ -108,6 +110,8 @@ class PresetKnobs:
     # ADR-0022: Comparativa competencia payload size
     rivales_top_n: int = 3
     hermanos_top_n: int = 3
+    # generacion-unica: offers per rival in replacement modal
+    rivales_ofertas_por_rival: int = 2
     # ADR-0026: PDR gate (stock × PPP) — defaults apply to Sencillo too
     pdr_gate_enabled: bool = True
     pdr_gate_stock_max: int = 2
@@ -321,6 +325,16 @@ _OVERRIDE_FIELD_META: Dict[str, Dict[str, Any]] = {
             "se muestran como sucedáneos potenciales. Default 3; rango 1–10."
         ),
     },
+    "rivales_ofertas_por_rival": {
+        "label": "Ofertas por rival",
+        "type": "number",
+        "step": "1",
+        "hint": "Ofertas por proveedor rival en modal.",
+        "help": (
+            "Cuántas ofertas (desc+proveedor+precio) se guardan por cada rival "
+            "para el modal de reemplazo. Default 2; rango 1–10."
+        ),
+    },
     "monto_buffer_pct": {
         "label": "Buffer presupuesto (%)",
         "type": "number",
@@ -493,6 +507,11 @@ def apply_living_overrides(
             from .competencia_top_n import clamp_top_n
 
             updates[key] = clamp_top_n(value)
+            continue
+        if key == "rivales_ofertas_por_rival":
+            from .competencia_top_n import clamp_top_n
+
+            updates[key] = clamp_top_n(value, default=2)
             continue
         if key == "pdr_gate_enabled":
             if isinstance(value, str):

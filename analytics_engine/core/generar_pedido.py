@@ -16,7 +16,12 @@ from .pedido_baseline import (
     FiltrosOperativos,
     compute_pedido_baseline,
 )
-from .presets import PresetSencillo, apply_living_overrides, resolve_preset_knobs
+from .presets import (
+    PresetKnobs,
+    PresetSencillo,
+    apply_living_overrides,
+    resolve_preset_knobs,
+)
 
 
 class NivelPerfil(str, Enum):
@@ -74,6 +79,109 @@ class GenerarResult:
     comparativa_cantidades: List[ComparativaRow]
 
 
+@dataclass(frozen=True)
+class FiltrosCompartidos:
+    """Shared sampling/horizon inputs for generación única batch (ticket 01)."""
+
+    cobertura: int
+    criterios_agrupacion: Sequence[str]
+    filtros_operativos: FiltrosOperativos
+    presupuesto_maximo: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class PerfilDescriptor:
+    """One batch slot: factory PresetSencillo and/or living overrides."""
+
+    id: str
+    label: str
+    nivel: NivelPerfil = NivelPerfil.SENCILLO
+    preset: Optional[PresetSencillo] = None
+    overrides: Optional[dict] = None
+
+
+@dataclass(frozen=True)
+class PerfilBatchSlot:
+    id: str
+    label: str
+    knobs_efectivos: Optional[Dict[str, object]]
+    result: GenerarResult
+
+
+@dataclass(frozen=True)
+class GenerarBatchResult:
+    pedido_baseline: List[BaselineLine]
+    perfiles: List[PerfilBatchSlot]
+
+
+def _resolve_knobs_for_perfil(
+    perfil: PerfilPedido,
+) -> tuple[Optional[PresetKnobs], bool]:
+    """Return (knobs_or_None, use_motor). None knobs → identity stubs."""
+    if perfil.nivel is NivelPerfil.SENCILLO and perfil.preset is not None:
+        return resolve_preset_knobs(perfil.preset), True
+    if perfil.nivel in (NivelPerfil.INTERMEDIO, NivelPerfil.AVANZADO):
+        base_preset = perfil.preset or PresetSencillo.NORMAL
+        knobs = apply_living_overrides(
+            resolve_preset_knobs(base_preset),
+            perfil.overrides,
+            nivel=perfil.nivel.value,
+        )
+        return knobs, True
+    return None, False
+
+
+def _propuesto_for_perfil(
+    perfil: PerfilPedido,
+    baseline: Sequence[BaselineLine],
+    *,
+    catalog: pd.DataFrame,
+    market_offers: Optional[pd.DataFrame],
+    criterios: Sequence[str],
+    bo_map: Mapping[str, int],
+) -> tuple[List[PropuestoLine], List[ComparativaRow], Optional[Dict[str, object]]]:
+    knobs, use_motor = _resolve_knobs_for_perfil(perfil)
+    knobs_dict: Optional[Dict[str, object]] = None
+    if knobs is not None:
+        from dataclasses import asdict
+
+        knobs_dict = asdict(knobs)
+    if market_offers is None or not use_motor or knobs is None:
+        propuesto, comparativa = _identity_stubs(
+            baseline, catalog=catalog, bo_map=bo_map, criterios=criterios
+        )
+        return propuesto, comparativa, knobs_dict
+    propuesto, comparativa = _propuesto_desde_knobs(
+        knobs,
+        baseline,
+        catalog,
+        market_offers,
+        criterios,
+        bo_map=bo_map,
+    )
+    return propuesto, comparativa, knobs_dict
+
+
+def _compute_shared_baseline(
+    *,
+    cobertura: int,
+    criterios_agrupacion: Sequence[str],
+    filtros_operativos: FiltrosOperativos,
+    catalog: pd.DataFrame,
+    backorder: Optional[pd.DataFrame],
+) -> tuple[List[BaselineLine], Sequence[str], Mapping[str, int]]:
+    criterios = resolve_criterios_agrupacion(criterios_agrupacion)
+    baseline = compute_pedido_baseline(
+        catalog,
+        cobertura_dias=float(cobertura),
+        filtros=filtros_operativos,
+        criterios_agrupacion=criterios,
+    )
+    bo_map = normalize_backorder(backorder)
+    baseline = subtract_backorder_from_baseline(baseline, bo_map)
+    return baseline, criterios, bo_map
+
+
 def generar_pedido(
     perfil: PerfilPedido,
     *,
@@ -86,55 +194,86 @@ def generar_pedido(
     `backorder` is BARRA×cantidad from dedicated backend tables (ADR-0009). Same
     subtraction applies to Baseline and (via Baseline ceiling) Propuesto.
     """
-    criterios = resolve_criterios_agrupacion(perfil.criterios_agrupacion)
-    baseline = compute_pedido_baseline(
-        catalog,
-        cobertura_dias=float(perfil.cobertura),
-        filtros=perfil.filtros_operativos,
-        criterios_agrupacion=criterios,
+    baseline, criterios, bo_map = _compute_shared_baseline(
+        cobertura=perfil.cobertura,
+        criterios_agrupacion=perfil.criterios_agrupacion,
+        filtros_operativos=perfil.filtros_operativos,
+        catalog=catalog,
+        backorder=backorder,
     )
-    bo_map = normalize_backorder(backorder)
-    baseline = subtract_backorder_from_baseline(baseline, bo_map)
-
-    if market_offers is None:
-        propuesto, comparativa = _identity_stubs(
-            baseline, catalog=catalog, bo_map=bo_map, criterios=criterios
-        )
-    elif perfil.nivel is NivelPerfil.SENCILLO and perfil.preset is not None:
-        propuesto, comparativa = _propuesto_desde_knobs(
-            resolve_preset_knobs(perfil.preset),
-            baseline,
-            catalog,
-            market_offers,
-            criterios,
-            bo_map=bo_map,
-        )
-    elif perfil.nivel in (NivelPerfil.INTERMEDIO, NivelPerfil.AVANZADO):
-        # Definitivo: base = Normal (calibrado) or last Sencillo preset, then living overrides
-        base_preset = perfil.preset or PresetSencillo.NORMAL
-        knobs = apply_living_overrides(
-            resolve_preset_knobs(base_preset),
-            perfil.overrides,
-            nivel=perfil.nivel.value,
-        )
-        propuesto, comparativa = _propuesto_desde_knobs(
-            knobs,
-            baseline,
-            catalog,
-            market_offers,
-            criterios,
-            bo_map=bo_map,
-        )
-    else:
-        propuesto, comparativa = _identity_stubs(
-            baseline, catalog=catalog, bo_map=bo_map, criterios=criterios
-        )
-
+    propuesto, comparativa, _ = _propuesto_for_perfil(
+        perfil,
+        baseline,
+        catalog=catalog,
+        market_offers=market_offers,
+        criterios=criterios,
+        bo_map=bo_map,
+    )
     return GenerarResult(
         pedido_baseline=baseline,
         pedido_propuesto=propuesto,
         comparativa_cantidades=comparativa,
     )
+
+
+def generar_pedido_batch(
+    shared: FiltrosCompartidos,
+    perfiles: Sequence[PerfilDescriptor],
+    *,
+    catalog: pd.DataFrame,
+    market_offers: Optional[pd.DataFrame] = None,
+    backorder: Optional[pd.DataFrame] = None,
+) -> GenerarBatchResult:
+    """Generación única: one PedidoBaseline + ≤3 perfil GenerarResults (ticket 01).
+
+    Baseline is sampled once and reused as the Comparativa anchor for every slot.
+    """
+    if len(perfiles) > 3:
+        raise ValueError("generar_pedido_batch accepts at most 3 perfiles")
+    if len(perfiles) < 1:
+        raise ValueError("generar_pedido_batch requires at least 1 perfil")
+
+    baseline, criterios, bo_map = _compute_shared_baseline(
+        cobertura=shared.cobertura,
+        criterios_agrupacion=shared.criterios_agrupacion,
+        filtros_operativos=shared.filtros_operativos,
+        catalog=catalog,
+        backorder=backorder,
+    )
+
+    slots: List[PerfilBatchSlot] = []
+    for desc in perfiles:
+        nivel = desc.nivel
+        perfil = PerfilPedido(
+            cobertura=shared.cobertura,
+            criterios_agrupacion=shared.criterios_agrupacion,
+            filtros_operativos=shared.filtros_operativos,
+            nivel=nivel,
+            preset=desc.preset,
+            presupuesto_maximo=shared.presupuesto_maximo,
+            overrides=desc.overrides,
+        )
+        propuesto, comparativa, knobs_dict = _propuesto_for_perfil(
+            perfil,
+            baseline,
+            catalog=catalog,
+            market_offers=market_offers,
+            criterios=criterios,
+            bo_map=bo_map,
+        )
+        slots.append(
+            PerfilBatchSlot(
+                id=desc.id,
+                label=desc.label,
+                knobs_efectivos=knobs_dict,
+                result=GenerarResult(
+                    pedido_baseline=baseline,
+                    pedido_propuesto=propuesto,
+                    comparativa_cantidades=comparativa,
+                ),
+            )
+        )
+    return GenerarBatchResult(pedido_baseline=baseline, perfiles=slots)
 
 
 def _propuesto_desde_knobs(
