@@ -72,6 +72,7 @@ def build_perfil_sencillo(
     num_rows: int = 5000,
     preset: str = "Conservador",
     presupuesto_maximo: Optional[float] = None,
+    overrides: Optional[Dict[str, Any]] = None,
 ) -> PerfilPedido:
     """Map HTTP/FE Sencillo controls → PerfilPedido (nivel always Sencillo)."""
     try:
@@ -82,6 +83,13 @@ def build_perfil_sencillo(
         ) from exc
 
     criterios = list(criterios_agrupacion) if criterios_agrupacion else []
+    if overrides:
+        # Validate early (reject dead knobs)
+        apply_living_overrides(
+            resolve_preset_knobs(preset_enum),
+            overrides,
+            nivel="Avanzado",
+        )
     return PerfilPedido(
         cobertura=int(cobertura),
         criterios_agrupacion=criterios,
@@ -95,6 +103,7 @@ def build_perfil_sencillo(
         nivel=NivelPerfil.SENCILLO,
         preset=preset_enum,
         presupuesto_maximo=presupuesto_maximo,
+        overrides=dict(overrides) if overrides else None,
     )
 
 
@@ -173,6 +182,7 @@ def run_generar_sencillo(
     preset: str = "Conservador",
     presupuesto_maximo: Optional[float] = None,
     backorder_rows: Optional[Sequence[Dict[str, Any]]] = None,
+    overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Unified Generar Sencillo path (offline-injectable catalog/offers)."""
     perfil = build_perfil_sencillo(
@@ -185,6 +195,7 @@ def run_generar_sencillo(
         num_rows=num_rows,
         preset=preset,
         presupuesto_maximo=presupuesto_maximo,
+        overrides=overrides,
     )
     catalog = _rows_to_frame(catalog_rows)
     offers = _rows_to_frame(market_offers_rows)

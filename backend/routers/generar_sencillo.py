@@ -28,6 +28,7 @@ class GenerarSencilloRequest(BaseModel):
     umbral_rotacion: float = 0.0
     num_rows: int = 5000
     presupuesto_maximo: Optional[float] = None
+    overrides: Optional[Dict[str, Any]] = None
     catalog: Optional[List[Dict[str, Any]]] = None
     market_offers: Optional[List[Dict[str, Any]]] = None
     backorder: Optional[List[Dict[str, Any]]] = None
@@ -70,6 +71,7 @@ class GenerarBatchRequest(BaseModel):
     num_rows: int = 5000
     presupuesto_maximo: Optional[float] = None
     perfiles: List[PerfilBatchItem] = Field(..., min_length=1)
+    overrides: Optional[Dict[str, Any]] = None  # shared Config Pedido knobs
     catalog: Optional[List[Dict[str, Any]]] = None
     market_offers: Optional[List[Dict[str, Any]]] = None
     backorder: Optional[List[Dict[str, Any]]] = None
@@ -182,6 +184,7 @@ async def generar_sencillo(body: GenerarSencilloRequest):
             preset=body.preset,
             presupuesto_maximo=body.presupuesto_maximo,
             backorder_rows=backorder_rows,
+            overrides=body.overrides,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -262,7 +265,11 @@ async def generar_batch(body: GenerarBatchRequest):
                     "label": p.label or p.id,
                     "preset": p.preset,
                     "nivel": p.nivel,
-                    "overrides": p.overrides,
+                    "overrides": {
+                        **(body.overrides or {}),
+                        **(p.overrides or {}),
+                    }
+                    or None,
                 }
                 for p in body.perfiles
             ],

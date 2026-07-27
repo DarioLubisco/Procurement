@@ -119,7 +119,13 @@ def _resolve_knobs_for_perfil(
 ) -> tuple[Optional[PresetKnobs], bool]:
     """Return (knobs_or_None, use_motor). None knobs → identity stubs."""
     if perfil.nivel is NivelPerfil.SENCILLO and perfil.preset is not None:
-        return resolve_preset_knobs(perfil.preset), True
+        knobs = resolve_preset_knobs(perfil.preset)
+        if perfil.overrides:
+            # Config Pedido knobs (hermanos/rivales/…) on first Generar — ticket 04
+            knobs = apply_living_overrides(
+                knobs, perfil.overrides, nivel="Avanzado"
+            )
+        return knobs, True
     if perfil.nivel in (NivelPerfil.INTERMEDIO, NivelPerfil.AVANZADO):
         base_preset = perfil.preset or PresetSencillo.NORMAL
         knobs = apply_living_overrides(

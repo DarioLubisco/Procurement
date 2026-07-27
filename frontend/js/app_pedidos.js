@@ -535,6 +535,38 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(document.querySelectorAll('.criterio-cb:checked')).map(cb => cb.value);
     }
 
+    function clampTopNInput(raw, defaultVal) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return defaultVal;
+        return Math.max(1, Math.min(10, Math.round(n)));
+    }
+
+    function collectCompetenciaOverrides() {
+        const hermanosEl = document.getElementById('hermanosTopN');
+        const rivalesEl = document.getElementById('rivalesTopN');
+        const ofertasEl = document.getElementById('rivalesOfertasPorRival');
+        const hermanos = clampTopNInput(hermanosEl?.value, 3);
+        const rivales = clampTopNInput(rivalesEl?.value, 3);
+        const ofertas = clampTopNInput(ofertasEl?.value, 2);
+        if (hermanosEl && Number(hermanosEl.value) !== hermanos) {
+            hermanosEl.value = String(hermanos);
+            showAlert('Hermanos top N ajustado al rango 1–10.', false);
+        }
+        if (rivalesEl && Number(rivalesEl.value) !== rivales) {
+            rivalesEl.value = String(rivales);
+            showAlert('Rivales top N ajustado al rango 1–10.', false);
+        }
+        if (ofertasEl && Number(ofertasEl.value) !== ofertas) {
+            ofertasEl.value = String(ofertas);
+            showAlert('Ofertas por rival ajustado al rango 1–10.', false);
+        }
+        return {
+            hermanos_top_n: hermanos,
+            rivales_top_n: rivales,
+            rivales_ofertas_por_rival: ofertas,
+        };
+    }
+
     function buildSencilloPayload() {
         const selectedCategoryNames = Object.values(categoryMap)
             .filter(c => c.selected).map(c => c.name);
@@ -551,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
             umbral_rotacion: Number(document.getElementById('umbralRotacion')?.value || 0),
             num_rows: Number(document.getElementById('numRows').value),
             presupuesto_maximo: presupuesto,
+            overrides: collectCompetenciaOverrides(),
         };
     }
 

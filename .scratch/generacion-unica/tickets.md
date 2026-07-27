@@ -51,10 +51,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** Knob `rivales_ofertas_por_rival` + schema
 
-- [ ] Three controls visible in Config Pedido (not buried only in Avanzado dump)
-- [ ] Defaults shown: 3 / 3 / 2
-- [ ] Values flow into the next Generar/batch request knobs
-- [ ] Invalid input is clamped or rejected with clear FE feedback
+**Status:** resolved (see `issues/04-config-pedido-knobs-ui.md`)
+
+- [x] Three controls visible in Config Pedido (not buried only in Avanzado dump)
+- [x] Defaults shown: 3 / 3 / 2
+- [x] Values flow into the next Generar/batch request knobs
+- [x] Invalid input is clamped or rejected with clear FE feedback
 
 ## Payload hermanos + rivales honors knobs
 
@@ -62,10 +64,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** Knob `rivales_ofertas_por_rival` + schema
 
-- [ ] Each rival can include up to `rivales_ofertas_por_rival` offers (desc, proveedor, precio)
-- [ ] Hermanos capped by `hermanos_top_n`; rivales by `rivales_top_n`
-- [ ] Fixture/assert cardinality changes when knobs change
-- [ ] No live Mercado round-trip required to open the modal for data already on the row
+**Status:** resolved (see `issues/05-payload-hermanos-rivales.md`)
+
+- [x] Each rival can include up to `rivales_ofertas_por_rival` offers (desc, proveedor, precio)
+- [x] Hermanos capped by `hermanos_top_n`; rivales by `rivales_top_n`
+- [x] Fixture/assert cardinality changes when knobs change
+- [x] No live Mercado round-trip required to open the modal for data already on the row
 
 ## FE Generar → batch + grilla `N (Δ −86)`
 

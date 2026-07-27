@@ -29,48 +29,109 @@ def rivales_top_n(
     top_n: int = 3,
     elegida_barra: str = "",
     elegida_proveedor: str = "",
+    ofertas_por_rival: int = 2,
 ) -> List[Dict[str, Any]]:
-    """Best offers by _score. One row per (barra, proveedor)."""
+    """Top-N rivales by best offer score. Rival key = proveedor.
+
+    Each rival includes up to `ofertas_por_rival` offers (desc, proveedor, precio)
+    for the replacement modal without a second Mercado fetch. Primary flat fields
+    (barra, precio, …) mirror the best offer for backward-compatible FE.
+    """
     n = clamp_top_n(top_n)
+    m = clamp_top_n(ofertas_por_rival, default=2)
     if scored is None or scored.empty:
         return []
     df = scored
     if "_score" in df.columns:
         df = df.sort_values("_score", ascending=False, kind="mergesort")
-    out: List[Dict[str, Any]] = []
-    seen: set[tuple] = set()
+
     elegida_b = str(elegida_barra or "").strip()
     elegida_p = str(elegida_proveedor or "").strip().upper()
+
+    # Collect offers per proveedor (score-sorted)
+    by_prov: Dict[str, List[Dict[str, Any]]] = {}
+    best_score_by_prov: Dict[str, float] = {}
     for _, row in df.iterrows():
         barra = str(row.get("barra") or "").strip()
         prov = str(row.get("proveedor") or "").strip()
-        key = (barra, prov.upper())
-        if not barra or not prov or key in seen:
+        if not barra or not prov:
             continue
-        seen.add(key)
+        score = _f(row, "_score", default=float("-inf"))
+        if score is None:
+            score = float("-inf")
         precio = _f(row, "precio")
-        score = _f(row, "_score")
-        desvio = _f(row, "desvio")
-        lt = _f(row, "lead_time_dias")
-        is_elegida = barra == elegida_b and prov.upper() == elegida_p
+        offer = {
+            "barra": barra,
+            "proveedor": prov,
+            "precio": round(precio, 4) if precio is not None else None,
+            "score": round(score, 4) if score != float("-inf") else None,
+            "desvio": (
+                round(_f(row, "desvio"), 6) if _f(row, "desvio") is not None else None
+            ),
+            "lead_time_dias": (
+                round(_f(row, "lead_time_dias"), 1)
+                if _f(row, "lead_time_dias") is not None
+                else None
+            ),
+            "descripcion": (
+                str(row.get("descripcion"))
+                if "descripcion" in row.index and pd.notna(row.get("descripcion"))
+                else None
+            ),
+            "pdr": _f(row, "pdr"),
+            "pdr_semaforo": str(row.get("pdr_semaforo")).strip().upper()
+            if "pdr_semaforo" in row.index and pd.notna(row.get("pdr_semaforo"))
+            else None,
+            "_score": score,
+        }
+        bucket = by_prov.setdefault(prov, [])
+        # Dedupe identical (barra, precio) within proveedor; keep score order
+        key = (barra, offer["precio"])
+        if any((o["barra"], o["precio"]) == key for o in bucket):
+            continue
+        bucket.append(offer)
+        prev_best = best_score_by_prov.get(prov)
+        if prev_best is None or score > prev_best:
+            best_score_by_prov[prov] = score
+
+    ranked_provs = sorted(
+        by_prov.keys(),
+        key=lambda p: best_score_by_prov.get(p, float("-inf")),
+        reverse=True,
+    )[:n]
+
+    out: List[Dict[str, Any]] = []
+    for i, prov in enumerate(ranked_provs, start=1):
+        offers_full = by_prov[prov]
+        offers = []
+        for o in offers_full[:m]:
+            offers.append(
+                {
+                    "barra": o["barra"],
+                    "proveedor": o["proveedor"],
+                    "precio": o["precio"],
+                    "score": o["score"],
+                    "desvio": o["desvio"],
+                    "lead_time_dias": o["lead_time_dias"],
+                    "descripcion": o["descripcion"],
+                }
+            )
+        best = offers_full[0]
         out.append(
             {
-                "rank": len(out) + 1,
-                "barra": barra,
+                "rank": i,
+                "barra": best["barra"],
                 "proveedor": prov,
-                "precio": round(precio, 4) if precio is not None else None,
-                "score": round(score, 4) if score is not None else None,
-                "desvio": round(desvio, 6) if desvio is not None else None,
-                "lead_time_dias": round(lt, 1) if lt is not None else None,
-                "elegida": is_elegida,
-                "pdr": _f(row, "pdr"),
-                "pdr_semaforo": str(row.get("pdr_semaforo")).strip().upper()
-                if "pdr_semaforo" in row.index and pd.notna(row.get("pdr_semaforo"))
-                else None,
+                "precio": best["precio"],
+                "score": best["score"],
+                "desvio": best["desvio"],
+                "lead_time_dias": best["lead_time_dias"],
+                "elegida": bool(prov.upper() == elegida_p),
+                "pdr": best.get("pdr"),
+                "pdr_semaforo": best.get("pdr_semaforo"),
+                "ofertas": offers,
             }
         )
-        if len(out) >= n:
-            break
     return out
 
 
@@ -190,13 +251,16 @@ def competencia_payload(
     elegida_proveedor: str,
     rivales_n: int = 3,
     hermanos_n: int = 3,
+    ofertas_por_rival: int = 2,
 ) -> Dict[str, Any]:
-    """Compact JSON for justificacion_factores datos (Comparativa accordion)."""
+    """Compact JSON for justificacion_factores datos (Comparativa accordion / modal)."""
+    ofertas_n = clamp_top_n(ofertas_por_rival, default=2)
     rivales = rivales_top_n(
         scored,
         top_n=rivales_n,
         elegida_barra=elegida_barra,
         elegida_proveedor=elegida_proveedor,
+        ofertas_por_rival=ofertas_n,
     )
     hermanos = hermanos_reemplazables_top_n(
         scored, baseline_barra=baseline_barra, top_n=hermanos_n
@@ -205,6 +269,7 @@ def competencia_payload(
     return {
         "top_n_rivales": clamp_top_n(rivales_n),
         "top_n_hermanos": clamp_top_n(hermanos_n),
+        "ofertas_por_rival": ofertas_n,
         "rivales": rivales,
         "hermanos_reemplazables": hermanos,
         "oferta_baseline": oferta_baseline,

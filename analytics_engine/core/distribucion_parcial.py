@@ -220,6 +220,9 @@ def distribute_parcial(
                 elegida_proveedor=str(chosen.get("proveedor") or ""),
                 rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
                 hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+                ofertas_por_rival=int(
+                    getattr(knobs, "rivales_ofertas_por_rival", 2) or 2
+                ),
             )
             factors.append(
                 factor(
@@ -230,6 +233,7 @@ def distribute_parcial(
                         "barra_propuesto": barra_p,
                         "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
                         "top_n_hermanos": herm.get("top_n_hermanos"),
+                        "ofertas_por_rival": herm.get("ofertas_por_rival"),
                         "oferta_baseline": herm.get("oferta_baseline"),
                         "rivales": herm.get("rivales") or [],
                     },
@@ -459,6 +463,9 @@ def _allocation_sucedaneo_from_offers(
             elegida_proveedor=str(chosen.get("proveedor") or ""),
             rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
             hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+            ofertas_por_rival=int(
+                getattr(knobs, "rivales_ofertas_por_rival", 2) or 2
+            ),
         )
         factors.append(
             factor(
@@ -469,6 +476,7 @@ def _allocation_sucedaneo_from_offers(
                     "barra_propuesto": barra_p,
                     "hermanos_reemplazables": herm.get("hermanos_reemplazables") or [],
                     "top_n_hermanos": herm.get("top_n_hermanos"),
+                    "ofertas_por_rival": herm.get("ofertas_por_rival"),
                     "oferta_baseline": herm.get("oferta_baseline"),
                     "rivales": herm.get("rivales") or [],
                 },
@@ -955,6 +963,7 @@ def _oferta_factor_from_chosen(
         elegida_proveedor=prov,
         rivales_n=int(getattr(knobs, "rivales_top_n", 3) or 3),
         hermanos_n=int(getattr(knobs, "hermanos_top_n", 3) or 3),
+        ofertas_por_rival=int(getattr(knobs, "rivales_ofertas_por_rival", 2) or 2),
     )
     n_riv = len(comp.get("rivales") or [])
     n_herm = len(comp.get("hermanos_reemplazables") or [])

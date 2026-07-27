@@ -26,6 +26,20 @@ def test_fe_has_sencillo_controls_and_comparativa_tables():
     assert "320px" not in HTML  # old sidebar column gone
 
 
+def test_fe_config_pedido_competencia_knobs():
+    """Ticket 04 — hermanos / rivales / ofertas por rival in Config Pedido."""
+    assert 'id="hermanosTopN"' in HTML
+    assert 'id="rivalesTopN"' in HTML
+    assert 'id="rivalesOfertasPorRival"' in HTML
+    assert 'value="3"' in HTML[HTML.index('id="hermanosTopN"') : HTML.index('id="hermanosTopN"') + 120]
+    assert 'value="3"' in HTML[HTML.index('id="rivalesTopN"') : HTML.index('id="rivalesTopN"') + 120]
+    assert 'value="2"' in HTML[HTML.index('id="rivalesOfertasPorRival"') : HTML.index('id="rivalesOfertasPorRival"') + 140]
+    assert "collectCompetenciaOverrides" in JS
+    assert "hermanos_top_n" in JS
+    assert "rivales_ofertas_por_rival" in JS
+    assert "overrides: collectCompetenciaOverrides()" in JS or "overrides: collectCompetenciaOverrides" in JS
+
+
 def test_fe_calls_unified_generar_sencillo_endpoint():
     assert "/api/pedidos/generar-sencillo" in JS
     assert "renderGenerarResult" in JS
