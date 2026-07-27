@@ -820,6 +820,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join(' · ');
     }
 
+    /** Ticket 08 / ADR-0019: primary = nombre + proveedor + precio; BARRA secondary. */
+    function formatJustificacionPrimaryHtml(row) {
+        const factores = row?.justificacion_factores || [];
+        const codes = new Set(factores.map(f => f.codigo));
+        const bb = String(row?.barra_baseline || '').trim();
+        const bp = String(row?.barra_propuesto || '').trim();
+        const isCodeChange = !!(bb && bp && bb !== bp) || codes.has('sucedaneo');
+        const nombre = String(row?.desc_propuesto || '').trim();
+        const prov = String(row?.proveedor || '').trim();
+        const px = precioFromFactores(row, false);
+        const pxTxt = px != null && !Number.isNaN(px) ? `$${Number(px).toFixed(4)}` : '';
+        const parts = [];
+        if (isCodeChange) parts.push('Sucedáneo');
+        if (nombre) parts.push(escapeHtml(nombre));
+        if (prov) parts.push(escapeHtml(prov));
+        if (pxTxt) parts.push(pxTxt);
+        const primary = parts.length
+            ? parts.join(' · ')
+            : escapeHtml(row?.justificacion_delta || '—');
+        let barraSec = '';
+        if (isCodeChange && bb && bp && bb !== bp) {
+            barraSec = `${escapeHtml(bb)}→${escapeHtml(bp)}`;
+        } else if (bp) {
+            barraSec = escapeHtml(bp);
+        } else if (bb) {
+            barraSec = escapeHtml(bb);
+        }
+        const factoresResumen = String(row?.justificacion_delta || '').trim();
+        return {
+            primaryHtml: `<span class="justificacion-primary" style="display:block; color:var(--text-primary); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${primary}</span>`,
+            barraHtml: barraSec
+                ? `<span class="justificacion-barra" style="display:block; font-size:0.68rem; font-family:monospace; color:var(--text-secondary); margin-top:0.15rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">BARRA ${barraSec}</span>`
+                : '',
+            factoresHtml: factoresResumen
+                ? `<span class="justificacion-resumen" style="display:block; font-size:0.68rem; color:var(--text-secondary); margin-top:0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(factoresResumen)}</span>`
+                : '',
+        };
+    }
+
     function findOfertaBaseline(row) {
         const bb = String(row?.barra_baseline || '').trim();
         if (!bb) return null;
@@ -920,7 +959,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const px = r.precio != null ? `$${Number(r.precio).toFixed(4)}` : '—';
                 const dv = r.desvio != null ? ` · desvío ${(Number(r.desvio) * 100).toFixed(1)}%` : '';
                 const lt = r.lead_time_dias != null ? ` · LT ${r.lead_time_dias}d` : '';
-                html += `<li><strong>${escapeHtml(r.proveedor)}</strong> / ${escapeHtml(r.barra)} — ${px}${dv}${lt}${mark}</li>`;
+                const nombre = r.descripcion
+                    ? `<span class="competencia-nombre">${escapeHtml(r.descripcion)}</span> · `
+                    : '';
+                const barraSec = r.barra
+                    ? ` <span class="competencia-barra" style="font-family:monospace; font-size:0.85em; opacity:0.75;">BARRA ${escapeHtml(r.barra)}</span>`
+                    : '';
+                html += `<li>${nombre}<strong>${escapeHtml(r.proveedor || '—')}</strong> · ${px}${dv}${lt}${mark}${barraSec}</li>`;
             });
             html += '</ol>';
         }
@@ -930,8 +975,13 @@ document.addEventListener('DOMContentLoaded', () => {
             html += '<ol style="margin:0; padding-left:1.2rem;">';
             hermanos.forEach(h => {
                 const px = h.precio != null ? `$${Number(h.precio).toFixed(4)}` : '—';
-                const desc = h.descripcion ? ` — ${escapeHtml(h.descripcion)}` : '';
-                html += `<li><code>${escapeHtml(h.barra)}</code> via <strong>${escapeHtml(h.proveedor)}</strong> ${px}${desc}</li>`;
+                const nombre = h.descripcion
+                    ? `<span class="competencia-nombre">${escapeHtml(h.descripcion)}</span> · `
+                    : '';
+                const barraSec = h.barra
+                    ? ` <span class="competencia-barra" style="font-family:monospace; font-size:0.85em; opacity:0.75;">BARRA ${escapeHtml(h.barra)}</span>`
+                    : '';
+                html += `<li>${nombre}<strong>${escapeHtml(h.proveedor || '—')}</strong> · ${px}${barraSec}</li>`;
             });
             html += '</ol>';
         }
@@ -1226,6 +1276,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 : (isBarraCambio
                     ? `<div style="font-size:0.65rem; color:var(--text-secondary); margin-top:0.2rem;">precio baseline: regenere Generar para ver oferta</div>`
                     : '');
+            const justHtml = formatJustificacionPrimaryHtml(row);
+            const justUnderline = hasDetail ? 'border-bottom:1px dotted var(--text-secondary);' : 'border-bottom:none;';
+            // Re-wrap primary with underline when accordionable
+            const primaryWithCue = justHtml.primaryHtml.replace(
+                'style="display:block;',
+                `style="display:block; ${justUnderline}`
+            );
             tr.innerHTML = `
                 <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_baseline)}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}${baselinePrecioHtml}</td>
@@ -1244,11 +1301,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         · existen <strong style="color:var(--text-primary);">${escapeHtml(exTxt)}</strong>
                     </div>
                 </td>
-                <td class="justificacion-cell" style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary); max-width:220px; cursor:${hasDetail ? 'pointer' : 'default'};">
-                    <span class="justificacion-resumen" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-bottom:${hasDetail ? '1px dotted var(--text-secondary)' : 'none'};">${escapeHtml(resumen) || '—'}</span>
+                <td class="justificacion-cell" style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary); max-width:260px; cursor:${hasDetail ? 'pointer' : 'default'};">
+                    ${primaryWithCue}${justHtml.barraHtml}${justHtml.factoresHtml}
                 </td>
             `;
-            const justSpan = tr.querySelector('.justificacion-resumen');
+            const justSpan = tr.querySelector('.justificacion-primary') || tr.querySelector('.justificacion-resumen');
             if (justSpan && hoverTitle) {
                 justSpan.setAttribute('title', hoverTitle);
             }

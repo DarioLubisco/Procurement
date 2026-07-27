@@ -104,10 +104,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** FE clic columna → Comparativa única
 
-- [ ] Primary cell/summary line is commercially readable (nombre, proveedor, precio)
-- [ ] BARRA appears as secondary detail (hover/acordeón/secondary line)
-- [ ] Structured `justificacion_factores` model from ADR-0019 is not flattened away
-- [ ] Sucedáneo / code-change cases still declare the change
+**Status:** resolved (see `issues/08-justificaciones-nombre-precio.md`)
+
+- [x] Primary cell/summary line is commercially readable (nombre, proveedor, precio)
+- [x] BARRA appears as secondary detail (hover/acordeón/secondary line)
+- [x] Structured `justificacion_factores` model from ADR-0019 is not flattened away
+- [x] Sucedáneo / code-change cases still declare the change
 
 ## Modal clic-derecho Original | Rivales
 
