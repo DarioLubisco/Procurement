@@ -707,6 +707,89 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function updateComparadorActivoCard() {
+        const card = document.getElementById('comparadorActivoCard');
+        const labelEl = document.getElementById('comparadorActivoLabel');
+        const summaryEl = document.getElementById('comparadorActivoSummary');
+        const hintEl = document.getElementById('comparadorActivoHint');
+        if (!card) return;
+        const hasResult = !!(lastGenerarResult && (lastGenerarResult.comparativa_cantidades || lastGenerarResult.pedido_propuesto));
+        if (!hasResult) {
+            card.style.display = 'none';
+            return;
+        }
+        card.style.display = 'block';
+        let label = 'Definitivo';
+        let result = lastGenerarResult;
+        if (lastBatchResult && activeBatchPerfilId) {
+            const slot = (lastBatchResult.perfiles || []).find(
+                (p) => String(p.id) === String(activeBatchPerfilId)
+            );
+            if (slot) {
+                label = slot.label || slot.id || activeBatchPerfilId;
+                result = slot.result || lastGenerarResult;
+            }
+        } else if (lastGenerarResult?.meta?.slot_label) {
+            label = lastGenerarResult.meta.slot_label;
+        }
+        if (labelEl) labelEl.textContent = label;
+        const sum = summarizePerfilMonto(result);
+        const totalTxt = formatTotalWithDelta(sum.montoUsd, sum.deltaVsBaseline);
+        if (summaryEl) {
+            summaryEl.innerHTML = `Total <strong style="color:var(--text-primary);">${escapeHtml(totalTxt)}</strong>`
+                + ` · ${sum.nLineas} líneas`
+                + (activeBatchPerfilId
+                    ? ` · slot <code>${escapeHtml(String(activeBatchPerfilId))}</code>`
+                    : '');
+        }
+        if (hintEl) {
+            hintEl.innerHTML = activeBatchPerfilId
+                ? 'Intermedio|Avanzado re-genera <strong>solo el perfil activo</strong>. PedidoBaseline compartido y columnas hermanas no se tocan.'
+                : 'Reafinación Intermedio|Avanzado tras la Comparativa (knobs vivos de OptimizerConfig).';
+        }
+    }
+
+    /** Replace only the active batch slot; keep shared PedidoBaseline + siblings. */
+    function applyRegenToActiveBatchSlot(data) {
+        if (!data) return false;
+        if (!lastBatchResult || !activeBatchPerfilId) {
+            stashGenerarResult(data, { resetVm: true });
+            updateComparadorActivoCard();
+            return false;
+        }
+        const sharedBaseline = lastBatchResult.pedido_baseline || [];
+        const slot = (lastBatchResult.perfiles || []).find(
+            (p) => String(p.id) === String(activeBatchPerfilId)
+        );
+        if (!slot) {
+            stashGenerarResult(data, { resetVm: true });
+            updateComparadorActivoCard();
+            return false;
+        }
+        // Mutate only this slot.result — sibling perfiles untouched.
+        slot.result = {
+            ...data,
+            pedido_baseline: sharedBaseline,
+            meta: {
+                ...(data.meta || {}),
+                slot_id: slot.id,
+                slot_label: slot.label,
+                baseline_shared: true,
+                phase: 'generacion_unica',
+                regen_activo: true,
+            },
+        };
+        if (data.meta?.knobs_efectivos) {
+            slot.knobs_efectivos = data.meta.knobs_efectivos;
+        }
+        // Session PedidoBaseline stays the batch one (not API's re-sample).
+        lastBatchResult.pedido_baseline = sharedBaseline;
+        renderBatchResultsGrid(lastBatchResult);
+        hydrateComparativaFromBatchSlot(activeBatchPerfilId, { scroll: false });
+        updateComparadorActivoCard();
+        return true;
+    }
+
     function hydrateComparativaFromBatchSlot(perfilId, { scroll = true } = {}) {
         if (!lastBatchResult || !perfilId) return false;
         const slot = (lastBatchResult.perfiles || []).find(
@@ -736,6 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hydrated.meta.knobs_efectivos = slot.knobs_efectivos;
         }
         stashGenerarResult(hydrated, { resetVm: true });
+        updateComparadorActivoCard();
         if (scroll) {
             const genSec = document.getElementById('generarResultSection');
             if (genSec) genSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -801,6 +885,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastGenerarResult = null;
         window.lastGenerarResult = null;
         setDefinitivoReadyForBorrador(false);
+        updateComparadorActivoCard();
     }
 
     function escapeHtml(s) {
@@ -1640,6 +1725,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (vmPanel) vmPanel.style.display = 'none';
         }
         renderGenerarResult(data);
+        updateComparadorActivoCard();
     }
 
     function applyValidarMinimosResponse(data) {
@@ -2292,12 +2378,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(errorData.detail || "Error al regenerar Definitivo");
                 }
                 const data = await response.json();
-                stashGenerarResult(data, { resetVm: true });
+                const patched = applyRegenToActiveBatchSlot(data);
+                if (!patched) {
+                    // Non-batch path already stashed inside applyRegenToActiveBatchSlot
+                }
                 lastDefinitivoParams = buildDefinitivoParamsSnapshot(payload, data);
                 setDefinitivoReadyForBorrador(true);
                 const applied = (data.meta?.overrides_applied || []).join(', ') || 'ninguno';
+                const slotNote = activeBatchPerfilId
+                    ? ` Perfil activo «${activeBatchPerfilId}» actualizado; hermanas y Baseline intactos.`
+                    : '';
                 showAlert(
-                    `Pedido Definitivo regenerado (${data.meta?.nivel}). Overrides: ${applied}.`,
+                    `Pedido Definitivo regenerado (${data.meta?.nivel}). Overrides: ${applied}.${slotNote}`,
                     true
                 );
             } catch (error) {

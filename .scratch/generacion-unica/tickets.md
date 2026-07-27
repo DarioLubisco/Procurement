@@ -131,11 +131,13 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** FE clic columna → Comparativa única
 
-- [ ] Comparator card shows the active perfil summary
-- [ ] Dropdown Intermedio|Avanzado (and overrides as today) available on the card
-- [ ] Regenerar calls existing definitivo path against the active slot only
-- [ ] Sibling batch resultados unchanged after re-gen
-- [ ] PedidoBaseline in session unchanged after re-gen
+**Status:** resolved (see `issues/10-comparador-regen-activo.md`)
+
+- [x] Comparator card shows the active perfil summary
+- [x] Dropdown Intermedio|Avanzado (and overrides as today) available on the card
+- [x] Regenerar calls existing definitivo path against the active slot only
+- [x] Sibling batch resultados unchanged after re-gen
+- [x] PedidoBaseline in session unchanged after re-gen
 
 ## ValidarMinimos post-elección → alarma → modal
 

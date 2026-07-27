@@ -860,12 +860,18 @@
                     </div>
                 </div>
 
-                <!-- Regenerar PedidoDefinitivo (post-Comparativa) -->
-                <div id="regenerarDefinitivoSection" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: rgba(16, 185, 129, 0.05);">
-                    <h3 style="margin: 0 0 0.5rem 0;"><i class="fas fa-redo"></i> Regenerar Pedido Definitivo</h3>
-                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                        Reafinación tras la Comparativa — no es el primer Generar Sencillo. Solo knobs vivos de OptimizerConfig (sin S4 / kappa).
+                <!-- Comparador vertical + regenerar activo (ticket 10) -->
+                <div id="comparadorActivoCard" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: rgba(16, 185, 129, 0.05); display:none;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                        <div>
+                            <h3 style="margin: 0 0 0.25rem 0;"><i class="fas fa-sliders-h"></i> Comparador · <span id="comparadorActivoLabel">—</span></h3>
+                            <div id="comparadorActivoSummary" style="font-size:0.85rem; color:var(--text-secondary);"></div>
+                        </div>
+                    </div>
+                    <p id="comparadorActivoHint" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                        Intermedio|Avanzado re-genera <strong>solo el perfil activo</strong>. PedidoBaseline compartido y columnas hermanas no se tocan.
                     </p>
+                <div id="regenerarDefinitivoSection">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="input-group" style="margin:0;">
                             <label>Nivel</label>
@@ -911,11 +917,12 @@
                         Knobs vivos según nivel. Si no ajusta el límite de reemplazo (κ), no se limita el cambio a sucedáneos. No se exponen: s4_enabled, s4_porcentaje_base, monto_days_reduction_pct.
                     </p>
                     <button type="button" id="btnRegenerarDefinitivo" class="btn btn-primary" style="height: 44px; width: 100%; font-weight: 700;">
-                        <i class="fas fa-sync"></i> Regenerar Definitivo
+                        <i class="fas fa-sync"></i> Regenerar perfil activo
                     </button>
                     <p id="guardarBorradorHint" style="font-size: 0.75rem; color: var(--text-secondary); margin: 0.5rem 0 0 0;">
                         Tras regenerar, use <strong>Guardar borrador</strong> en la barra verde arriba (junto a Enviar).
                     </p>
+                </div>
                 </div>
 
             </div>
@@ -1033,7 +1040,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js?v=20260723-bandeja"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260726-reemplazo-modal"></script>
+<script src="js/app_pedidos.js?v=20260726-comparador-regen"></script>
 <script src="js/bandeja_pedidos.js?v=20260723-pdf-tg"></script>
 
 <script>
