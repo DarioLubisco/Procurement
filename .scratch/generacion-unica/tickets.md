@@ -185,7 +185,9 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** Retirar UI vieja Sencillo → Regenerar duplicado
 
-- [ ] ADR-0007 updated or superseded with explicit status and link to this PRD
-- [ ] CONTEXT.md Pedido / PerfilPedido / PedidoPropuesto Avoid lines no longer mandate single-Sencillo-only first Generar
-- [ ] PedidoBaseline “sin motor” and Comparativa grain (ADR-0004) remain intact in docs
-- [ ] No silent contradiction left between ADR-0007 and shipped UI
+**Status:** resolved (see `issues/14-enmendar-adr-0007-context.md`)
+
+- [x] ADR-0007 updated or superseded with explicit status and link to this PRD
+- [x] CONTEXT.md Pedido / PerfilPedido / PedidoPropuesto Avoid lines no longer mandate single-Sencillo-only first Generar
+- [x] PedidoBaseline “sin motor” and Comparativa grain (ADR-0004) remain intact in docs
+- [x] No silent contradiction left between ADR-0007 and shipped UI

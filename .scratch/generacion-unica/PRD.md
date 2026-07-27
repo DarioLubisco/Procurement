@@ -1,9 +1,9 @@
 # Spec: Generación única de pedidos
 
-Status: ready-for-agent
+Status: resolved
 
 Feature: generacion-unica  
-Sources: grill generación única (cerrado Sí), handoff `/tmp/handoff-ni63Aa.md`, `CONTEXT.md`, ADRs 0004/0007/0016/0018/0019 (reabrir 0007 en implementación)  
+Sources: grill generación única (cerrado Sí), handoff `/tmp/handoff-ni63Aa.md`, `CONTEXT.md`, ADRs 0004/0007/0016/0018/0019  
 Seams agreed (2026-07-26):
 
 1. **Primary (new):** `generar_pedido_batch(filtros_compartidos, perfiles[≤3]) → { PedidoBaseline, perfiles: [{ id, label, knobs_efectivos, GenerarResult }] }` — Baseline once, shared; each GenerarResult = ComparativaCantidades + PedidoPropuesto (same shape as today’s Sencillo). Transport may be one HTTP batch or 3× generar + cached baseline; tests bind to the contract.
