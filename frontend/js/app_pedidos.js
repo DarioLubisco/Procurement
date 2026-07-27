@@ -701,6 +701,48 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    function markActiveBatchColumn(perfilId) {
+        document.querySelectorAll('.batch-results-col').forEach((col) => {
+            col.classList.toggle('is-active', col.dataset.perfilId === String(perfilId || ''));
+        });
+    }
+
+    function hydrateComparativaFromBatchSlot(perfilId, { scroll = true } = {}) {
+        if (!lastBatchResult || !perfilId) return false;
+        const slot = (lastBatchResult.perfiles || []).find(
+            (p) => String(p.id) === String(perfilId)
+        );
+        if (!slot || !slot.result) return false;
+        activeBatchPerfilId = String(perfilId);
+        window.activeBatchPerfilId = activeBatchPerfilId;
+        markActiveBatchColumn(activeBatchPerfilId);
+        // Shared PedidoBaseline from batch (not re-sampled per slot).
+        const sharedBaseline = lastBatchResult.pedido_baseline
+            || slot.result.pedido_baseline
+            || [];
+        const hydrated = {
+            ...slot.result,
+            pedido_baseline: sharedBaseline,
+            meta: {
+                ...(lastBatchResult.meta || {}),
+                ...(slot.result.meta || {}),
+                slot_id: slot.id,
+                slot_label: slot.label,
+                baseline_shared: true,
+                phase: 'generacion_unica',
+            },
+        };
+        if (slot.knobs_efectivos) {
+            hydrated.meta.knobs_efectivos = slot.knobs_efectivos;
+        }
+        stashGenerarResult(hydrated, { resetVm: true });
+        if (scroll) {
+            const genSec = document.getElementById('generarResultSection');
+            if (genSec) genSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        return true;
+    }
+
     function renderBatchResultsGrid(batchData) {
         const section = document.getElementById('batchResultsSection');
         const grid = document.getElementById('batchResultsGrid');
@@ -714,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         section.style.display = 'block';
         if (hint) {
-            hint.textContent = 'Totales vs PedidoBaseline · formato N (Δ −86). Sin top proveedor ni Δ variables.';
+            hint.textContent = 'Totales vs PedidoBaseline · formato N (Δ −86). Clic en una columna para abrir la Comparativa de ese perfil (sin re-Generar).';
         }
         grid.innerHTML = '';
         perfiles.forEach((slot) => {
@@ -723,13 +765,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const col = document.createElement('div');
             col.className = 'batch-results-col';
             col.setAttribute('role', 'listitem');
+            col.setAttribute('tabindex', '0');
             col.dataset.perfilId = slot.id || '';
+            if (activeBatchPerfilId && activeBatchPerfilId === String(slot.id)) {
+                col.classList.add('is-active');
+            }
             col.innerHTML = `
                 <div class="batch-col-label">${escapeHtml(slot.label || slot.id || 'Perfil')}</div>
                 <div class="batch-col-total">${escapeHtml(formatTotalWithDelta(sum.montoUsd, sum.deltaVsBaseline))}</div>
                 <div class="batch-col-meta">${sum.nLineas} líneas propuesto</div>
             `;
-            // Intentionally no top-proveedor, no Δ-knobs card (grill).
+            col.addEventListener('click', () => {
+                hydrateComparativaFromBatchSlot(slot.id, { scroll: true });
+            });
+            col.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                    ev.preventDefault();
+                    hydrateComparativaFromBatchSlot(slot.id, { scroll: true });
+                }
+            });
             grid.appendChild(col);
         });
     }
@@ -737,9 +791,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function stashBatchResult(batchData) {
         lastBatchResult = batchData;
         window.lastBatchResult = batchData;
+        window.hydrateComparativaFromBatchSlot = hydrateComparativaFromBatchSlot;
         activeBatchPerfilId = null;
+        window.activeBatchPerfilId = null;
         renderBatchResultsGrid(batchData);
-        // Comparativa waits for column click (ticket 07); clear prior single-result view.
+        // Comparativa waits for column click; clear prior single-result view.
         const genSec = document.getElementById('generarResultSection');
         if (genSec) genSec.style.display = 'none';
         lastGenerarResult = null;

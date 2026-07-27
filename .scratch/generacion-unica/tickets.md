@@ -91,10 +91,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** FE Generar → batch + grilla `N (Δ −86)`
 
-- [ ] Column click sets the active perfil in session
-- [ ] Comparativa table/body renders that perfil’s GenerarResult
-- [ ] Switching columns swaps Comparativa without re-running the batch
-- [ ] Baseline columns remain the shared PedidoBaseline
+**Status:** resolved (see `issues/07-fe-clic-columna-comparativa.md`)
+
+- [x] Column click sets the active perfil in session
+- [x] Comparativa table/body renders that perfil’s GenerarResult
+- [x] Switching columns swaps Comparativa without re-running the batch
+- [x] Baseline columns remain the shared PedidoBaseline
 
 ## Justificaciones: nombre + proveedor + precio
 

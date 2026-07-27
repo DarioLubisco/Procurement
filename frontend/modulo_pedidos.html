@@ -97,7 +97,18 @@
       border-radius: var(--radius-lg);
       padding: 0.75rem 0.85rem;
       background: rgba(0, 0, 0, 0.14);
-      cursor: default;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .batch-results-col:hover {
+      border-color: var(--primary-accent, #6ea8fe);
+    }
+
+    .batch-results-col.is-active {
+      border-color: var(--primary-accent, #6ea8fe);
+      background: rgba(110, 168, 254, 0.12);
+      box-shadow: 0 0 0 1px rgba(110, 168, 254, 0.35);
     }
 
     .batch-results-col .batch-col-label {
@@ -745,7 +756,7 @@
             <div id="batchResultsSection" class="section-card" style="display:none;">
                 <h3 style="margin:0 0 0.35rem 0;"><i class="fas fa-th"></i> Resultados por perfil</h3>
                 <p id="batchResultsHint" style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.75rem 0;">
-                    Totales vs PedidoBaseline · formato <code>N (Δ −86)</code>. Sin top proveedor ni Δ variables.
+                    Totales vs PedidoBaseline · formato <code>N (Δ −86)</code>. Clic en una columna para abrir la Comparativa de ese perfil.
                 </p>
                 <div id="batchResultsGrid" class="batch-results-grid" role="list"></div>
             </div>
@@ -998,7 +1009,7 @@
 <!-- SCRIPTS -->
 <script src="js/sidebar.js?v=20260723-bandeja"></script>
 <script src="js/theme.js"></script>
-<script src="js/app_pedidos.js?v=20260726-generacion-unica-batch"></script>
+<script src="js/app_pedidos.js?v=20260726-batch-clic-comparativa"></script>
 <script src="js/bandeja_pedidos.js?v=20260723-pdf-tg"></script>
 
 <script>
