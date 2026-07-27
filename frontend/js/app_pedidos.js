@@ -80,15 +80,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setDefinitivoReadyForBorrador(ready) {
         definitivoReadyForBorrador = !!ready;
-        const btn = document.getElementById('btnGuardarBorrador');
-        if (btn) {
-            btn.disabled = !definitivoReadyForBorrador;
-            btn.title = definitivoReadyForBorrador
-                ? 'Guardar Pedido Definitivo en BorradorPedidos'
-                : 'Disponible tras Regenerar Definitivo';
-        }
         if (!definitivoReadyForBorrador) {
             lastDefinitivoParams = null;
+        }
+        refreshGuardarBorradorGate();
+    }
+
+    function canGuardarChosenPerfil() {
+        if (!definitivoReadyForBorrador) return false;
+        // Batch mode: must have chosen a column/perfil first.
+        if (lastBatchResult && !activeBatchPerfilId) return false;
+        const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
+        return propuesto.length > 0;
+    }
+
+    /** Single POST for the active perfil only — never siblings (ticket 12). */
+    function buildGuardarBorradorPayload() {
+        const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
+        const comparativa = (lastGenerarResult && lastGenerarResult.comparativa_cantidades) || [];
+        const parametros = {
+            ...(lastDefinitivoParams || {}),
+            phase: (lastDefinitivoParams && lastDefinitivoParams.phase) || 'generacion_unica_guardar_v1',
+        };
+        if (activeBatchPerfilId) {
+            parametros.perfil_id = String(activeBatchPerfilId);
+            parametros.perfil_label = (lastGenerarResult
+                && lastGenerarResult.meta
+                && lastGenerarResult.meta.slot_label)
+                || String(activeBatchPerfilId);
+            const slot = (lastBatchResult && lastBatchResult.perfiles || []).find(
+                (p) => String(p.id) === String(activeBatchPerfilId)
+            );
+            if (slot && slot.knobs_efectivos) {
+                parametros.knobs_efectivos = slot.knobs_efectivos;
+            } else if (lastGenerarResult && lastGenerarResult.meta && lastGenerarResult.meta.knobs_efectivos) {
+                parametros.knobs_efectivos = lastGenerarResult.meta.knobs_efectivos;
+            }
+        }
+        return {
+            pedido_propuesto: propuesto,
+            comparativa_cantidades: comparativa,
+            parametros,
+        };
+    }
+
+    function refreshGuardarBorradorGate() {
+        const btn = document.getElementById('btnGuardarBorrador');
+        const hint = document.getElementById('pedidoPersistHint');
+        const allowed = canGuardarChosenPerfil();
+        if (btn) {
+            btn.disabled = !allowed;
+            if (lastBatchResult && !activeBatchPerfilId) {
+                btn.title = 'Elija un perfil en la grilla antes de Guardar';
+            } else if (!definitivoReadyForBorrador) {
+                btn.title = 'Disponible tras Regenerar el perfil activo';
+            } else if (activeBatchPerfilId) {
+                btn.title = `Guardar solo el perfil «${activeBatchPerfilId}» (hermanas no se guardan)`;
+            } else {
+                btn.title = 'Guardar Pedido Definitivo en BorradorPedidos';
+            }
+        }
+        if (hint) {
+            if (lastBatchResult && !activeBatchPerfilId) {
+                hint.innerHTML = '<strong>Guardar borrador</strong> espera que elija un perfil en la grilla. Solo se persiste el perfil elegido (v1).';
+            } else if (activeBatchPerfilId && !definitivoReadyForBorrador) {
+                hint.innerHTML = `Perfil activo <code>${escapeHtml(String(activeBatchPerfilId))}</code>. `
+                    + '<strong>Guardar borrador</strong> se habilita tras <em>Regenerar perfil activo</em>. Las columnas hermanas no se guardan.';
+            } else if (activeBatchPerfilId) {
+                hint.innerHTML = `Listo para guardar <strong>solo</strong> el perfil <code>${escapeHtml(String(activeBatchPerfilId))}</code> `
+                    + '(BorradorPedidos). No se crean borradores de las hermanas.';
+            } else {
+                hint.innerHTML = '<strong>Guardar borrador</strong> se habilita tras <em>Regenerar Definitivo</em> (abajo). '
+                    + '<strong>Enviar</strong> (FTP/Telegram) aún no está activo — ADR-0029.';
+            }
         }
     }
 
@@ -821,6 +885,7 @@ document.addEventListener('DOMContentLoaded', () => {
         stashGenerarResult(hydrated, { resetVm: true });
         updateComparadorActivoCard();
         showValidarMinimosAlarm({ afterSelection: true });
+        refreshGuardarBorradorGate();
         if (scroll) {
             const genSec = document.getElementById('generarResultSection');
             if (genSec) genSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -888,6 +953,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setDefinitivoReadyForBorrador(false);
         updateComparadorActivoCard();
         hideValidarMinimosAlarm();
+        refreshGuardarBorradorGate();
     }
 
     function escapeHtml(s) {
@@ -2455,6 +2521,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Non-batch path already stashed inside applyRegenToActiveBatchSlot
                 }
                 lastDefinitivoParams = buildDefinitivoParamsSnapshot(payload, data);
+                if (activeBatchPerfilId) {
+                    lastDefinitivoParams.perfil_id = String(activeBatchPerfilId);
+                    lastDefinitivoParams.perfil_label = (lastGenerarResult
+                        && lastGenerarResult.meta
+                        && lastGenerarResult.meta.slot_label)
+                        || String(activeBatchPerfilId);
+                    const slot = (lastBatchResult && lastBatchResult.perfiles || []).find(
+                        (p) => String(p.id) === String(activeBatchPerfilId)
+                    );
+                    if (slot && slot.knobs_efectivos) {
+                        lastDefinitivoParams.knobs_efectivos = slot.knobs_efectivos;
+                    }
+                }
                 setDefinitivoReadyForBorrador(true);
                 const applied = (data.meta?.overrides_applied || []).join(', ') || 'ninguno';
                 const slotNote = activeBatchPerfilId
@@ -2478,12 +2557,18 @@ document.addEventListener('DOMContentLoaded', () => {
         setDefinitivoReadyForBorrador(false);
         btnGuardarBorrador.addEventListener('click', async () => {
             hideAlert();
-            if (!definitivoReadyForBorrador) {
-                showAlert('Primero Regenerar Definitivo antes de Guardar borrador.', false);
+            if (!canGuardarChosenPerfil()) {
+                if (lastBatchResult && !activeBatchPerfilId) {
+                    showAlert('Elija un perfil en la grilla antes de Guardar borrador.', false);
+                } else if (!definitivoReadyForBorrador) {
+                    showAlert('Primero Regenerar el perfil activo antes de Guardar borrador.', false);
+                } else {
+                    showAlert('No hay líneas del perfil elegido para guardar.', false);
+                }
                 return;
             }
-            const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
-            if (!propuesto.length) {
+            const body = buildGuardarBorradorPayload();
+            if (!(body.pedido_propuesto || []).length) {
                 showAlert('No hay líneas de Pedido Definitivo para guardar.', false);
                 return;
             }
@@ -2491,13 +2576,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const original = btnGuardarBorrador.innerHTML;
             btnGuardarBorrador.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Guardando borrador...';
             try {
+                // One POST — active perfil only; siblings never auto-saved (ticket 12).
                 const response = await fetch('/api/pedidos/guardar-borrador', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        pedido_propuesto: propuesto,
-                        parametros: lastDefinitivoParams || undefined,
-                    }),
+                    body: JSON.stringify(body),
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
@@ -2514,16 +2597,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ids = (data.cabeceras || [])
                     .map(c => `#${c.propuesta_id} ${c.cod_prov}`)
                     .join(', ');
+                const perfilNote = body.parametros && body.parametros.perfil_id
+                    ? ` Perfil «${body.parametros.perfil_label || body.parametros.perfil_id}» únicamente.`
+                    : '';
                 showAlert(
                     `Borrador guardado: ${nCab} cabecera(s)${ids ? ` (${ids})` : ''}. ` +
-                    `Omitidos: ${nOmitProv} proveedor(es), ${nOmitSap} línea(s) SAPROD.`,
+                    `Omitidos: ${nOmitProv} proveedor(es), ${nOmitSap} línea(s) SAPROD.${perfilNote}`,
                     true
                 );
             } catch (error) {
                 showAlert(error.message, false);
             } finally {
                 btnGuardarBorrador.innerHTML = original;
-                setDefinitivoReadyForBorrador(definitivoReadyForBorrador);
+                refreshGuardarBorradorGate();
             }
         });
     }

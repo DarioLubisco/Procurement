@@ -159,10 +159,12 @@ ADR/CONTEXT amend is **last** (after the productive path ships).
 
 **Blocked by:** FE clic columna → Comparativa única
 
-- [ ] Guardar disabled or no-ops until a perfil is chosen
-- [ ] Only the chosen perfil’s lines/knobs/Comparativa snapshot are persisted
-- [ ] No second/third borrador created for sibling slots
-- [ ] Knobs snapshot matches the chosen (possibly re-gen’d) perfil
+**Status:** resolved (see `issues/12-guardar-solo-perfil-elegido.md`)
+
+- [x] Guardar disabled or no-ops until a perfil is chosen
+- [x] Only the chosen perfil’s lines/knobs/Comparativa snapshot are persisted
+- [x] No second/third borrador created for sibling slots
+- [x] Knobs snapshot matches the chosen (possibly re-gen’d) perfil
 
 ## Retirar UI vieja Sencillo → Regenerar duplicado
 
