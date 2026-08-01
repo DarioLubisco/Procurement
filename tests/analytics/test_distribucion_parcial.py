@@ -338,3 +338,68 @@ def test_unmet_without_grupo_offer_stays_comparativa_not_propuesto():
         p.barra == "LONELY" and not str(p.proveedor or "").strip()
         for p in result.pedido_propuesto
     )
+
+
+def test_sin_oferta_fallback_omits_cantidad_presentacion():
+    """Sin oferta en grupo estricto → sucedáneo relajando cantidad_presentacion + aviso."""
+    catalog = pd.DataFrame(
+        [
+            {
+                "barra": "NEED10",
+                "descripcion": "Caja x10 sin mercado",
+                "rotacion_mensual": 30.0,
+                "existen": 0.0,
+                "es_generico": True,
+                "elasticidad_demanda": 3.0,
+                "principio_activo": "PAX",
+                "forma_farmaceutica": "TAB",
+                "concentracion": "500",
+                "cantidad_presentacion": "10",
+                "contenido_neto": "1",
+            },
+            {
+                "barra": "SIB20",
+                "descripcion": "Caja x20 con mercado",
+                "rotacion_mensual": 5.0,
+                "existen": 100.0,  # no gap → no entra al baseline
+                "es_generico": True,
+                "elasticidad_demanda": 2.0,
+                "principio_activo": "PAX",
+                "forma_farmaceutica": "TAB",
+                "concentracion": "500",
+                "cantidad_presentacion": "20",
+                "contenido_neto": "1",
+            },
+        ]
+    )
+    market = pd.DataFrame(
+        [
+            {
+                "barra": "SIB20",
+                "descripcion": "Caja x20 con mercado",
+                "proveedor": "P_SIB",
+                "precio": 4.5,
+                "stock_proveedor": 1000,
+                "principio_activo": "PAX",
+                "forma_farmaceutica": "TAB",
+                "concentracion": "500",
+                "cantidad_presentacion": "20",
+                "contenido_neto": "1",
+            }
+        ]
+    )
+    perfil = PerfilPedido(
+        cobertura=30,
+        criterios_agrupacion=[],
+        filtros_operativos=FiltrosOperativos(),
+        nivel=NivelPerfil.SENCILLO,
+        preset=PresetSencillo.CONSERVADOR,
+    )
+    result = generar_pedido(perfil, catalog=catalog, market_offers=market)
+    row = next(r for r in result.comparativa_cantidades if r.barra_baseline == "NEED10")
+    codes = {f.codigo for f in row.justificacion_factores}
+    assert row.barra_propuesto == "SIB20"
+    assert str(row.proveedor or "").strip() == "P_SIB"
+    assert "sucedaneo" in codes
+    assert "grupo_sin_presentacion" in codes
+    assert "sin_oferta" not in codes
