@@ -6,12 +6,12 @@ from typing import List, Optional, Sequence
 import pandas as pd
 
 # Product default (ADR-0008) — checked in FE on load.
+# Presentación (unidades en empaque), NOT contenido_neto (ml/g).
 CRITERIOS_AGRUPACION_DEFAULT: tuple[str, ...] = (
     "principio_activo",
     "forma_farmaceutica",
     "concentracion",
     "cantidad_presentacion",
-    "contenido_neto",
 )
 
 # Whitelist aligned with Procurement.RotacionGrupal_Atributos / ATRIBUTOS_VALIDOS.
@@ -26,7 +26,6 @@ ATRIBUTOS_VALIDOS: frozenset[str] = frozenset(
         "contenido_neto",
         "generico",
         "marca",
-        "blister",
     }
 )
 
@@ -41,7 +40,7 @@ ATRIBUTOS_VALIDOS_ORDER: tuple[str, ...] = (
     "contenido_neto",
     "generico",
     "marca",
-    "blister",
+    
 )
 
 

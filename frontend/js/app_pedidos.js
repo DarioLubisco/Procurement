@@ -20,13 +20,44 @@ document.addEventListener('DOMContentLoaded', () => {
     let categoryMap = {};
     let categoryTree = [];
     let lastGenerarResult = null;
+    let lastBatchResult = null;
+    let activeBatchPerfilId = null;
     let vmIntentosRecalc = {};
     let vmActivoProveedor = null;
     let vmPanelAck = false;
-    // ADR-0018: Guardar borrador only after Regenerar Definitivo; clear on Sencillo
+    // ADR-0018: Guardar borrador only after Regenerar perfil activo (generación única)
     let definitivoReadyForBorrador = false;
     let lastDefinitivoParams = null;
     let configCollapsed = false;
+    let fxState = { moneda_trabajo: 'USD', dolarbcv: null };
+    // ADR-0027: qty overrides (clave barra_propuesto||proveedor → qty)
+    let qtyOverridesPending = null;
+
+    function getFx() {
+        const meta = (lastGenerarResult && lastGenerarResult.meta) || {};
+        return {
+            moneda_trabajo: (meta.moneda_trabajo || fxState.moneda_trabajo || 'USD').toUpperCase(),
+            dolarbcv: meta.dolarbcv != null ? Number(meta.dolarbcv) : fxState.dolarbcv,
+        };
+    }
+
+    /** Motor always USD; display in Bs when MonedaTrabajo=VES. */
+    function moneyDisplay(amountUsd, { digits = 2 } = {}) {
+        if (amountUsd == null || amountUsd === '' || Number.isNaN(Number(amountUsd))) {
+            return '—';
+        }
+        const fx = getFx();
+        const usd = Number(amountUsd);
+        if (fx.moneda_trabajo === 'VES' && fx.dolarbcv && fx.dolarbcv > 0) {
+            const bs = usd * fx.dolarbcv;
+            return `Bs ${bs.toLocaleString('es-VE', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+        }
+        return `$${usd.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+    }
+
+    function moneyUnitLabel() {
+        return getFx().moneda_trabajo === 'VES' ? 'Bs' : 'USD';
+    }
 
     const CRITERIOS_DEFAULT = [
         'principio_activo',
@@ -45,20 +76,83 @@ document.addEventListener('DOMContentLoaded', () => {
         { nombre_campo: 'contenido_neto', etiqueta: 'Contenido Neto', activo: true },
         { nombre_campo: 'generico', etiqueta: 'Genérico', activo: true },
         { nombre_campo: 'marca', etiqueta: 'Marca', activo: true },
-        { nombre_campo: 'blister', etiqueta: 'Blister', activo: true },
     ];
 
     function setDefinitivoReadyForBorrador(ready) {
         definitivoReadyForBorrador = !!ready;
-        const btn = document.getElementById('btnGuardarBorrador');
-        if (btn) {
-            btn.disabled = !definitivoReadyForBorrador;
-            btn.title = definitivoReadyForBorrador
-                ? 'Guardar Pedido Definitivo en BorradorPedidos'
-                : 'Disponible tras Regenerar Definitivo';
-        }
         if (!definitivoReadyForBorrador) {
             lastDefinitivoParams = null;
+        }
+        refreshGuardarBorradorGate();
+    }
+
+    function canGuardarChosenPerfil() {
+        if (!definitivoReadyForBorrador) return false;
+        // Batch mode: must have chosen a column/perfil first.
+        if (lastBatchResult && !activeBatchPerfilId) return false;
+        const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
+        return propuesto.length > 0;
+    }
+
+    /** Single POST for the active perfil only — never siblings (ticket 12). */
+    function buildGuardarBorradorPayload() {
+        const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
+        const comparativa = (lastGenerarResult && lastGenerarResult.comparativa_cantidades) || [];
+        const parametros = {
+            ...(lastDefinitivoParams || {}),
+            phase: (lastDefinitivoParams && lastDefinitivoParams.phase) || 'generacion_unica_guardar_v1',
+        };
+        if (activeBatchPerfilId) {
+            parametros.perfil_id = String(activeBatchPerfilId);
+            parametros.perfil_label = (lastGenerarResult
+                && lastGenerarResult.meta
+                && lastGenerarResult.meta.slot_label)
+                || String(activeBatchPerfilId);
+            const slot = (lastBatchResult && lastBatchResult.perfiles || []).find(
+                (p) => String(p.id) === String(activeBatchPerfilId)
+            );
+            if (slot && slot.knobs_efectivos) {
+                parametros.knobs_efectivos = slot.knobs_efectivos;
+            } else if (lastGenerarResult && lastGenerarResult.meta && lastGenerarResult.meta.knobs_efectivos) {
+                parametros.knobs_efectivos = lastGenerarResult.meta.knobs_efectivos;
+            }
+        }
+        return {
+            pedido_propuesto: propuesto,
+            comparativa_cantidades: comparativa,
+            parametros,
+        };
+    }
+
+    function refreshGuardarBorradorGate() {
+        const btn = document.getElementById('btnGuardarBorrador');
+        const hint = document.getElementById('pedidoPersistHint');
+        const allowed = canGuardarChosenPerfil();
+        if (btn) {
+            btn.disabled = !allowed;
+            if (lastBatchResult && !activeBatchPerfilId) {
+                btn.title = 'Elija un perfil en la grilla antes de Guardar';
+            } else if (!definitivoReadyForBorrador) {
+                btn.title = 'Disponible tras Regenerar el perfil activo';
+            } else if (activeBatchPerfilId) {
+                btn.title = `Guardar solo el perfil «${activeBatchPerfilId}» (hermanas no se guardan)`;
+            } else {
+                btn.title = 'Guardar Pedido Definitivo en BorradorPedidos';
+            }
+        }
+        if (hint) {
+            if (lastBatchResult && !activeBatchPerfilId) {
+                hint.innerHTML = '<strong>Guardar borrador</strong> espera que elija un perfil en la grilla. Solo se persiste el perfil elegido (v1).';
+            } else if (activeBatchPerfilId && !definitivoReadyForBorrador) {
+                hint.innerHTML = `Perfil activo <code>${escapeHtml(String(activeBatchPerfilId))}</code>. `
+                    + '<strong>Guardar borrador</strong> se habilita tras <em>Regenerar perfil activo</em>. Las columnas hermanas no se guardan.';
+            } else if (activeBatchPerfilId) {
+                hint.innerHTML = `Listo para guardar <strong>solo</strong> el perfil <code>${escapeHtml(String(activeBatchPerfilId))}</code> `
+                    + '(BorradorPedidos). No se crean borradores de las hermanas.';
+            } else {
+                hint.innerHTML = '<strong>Guardar borrador</strong> se habilita tras <em>Regenerar Definitivo</em> (abajo). '
+                    + '<strong>Enviar</strong> (FTP/Telegram) aún no está activo — ADR-0029.';
+            }
         }
     }
 
@@ -109,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
             days: inputDays ? inputDays.value : '30',
             rows: inputRows ? inputRows.value : '5000',
             umbral: inputUmbral ? inputUmbral.value : '0.5',
-            preset: document.getElementById('presetSencillo')?.value || 'Normal',
+            preset: document.getElementById('basePresetDefinitivo')?.value || 'Normal',
             presupuesto: document.getElementById('presupuestoMaximo')?.value || '',
             include_generics: document.getElementById('includeGenerics')?.checked !== false,
             include_brands: document.getElementById('includeBrands')?.checked !== false,
@@ -123,8 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (d.days && inputDays) inputDays.value = d.days;
         if (d.rows && inputRows) inputRows.value = d.rows;
         if (d.umbral != null && d.umbral !== '' && inputUmbral) inputUmbral.value = d.umbral;
-        const preset = document.getElementById('presetSencillo');
-        if (d.preset && preset) preset.value = d.preset;
+        const basePreset = document.getElementById('basePresetDefinitivo');
+        if (d.preset && basePreset) basePreset.value = d.preset;
         const presupuesto = document.getElementById('presupuestoMaximo');
         if (presupuesto && d.presupuesto != null) presupuesto.value = d.presupuesto;
         const gen = document.getElementById('includeGenerics');
@@ -370,7 +464,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCriteriosAgrupacion(atributos) {
         const host = document.getElementById('criteriosAgrupacion');
         if (!host) return;
-        const list = (atributos || []).filter(a => a && a.activo !== false && a.nombre_campo);
+        const list = (atributos || []).filter(
+            a => a && a.activo !== false && a.nombre_campo && a.nombre_campo !== 'blister'
+        );
         const effective = list.length ? list : CRITERIOS_FALLBACK;
         const defaultSet = new Set(CRITERIOS_DEFAULT);
         host.innerHTML = '';
@@ -489,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- FORM SUBMISSION (Generar Sencillo → Comparativa + Propuesto) ---
+    // --- FORM SUBMISSION (Generación única → batch → grilla → Comparativa) ---
     function showAlert(msg, isSuccess) {
         if (alertBox) {
             alertBox.textContent = msg;
@@ -505,6 +601,38 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(document.querySelectorAll('.criterio-cb:checked')).map(cb => cb.value);
     }
 
+    function clampTopNInput(raw, defaultVal) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return defaultVal;
+        return Math.max(1, Math.min(10, Math.round(n)));
+    }
+
+    function collectCompetenciaOverrides() {
+        const hermanosEl = document.getElementById('hermanosTopN');
+        const rivalesEl = document.getElementById('rivalesTopN');
+        const ofertasEl = document.getElementById('rivalesOfertasPorRival');
+        const hermanos = clampTopNInput(hermanosEl?.value, 3);
+        const rivales = clampTopNInput(rivalesEl?.value, 3);
+        const ofertas = clampTopNInput(ofertasEl?.value, 2);
+        if (hermanosEl && Number(hermanosEl.value) !== hermanos) {
+            hermanosEl.value = String(hermanos);
+            showAlert('Hermanos top N ajustado al rango 1–10.', false);
+        }
+        if (rivalesEl && Number(rivalesEl.value) !== rivales) {
+            rivalesEl.value = String(rivales);
+            showAlert('Rivales top N ajustado al rango 1–10.', false);
+        }
+        if (ofertasEl && Number(ofertasEl.value) !== ofertas) {
+            ofertasEl.value = String(ofertas);
+            showAlert('Ofertas por rival ajustado al rango 1–10.', false);
+        }
+        return {
+            hermanos_top_n: hermanos,
+            rivales_top_n: rivales,
+            rivales_ofertas_por_rival: ofertas,
+        };
+    }
+
     function buildSencilloPayload() {
         const selectedCategoryNames = Object.values(categoryMap)
             .filter(c => c.selected).map(c => c.name);
@@ -513,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ? Number(presupuestoRaw) : null;
         return {
             cobertura: Number(document.getElementById('pedidoDays').value),
-            preset: document.getElementById('presetSencillo')?.value || 'Normal',
+            preset: document.getElementById('basePresetDefinitivo')?.value || 'Normal',
             criterios_agrupacion: collectCriteriosAgrupacion(),
             categorias: selectedCategoryNames,
             include_generics: document.getElementById('includeGenerics')?.checked !== false,
@@ -521,7 +649,311 @@ document.addEventListener('DOMContentLoaded', () => {
             umbral_rotacion: Number(document.getElementById('umbralRotacion')?.value || 0),
             num_rows: Number(document.getElementById('numRows').value),
             presupuesto_maximo: presupuesto,
+            overrides: collectCompetenciaOverrides(),
         };
+    }
+
+    /** Grill format: `938 (Δ −86)` — unicode minus, no top-proveedor, no Δ-knobs. */
+    function formatTotalWithDelta(total, delta) {
+        if (total == null || Number.isNaN(Number(total))) return '—';
+        const n = Math.round(Number(total));
+        if (delta == null || Number.isNaN(Number(delta))) return String(n);
+        const d = Math.round(Number(delta));
+        const abs = Math.abs(d);
+        const sign = d > 0 ? '+' : (d < 0 ? '\u2212' : '');
+        return `${n} (\u0394 ${sign}${abs})`;
+    }
+
+    function precioFromFactores(row, preferBaseline) {
+        const factores = row?.justificacion_factores || [];
+        for (const f of factores) {
+            const d = f.datos || {};
+            if (preferBaseline && d.oferta_baseline && d.oferta_baseline.precio != null) {
+                return Number(d.oferta_baseline.precio);
+            }
+        }
+        for (const f of factores) {
+            const d = f.datos || {};
+            if (!preferBaseline && d.precio != null) return Number(d.precio);
+        }
+        return null;
+    }
+
+    function summarizePerfilMonto(result) {
+        const prop = (result && result.pedido_propuesto) || [];
+        const comp = (result && result.comparativa_cantidades) || [];
+        let monto = 0;
+        let priced = 0;
+        let baseMonto = 0;
+        let basePriced = 0;
+        prop.forEach((line) => {
+            const q = Number(line.cantidad) || 0;
+            const px = line.precio != null ? Number(line.precio) : null;
+            if (px != null && q > 0 && !Number.isNaN(px)) {
+                monto += px * q;
+                priced += 1;
+            }
+        });
+        comp.forEach((row) => {
+            const qb = Number(row.qty_baseline) || 0;
+            const pxB = precioFromFactores(row, true);
+            if (pxB != null && qb > 0 && !Number.isNaN(pxB)) {
+                baseMonto += pxB * qb;
+                basePriced += 1;
+            }
+        });
+        return {
+            montoUsd: priced ? Math.round(monto) : null,
+            baseMontoUsd: basePriced ? Math.round(baseMonto) : null,
+            deltaVsBaseline: (priced && basePriced) ? Math.round(monto - baseMonto) : null,
+            nLineas: prop.length,
+        };
+    }
+
+    function collectBatchPerfilSlots() {
+        const slots = [];
+        document.querySelectorAll('.batch-perfil-slot').forEach((sel) => {
+            const raw = String(sel.value || '').trim();
+            if (!raw) return;
+            const label = (sel.options[sel.selectedIndex]?.textContent || raw).trim();
+            if (raw.startsWith('factory:')) {
+                const preset = raw.slice('factory:'.length);
+                slots.push({
+                    id: `factory-${preset}`,
+                    label,
+                    preset,
+                    nivel: 'Sencillo',
+                });
+                return;
+            }
+            if (raw.startsWith('custom:')) {
+                const id = raw.slice('custom:'.length);
+                const opt = sel.options[sel.selectedIndex];
+                const base = opt?.dataset?.basePreset || 'Normal';
+                let overrides = null;
+                try {
+                    overrides = JSON.parse(opt?.dataset?.overrides || 'null');
+                } catch (_) {
+                    overrides = null;
+                }
+                slots.push({
+                    id: `custom-${id}`,
+                    label,
+                    preset: base,
+                    nivel: 'Sencillo',
+                    overrides: overrides && typeof overrides === 'object' ? overrides : null,
+                });
+            }
+        });
+        // Dedupe by id, keep ≤3
+        const seen = new Set();
+        const out = [];
+        for (const s of slots) {
+            if (seen.has(s.id)) continue;
+            seen.add(s.id);
+            out.push(s);
+            if (out.length >= 3) break;
+        }
+        return out;
+    }
+
+    function buildBatchPayload() {
+        const base = buildSencilloPayload();
+        return {
+            ...base,
+            perfiles: collectBatchPerfilSlots(),
+        };
+    }
+
+    function markActiveBatchColumn(perfilId) {
+        document.querySelectorAll('.batch-results-col').forEach((col) => {
+            col.classList.toggle('is-active', col.dataset.perfilId === String(perfilId || ''));
+        });
+    }
+
+    function updateComparadorActivoCard() {
+        const card = document.getElementById('comparadorActivoCard');
+        const labelEl = document.getElementById('comparadorActivoLabel');
+        const summaryEl = document.getElementById('comparadorActivoSummary');
+        const hintEl = document.getElementById('comparadorActivoHint');
+        if (!card) return;
+        const hasResult = !!(lastGenerarResult && (lastGenerarResult.comparativa_cantidades || lastGenerarResult.pedido_propuesto));
+        if (!hasResult) {
+            card.style.display = 'none';
+            return;
+        }
+        card.style.display = 'block';
+        let label = 'Definitivo';
+        let result = lastGenerarResult;
+        if (lastBatchResult && activeBatchPerfilId) {
+            const slot = (lastBatchResult.perfiles || []).find(
+                (p) => String(p.id) === String(activeBatchPerfilId)
+            );
+            if (slot) {
+                label = slot.label || slot.id || activeBatchPerfilId;
+                result = slot.result || lastGenerarResult;
+            }
+        } else if (lastGenerarResult?.meta?.slot_label) {
+            label = lastGenerarResult.meta.slot_label;
+        }
+        if (labelEl) labelEl.textContent = label;
+        const sum = summarizePerfilMonto(result);
+        const totalTxt = formatTotalWithDelta(sum.montoUsd, sum.deltaVsBaseline);
+        if (summaryEl) {
+            summaryEl.innerHTML = `Total <strong style="color:var(--text-primary);">${escapeHtml(totalTxt)}</strong>`
+                + ` · ${sum.nLineas} líneas`
+                + (activeBatchPerfilId
+                    ? ` · slot <code>${escapeHtml(String(activeBatchPerfilId))}</code>`
+                    : '');
+        }
+        if (hintEl) {
+            hintEl.innerHTML = activeBatchPerfilId
+                ? 'Intermedio|Avanzado re-genera <strong>solo el perfil activo</strong>. PedidoBaseline compartido y columnas hermanas no se tocan.'
+                : 'Reafinación Intermedio|Avanzado tras la Comparativa (knobs vivos de OptimizerConfig).';
+        }
+    }
+
+    /** Replace only the active batch slot; keep shared PedidoBaseline + siblings. */
+    function applyRegenToActiveBatchSlot(data) {
+        if (!data) return false;
+        if (!lastBatchResult || !activeBatchPerfilId) {
+            stashGenerarResult(data, { resetVm: true });
+            updateComparadorActivoCard();
+            return false;
+        }
+        const sharedBaseline = lastBatchResult.pedido_baseline || [];
+        const slot = (lastBatchResult.perfiles || []).find(
+            (p) => String(p.id) === String(activeBatchPerfilId)
+        );
+        if (!slot) {
+            stashGenerarResult(data, { resetVm: true });
+            updateComparadorActivoCard();
+            return false;
+        }
+        // Mutate only this slot.result — sibling perfiles untouched.
+        slot.result = {
+            ...data,
+            pedido_baseline: sharedBaseline,
+            meta: {
+                ...(data.meta || {}),
+                slot_id: slot.id,
+                slot_label: slot.label,
+                baseline_shared: true,
+                phase: 'generacion_unica',
+                regen_activo: true,
+            },
+        };
+        if (data.meta?.knobs_efectivos) {
+            slot.knobs_efectivos = data.meta.knobs_efectivos;
+        }
+        // Session PedidoBaseline stays the batch one (not API's re-sample).
+        lastBatchResult.pedido_baseline = sharedBaseline;
+        renderBatchResultsGrid(lastBatchResult);
+        hydrateComparativaFromBatchSlot(activeBatchPerfilId, { scroll: false });
+        updateComparadorActivoCard();
+        return true;
+    }
+
+    function hydrateComparativaFromBatchSlot(perfilId, { scroll = true } = {}) {
+        if (!lastBatchResult || !perfilId) return false;
+        const slot = (lastBatchResult.perfiles || []).find(
+            (p) => String(p.id) === String(perfilId)
+        );
+        if (!slot || !slot.result) return false;
+        activeBatchPerfilId = String(perfilId);
+        window.activeBatchPerfilId = activeBatchPerfilId;
+        markActiveBatchColumn(activeBatchPerfilId);
+        // Shared PedidoBaseline from batch (not re-sampled per slot).
+        const sharedBaseline = lastBatchResult.pedido_baseline
+            || slot.result.pedido_baseline
+            || [];
+        const hydrated = {
+            ...slot.result,
+            pedido_baseline: sharedBaseline,
+            meta: {
+                ...(lastBatchResult.meta || {}),
+                ...(slot.result.meta || {}),
+                slot_id: slot.id,
+                slot_label: slot.label,
+                baseline_shared: true,
+                phase: 'generacion_unica',
+            },
+        };
+        if (slot.knobs_efectivos) {
+            hydrated.meta.knobs_efectivos = slot.knobs_efectivos;
+        }
+        stashGenerarResult(hydrated, { resetVm: true });
+        updateComparadorActivoCard();
+        showValidarMinimosAlarm({ afterSelection: true });
+        refreshGuardarBorradorGate();
+        if (scroll) {
+            const genSec = document.getElementById('generarResultSection');
+            if (genSec) genSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        return true;
+    }
+
+    function renderBatchResultsGrid(batchData) {
+        const section = document.getElementById('batchResultsSection');
+        const grid = document.getElementById('batchResultsGrid');
+        const hint = document.getElementById('batchResultsHint');
+        if (!section || !grid) return;
+        const perfiles = (batchData && batchData.perfiles) || [];
+        if (!perfiles.length) {
+            section.style.display = 'none';
+            grid.innerHTML = '';
+            return;
+        }
+        section.style.display = 'block';
+        if (hint) {
+            hint.textContent = 'Totales vs PedidoBaseline · formato N (Δ −86). Clic en una columna para abrir la Comparativa de ese perfil (sin re-Generar).';
+        }
+        grid.innerHTML = '';
+        perfiles.forEach((slot) => {
+            const result = slot.result || {};
+            const sum = summarizePerfilMonto(result);
+            const col = document.createElement('div');
+            col.className = 'batch-results-col';
+            col.setAttribute('role', 'listitem');
+            col.setAttribute('tabindex', '0');
+            col.dataset.perfilId = slot.id || '';
+            if (activeBatchPerfilId && activeBatchPerfilId === String(slot.id)) {
+                col.classList.add('is-active');
+            }
+            col.innerHTML = `
+                <div class="batch-col-label">${escapeHtml(slot.label || slot.id || 'Perfil')}</div>
+                <div class="batch-col-total">${escapeHtml(formatTotalWithDelta(sum.montoUsd, sum.deltaVsBaseline))}</div>
+                <div class="batch-col-meta">${sum.nLineas} líneas propuesto</div>
+            `;
+            col.addEventListener('click', () => {
+                hydrateComparativaFromBatchSlot(slot.id, { scroll: true });
+            });
+            col.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                    ev.preventDefault();
+                    hydrateComparativaFromBatchSlot(slot.id, { scroll: true });
+                }
+            });
+            grid.appendChild(col);
+        });
+    }
+
+    function stashBatchResult(batchData) {
+        lastBatchResult = batchData;
+        window.lastBatchResult = batchData;
+        window.hydrateComparativaFromBatchSlot = hydrateComparativaFromBatchSlot;
+        activeBatchPerfilId = null;
+        window.activeBatchPerfilId = null;
+        renderBatchResultsGrid(batchData);
+        // Comparativa waits for column click; clear prior single-result view.
+        const genSec = document.getElementById('generarResultSection');
+        if (genSec) genSec.style.display = 'none';
+        lastGenerarResult = null;
+        window.lastGenerarResult = null;
+        setDefinitivoReadyForBorrador(false);
+        updateComparadorActivoCard();
+        hideValidarMinimosAlarm();
+        refreshGuardarBorradorGate();
     }
 
     function escapeHtml(s) {
@@ -538,7 +970,382 @@ document.addEventListener('DOMContentLoaded', () => {
             const t = f.titulo || f.codigo || '';
             const d = f.detalle || '';
             return d ? `${t}: ${d}` : t;
-        }).join('\n');
+        }).join(' · ');
+    }
+
+    /** Ticket 08 / ADR-0019: primary = nombre + proveedor + precio; BARRA secondary. */
+    function formatJustificacionPrimaryHtml(row) {
+        const factores = row?.justificacion_factores || [];
+        const codes = new Set(factores.map(f => f.codigo));
+        const bb = String(row?.barra_baseline || '').trim();
+        const bp = String(row?.barra_propuesto || '').trim();
+        const isCodeChange = !!(bb && bp && bb !== bp) || codes.has('sucedaneo');
+        const nombre = String(row?.desc_propuesto || '').trim();
+        const prov = String(row?.proveedor || '').trim();
+        const px = precioFromFactores(row, false);
+        const pxTxt = px != null && !Number.isNaN(px) ? `$${Number(px).toFixed(4)}` : '';
+        const parts = [];
+        if (isCodeChange) parts.push('Sucedáneo');
+        if (nombre) parts.push(escapeHtml(nombre));
+        if (prov) parts.push(escapeHtml(prov));
+        if (pxTxt) parts.push(pxTxt);
+        const primary = parts.length
+            ? parts.join(' · ')
+            : escapeHtml(row?.justificacion_delta || '—');
+        let barraSec = '';
+        if (isCodeChange && bb && bp && bb !== bp) {
+            barraSec = `${escapeHtml(bb)}→${escapeHtml(bp)}`;
+        } else if (bp) {
+            barraSec = escapeHtml(bp);
+        } else if (bb) {
+            barraSec = escapeHtml(bb);
+        }
+        const factoresResumen = String(row?.justificacion_delta || '').trim();
+        return {
+            primaryHtml: `<span class="justificacion-primary" style="display:block; color:var(--text-primary); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${primary}</span>`,
+            barraHtml: barraSec
+                ? `<span class="justificacion-barra" style="display:block; font-size:0.68rem; font-family:monospace; color:var(--text-secondary); margin-top:0.15rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">BARRA ${barraSec}</span>`
+                : '',
+            factoresHtml: factoresResumen
+                ? `<span class="justificacion-resumen" style="display:block; font-size:0.68rem; color:var(--text-secondary); margin-top:0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(factoresResumen)}</span>`
+                : '',
+        };
+    }
+
+    function findOfertaBaseline(row) {
+        const bb = String(row?.barra_baseline || '').trim();
+        if (!bb) return null;
+        const factores = row.justificacion_factores || [];
+        for (const f of factores) {
+            const d = f.datos || {};
+            if (d.oferta_baseline && String(d.oferta_baseline.barra || '').trim() === bb) {
+                return d.oferta_baseline;
+            }
+        }
+        // Fallback: rivales top-N may include the baseline barcode
+        for (const f of factores) {
+            const rivales = (f.datos || {}).rivales || [];
+            const hit = rivales.find(r => String(r.barra || '').trim() === bb);
+            if (hit) return hit;
+        }
+        return null;
+    }
+
+    let reemplazoModalRow = null;
+
+    /** Merge rivales/hermanos/oferta_baseline from ADR-0019 factors (ticket 05 payload). */
+    function extractCompetenciaFromRow(row) {
+        const factores = row?.justificacion_factores || [];
+        let best = null;
+        let bestScore = -1;
+        for (const f of factores) {
+            const d = f.datos || {};
+            const score = (d.rivales || []).length
+                + (d.hermanos_reemplazables || []).length
+                + (d.oferta_baseline ? 1 : 0);
+            if (score > bestScore) {
+                bestScore = score;
+                best = d;
+            }
+        }
+        return best || {};
+    }
+
+    function closeReemplazoModal() {
+        const modal = document.getElementById('reemplazoModal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        reemplazoModalRow = null;
+    }
+
+    function renderReemplazoOfferButton(offer, { badge } = {}) {
+        const nombre = offer.descripcion || '—';
+        const prov = offer.proveedor || '—';
+        const px = offer.precio != null ? `$${Number(offer.precio).toFixed(4)}` : '—';
+        const barra = offer.barra || '';
+        const badgeHtml = badge
+            ? `<span style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.04em; opacity:0.8; margin-left:0.35rem;">${escapeHtml(badge)}</span>`
+            : '';
+        return `
+            <button type="button" class="reemplazo-offer-btn btn btn-secondary"
+                style="display:block; width:100%; text-align:left; margin:0 0 0.4rem; padding:0.55rem 0.7rem; white-space:normal; line-height:1.35;"
+                data-barra="${escapeHtml(barra)}"
+                data-proveedor="${escapeHtml(prov)}"
+                data-precio="${offer.precio != null ? Number(offer.precio) : ''}"
+                data-descripcion="${escapeHtml(nombre)}">
+                <div style="font-weight:600; color:var(--text-primary);">${escapeHtml(nombre)}${badgeHtml}</div>
+                <div><strong>${escapeHtml(prov)}</strong> · ${px}</div>
+                ${barra ? `<div class="competencia-barra" style="font-family:monospace; font-size:0.72rem; opacity:0.75; margin-top:0.15rem;">BARRA ${escapeHtml(barra)}</div>` : ''}
+            </button>`;
+    }
+
+    function openReemplazoModal(row) {
+        const modal = document.getElementById('reemplazoModal');
+        const origList = document.getElementById('reemplazoOriginalList');
+        const rivList = document.getElementById('reemplazoRivalesList');
+        const hint = document.getElementById('reemplazoModalHint');
+        if (!modal || !origList || !rivList || !row) return;
+        reemplazoModalRow = row;
+        const comp = extractCompetenciaFromRow(row);
+        const topH = comp.top_n_hermanos != null ? Number(comp.top_n_hermanos) : null;
+        const topR = comp.top_n_rivales != null ? Number(comp.top_n_rivales) : null;
+        const opR = comp.ofertas_por_rival != null ? Number(comp.ofertas_por_rival) : null;
+        if (hint) {
+            const bits = [];
+            if (topH != null) bits.push(`hermanos≤${topH}`);
+            if (topR != null) bits.push(`rivales≤${topR}`);
+            if (opR != null) bits.push(`ofertas/rival≤${opR}`);
+            hint.textContent = bits.length
+                ? `Original | Rivales · knobs ${bits.join(' · ')}. Elegí una oferta para actualizar la Comparativa activa.`
+                : 'Original (baseline / hermanos) y Rivales. Elegí una oferta para actualizar la Comparativa activa.';
+        }
+
+        let origHtml = '';
+        const ob = comp.oferta_baseline;
+        if (ob && (ob.barra || ob.proveedor)) {
+            origHtml += renderReemplazoOfferButton(ob, { badge: 'baseline' });
+        }
+        const hermanos = (comp.hermanos_reemplazables || []).slice(0, topH != null ? topH : undefined);
+        hermanos.forEach((h) => {
+            origHtml += renderReemplazoOfferButton(h, { badge: 'hermano' });
+        });
+        origList.innerHTML = origHtml || '<div style="opacity:0.7; font-size:0.8rem;">Sin opciones Original en el payload.</div>';
+
+        let rivHtml = '';
+        const rivales = (comp.rivales || []).slice(0, topR != null ? topR : undefined);
+        rivales.forEach((r) => {
+            const ofertasRaw = Array.isArray(r.ofertas) && r.ofertas.length
+                ? r.ofertas
+                : [{
+                    barra: r.barra,
+                    proveedor: r.proveedor,
+                    precio: r.precio,
+                    descripcion: r.descripcion,
+                }];
+            const ofertas = ofertasRaw.slice(0, opR != null ? opR : undefined);
+            const groupLabel = escapeHtml(r.proveedor || 'Rival');
+            rivHtml += `<div style="margin-bottom:0.65rem; padding:0.45rem 0.5rem; border:1px solid var(--border-subtle); border-radius:6px;">
+                <div style="font-weight:600; margin-bottom:0.35rem; font-size:0.82rem;">${groupLabel}${r.elegida ? ' · elegida' : ''}</div>`;
+            ofertas.forEach((o) => {
+                const offer = {
+                    barra: o.barra || r.barra,
+                    proveedor: o.proveedor || r.proveedor,
+                    precio: o.precio != null ? o.precio : r.precio,
+                    descripcion: o.descripcion || r.descripcion || null,
+                };
+                rivHtml += renderReemplazoOfferButton(offer);
+            });
+            rivHtml += '</div>';
+        });
+        rivList.innerHTML = rivHtml || '<div style="opacity:0.7; font-size:0.8rem;">Sin rivales en el payload.</div>';
+
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function applyReemplazoOffer(row, offer) {
+        if (!lastGenerarResult || !row || !offer) return false;
+        const newBarra = String(offer.barra || '').trim();
+        const newProv = String(offer.proveedor || '').trim();
+        if (!newBarra || !newProv) return false;
+
+        const oldBarra = String(row.barra_propuesto || '');
+        const oldProv = String(row.proveedor || '');
+        const qty = Math.max(0, Math.round(Number(row.qty_propuesto) || 0));
+        const extras = Math.max(0, Number(row.extra_legs_qty) || 0);
+        const primaryQty = Math.max(0, qty - extras);
+        const desc = String(offer.descripcion || row.desc_propuesto || '').trim();
+        const precio = offer.precio != null && offer.precio !== ''
+            ? Number(offer.precio)
+            : null;
+
+        row.barra_propuesto = newBarra;
+        if (desc) row.desc_propuesto = desc;
+        row.proveedor = newProv;
+        row.reemplazo_manual = true;
+
+        const factores = row.justificacion_factores || [];
+        for (const f of factores) {
+            if (f.codigo === 'oferta' && f.datos) {
+                f.datos.proveedor = newProv;
+                f.datos.precio = precio;
+                f.datos.barra = newBarra;
+                if (desc) f.datos.descripcion = desc;
+                break;
+            }
+        }
+
+        const lines = lastGenerarResult.pedido_propuesto || [];
+        const idx = lines.findIndex(
+            (l) => String(l.barra || '') === oldBarra && String(l.proveedor || '') === oldProv
+        );
+        if (primaryQty <= 0) {
+            if (idx >= 0) lines.splice(idx, 1);
+        } else if (idx >= 0) {
+            lines[idx].barra = newBarra;
+            lines[idx].proveedor = newProv;
+            if (desc) lines[idx].descripcion = desc;
+            lines[idx].cantidad = primaryQty;
+            if (precio != null && !Number.isNaN(precio)) lines[idx].precio = precio;
+        } else {
+            lines.push({
+                barra: newBarra,
+                descripcion: desc,
+                proveedor: newProv,
+                cantidad: primaryQty,
+                precio: precio != null && !Number.isNaN(precio) ? precio : null,
+            });
+        }
+        lastGenerarResult.pedido_propuesto = lines;
+
+        if (lastBatchResult && activeBatchPerfilId) {
+            const slot = (lastBatchResult.perfiles || []).find(
+                (p) => String(p.id) === String(activeBatchPerfilId)
+            );
+            if (slot && slot.result) {
+                slot.result.pedido_propuesto = lastGenerarResult.pedido_propuesto;
+                slot.result.comparativa_cantidades = lastGenerarResult.comparativa_cantidades;
+            }
+        }
+
+        closeReemplazoModal();
+        renderGenerarResult(lastGenerarResult, { scroll: false, keepDrawerRow: row });
+        return true;
+    }
+
+    function bindReemplazoModalChrome() {
+        const modal = document.getElementById('reemplazoModal');
+        document.getElementById('btnCloseReemplazoModal')?.addEventListener('click', closeReemplazoModal);
+        document.getElementById('btnCloseReemplazoModalX')?.addEventListener('click', closeReemplazoModal);
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeReemplazoModal();
+            });
+            modal.addEventListener('click', (e) => {
+                const btn = e.target.closest('.reemplazo-offer-btn');
+                if (!btn || !reemplazoModalRow) return;
+                const offer = {
+                    barra: btn.dataset.barra || '',
+                    proveedor: btn.dataset.proveedor || '',
+                    precio: btn.dataset.precio !== '' ? Number(btn.dataset.precio) : null,
+                    descripcion: btn.dataset.descripcion || '',
+                };
+                applyReemplazoOffer(reemplazoModalRow, offer);
+            });
+        }
+    }
+    bindReemplazoModalChrome();
+
+    function renderReemplazoBaselineBlock(row) {
+        const bb = String(row?.barra_baseline || '').trim();
+        const bp = String(row?.barra_propuesto || '').trim();
+        if (!bb || !bp || bb === bp) return '';
+        const oferta = findOfertaBaseline(row);
+        const px = oferta && oferta.precio != null
+            ? `$${Number(oferta.precio).toFixed(4)}`
+            : '—';
+        const prov = oferta && oferta.proveedor
+            ? escapeHtml(oferta.proveedor)
+            : '—';
+        const media = oferta && oferta.media_de_mediana != null
+            ? ` · media hist. $${Number(oferta.media_de_mediana).toFixed(4)}`
+            : '';
+        const desc = escapeHtml(row.desc_baseline || '');
+        return `
+            <div style="margin:0.5rem 0; padding:0.5rem 0.65rem; border-left:3px solid var(--barra-cambio, #c4783a); background:var(--barra-cambio-bg, rgba(196,120,58,0.18)); border-radius:4px; font-size:0.78rem;">
+                <div style="font-weight:700; color:var(--barra-cambio, #c4783a); margin-bottom:0.25rem;">Producto reemplazado (baseline)</div>
+                <div><code class="barra-cambio" style="font-size:0.75rem;">${escapeHtml(bb)}</code></div>
+                <div style="opacity:0.9; margin:0.2rem 0;">${desc || '—'}</div>
+                <div>Mejor oferta baseline: <strong>${prov}</strong> <strong>${px}</strong>${media}</div>
+                <div style="opacity:0.75; margin-top:0.25rem;">vs propuesto <code>${escapeHtml(bp)}</code></div>
+            </div>`;
+    }
+
+    function renderCompetenciaBlock(datos) {
+        if (!datos) return '';
+        const rivales = datos.rivales || [];
+        const hermanos = datos.hermanos_reemplazables || [];
+        const hasHeader = datos.precio != null || datos.media_de_mediana != null;
+        const hasBaseline = !!datos.oferta_baseline;
+        if (!rivales.length && !hermanos.length && !hasHeader && !hasBaseline) return '';
+        let html = '<div style="margin-top:0.45rem; padding:0.5rem 0.65rem; background:rgba(255,255,255,0.04); border-radius:6px; font-size:0.78rem;">';
+
+        if (hasBaseline) {
+            const ob = datos.oferta_baseline;
+            const px = ob.precio != null ? `$${Number(ob.precio).toFixed(4)}` : '—';
+            html += `<div style="margin-bottom:0.45rem; padding:0.35rem 0.45rem; background:var(--barra-cambio-bg, rgba(196,120,58,0.18)); border-radius:4px;">
+                <div style="font-weight:600; color:var(--barra-cambio, #c4783a);">Reemplazado · <code>${escapeHtml(ob.barra || '')}</code></div>
+                <div><strong>${escapeHtml(ob.proveedor || '—')}</strong> ${px}</div>
+            </div>`;
+        }
+
+        // Cabecera elegida: precio · media hist · Δ$ · % (siempre USD)
+        if (hasHeader) {
+            const px = datos.precio != null ? `$${Number(datos.precio).toFixed(4)}` : '—';
+            let line = `<strong>${escapeHtml(datos.proveedor || 'Oferta')}</strong> ${px}`;
+            if (datos.media_de_mediana != null) {
+                const media = Number(datos.media_de_mediana);
+                const delta = datos.delta_vs_media_usd != null
+                    ? Number(datos.delta_vs_media_usd)
+                    : (datos.precio != null ? Number(datos.precio) - media : null);
+                line += ` · media hist. $${media.toFixed(4)}`;
+                if (delta != null) {
+                    const sign = delta >= 0 ? '+' : '';
+                    line += ` · Δ $${sign}${delta.toFixed(4)}`;
+                }
+                if (datos.desvio != null) {
+                    line += ` (${(Number(datos.desvio) * 100).toFixed(1)}%)`;
+                }
+            } else if (datos.desvio != null) {
+                line += ` · desvío ${(Number(datos.desvio) * 100).toFixed(1)}%`;
+            }
+            if (datos.fuente_baseline) {
+                line += ` <span style="opacity:0.75;">[${escapeHtml(datos.fuente_baseline)}]</span>`;
+            }
+            if (datos.pdr_semaforo) {
+                line += ` <span style="opacity:0.75;">[PDR:${escapeHtml(String(datos.pdr_semaforo))}]</span>`;
+            }
+            html += `<div style="margin-bottom:0.35rem;"><span style="opacity:0.75;">Elegida · </span>${line}</div>`;
+        }
+
+        if (rivales.length) {
+            html += '<div style="font-weight:600; margin-bottom:0.25rem;">¿Por qué esta oferta? (top ' +
+                (datos.top_n_rivales || rivales.length) + ')</div>';
+            html += '<ol style="margin:0; padding-left:1.2rem;">';
+            rivales.forEach(r => {
+                const mark = r.elegida ? ' ← elegida' : '';
+                const px = r.precio != null ? `$${Number(r.precio).toFixed(4)}` : '—';
+                const dv = r.desvio != null ? ` · desvío ${(Number(r.desvio) * 100).toFixed(1)}%` : '';
+                const lt = r.lead_time_dias != null ? ` · LT ${r.lead_time_dias}d` : '';
+                const nombre = r.descripcion
+                    ? `<span class="competencia-nombre">${escapeHtml(r.descripcion)}</span> · `
+                    : '';
+                const barraSec = r.barra
+                    ? ` <span class="competencia-barra" style="font-family:monospace; font-size:0.85em; opacity:0.75;">BARRA ${escapeHtml(r.barra)}</span>`
+                    : '';
+                html += `<li>${nombre}<strong>${escapeHtml(r.proveedor || '—')}</strong> · ${px}${dv}${lt}${mark}${barraSec}</li>`;
+            });
+            html += '</ol>';
+        }
+        if (hermanos.length) {
+            html += '<div style="font-weight:600; margin:0.5rem 0 0.25rem;">Hermanos reemplazables (top ' +
+                (datos.top_n_hermanos || hermanos.length) + ')</div>';
+            html += '<ol style="margin:0; padding-left:1.2rem;">';
+            hermanos.forEach(h => {
+                const px = h.precio != null ? `$${Number(h.precio).toFixed(4)}` : '—';
+                const nombre = h.descripcion
+                    ? `<span class="competencia-nombre">${escapeHtml(h.descripcion)}</span> · `
+                    : '';
+                const barraSec = h.barra
+                    ? ` <span class="competencia-barra" style="font-family:monospace; font-size:0.85em; opacity:0.75;">BARRA ${escapeHtml(h.barra)}</span>`
+                    : '';
+                html += `<li>${nombre}<strong>${escapeHtml(h.proveedor || '—')}</strong> · ${px}${barraSec}</li>`;
+            });
+            html += '</ol>';
+        }
+        html += '</div>';
+        return html;
     }
 
     function renderFactoresAccordion(factores) {
@@ -549,18 +1356,208 @@ document.addEventListener('DOMContentLoaded', () => {
             factores.map(f => {
                 const t = escapeHtml(f.titulo || f.codigo || '');
                 const d = escapeHtml(f.detalle || '');
-                return `<li style="margin-bottom:0.35rem;"><strong>${t}</strong>${d ? ` — ${d}` : ''}</li>`;
+                const extra = renderCompetenciaBlock(f.datos || {});
+                return `<li style="margin-bottom:0.35rem;"><strong>${t}</strong>${d ? ` — ${d}` : ''}${extra}</li>`;
             }).join('') +
             '</ul>';
     }
 
+    function overrideKey(row) {
+        return `${String(row.barra_propuesto || '')}||${String(row.proveedor || '')}`;
+    }
+
+    function collectQtyOverrides(data) {
+        const map = {};
+        (data?.comparativa_cantidades || []).forEach(row => {
+            if (!row.qty_editado) return;
+            map[overrideKey(row)] = Number(row.qty_propuesto);
+        });
+        return map;
+    }
+
+    function hasQtyOverrides(data) {
+        return Object.keys(collectQtyOverrides(data)).length > 0;
+    }
+
+    function promptOverridesBeforeGenerar() {
+        if (!lastGenerarResult || !hasQtyOverrides(lastGenerarResult)) {
+            qtyOverridesPending = null;
+            return true;
+        }
+        const n = Object.keys(collectQtyOverrides(lastGenerarResult)).length;
+        const ok = window.confirm(
+            `Hay ${n} qty editada(s) en Comparativa.\n\n` +
+            'Aceptar = Descartar overrides y usar el nuevo Generar.\n' +
+            'Cancelar = Reaplicar overrides sobre el resultado (si la clave barra+proveedor sigue existiendo).'
+        );
+        if (ok) {
+            qtyOverridesPending = null;
+            return true;
+        }
+        qtyOverridesPending = collectQtyOverrides(lastGenerarResult);
+        return true;
+    }
+
+    function applyPendingOverrides(data) {
+        if (!qtyOverridesPending || !data?.comparativa_cantidades) {
+            qtyOverridesPending = null;
+            return data;
+        }
+        const map = qtyOverridesPending;
+        qtyOverridesPending = null;
+        data.comparativa_cantidades.forEach(row => {
+            const k = overrideKey(row);
+            if (!(k in map)) return;
+            const newQty = Math.max(0, Math.round(Number(map[k]) || 0));
+            if (row.qty_propuesto_original == null) {
+                row.qty_propuesto_original = Number(row.qty_propuesto);
+            }
+            row.qty_propuesto = newQty;
+            row.qty_editado = newQty !== Number(row.qty_propuesto_original);
+            syncPedidoPropuestoPrimary(data, row, newQty);
+        });
+        refreshGrupoSumsInPlace(data.comparativa_cantidades);
+        return data;
+    }
+
+    function refreshGrupoSumsInPlace(rows) {
+        const sumBase = {};
+        const sumProp = {};
+        rows.forEach(r => {
+            const gk = String(r.grupo_key || '');
+            sumBase[gk] = (sumBase[gk] || 0) + (Number(r.qty_baseline) || 0);
+            sumProp[gk] = (sumProp[gk] || 0) + (Number(r.qty_propuesto) || 0);
+        });
+        rows.forEach(r => {
+            const gk = String(r.grupo_key || '');
+            r.grupo_sum_baseline = sumBase[gk] || 0;
+            r.grupo_sum_propuesto = sumProp[gk] || 0;
+        });
+    }
+
+    /** SplitLeadTime: delta solo en pierna primaria; extras fijas (ADR-0027). */
+    function syncPedidoPropuestoPrimary(data, row, newTotalQty) {
+        if (!data) return;
+        const barra = String(row.barra_propuesto || '');
+        const proveedor = String(row.proveedor || '');
+        const extras = Math.max(0, Number(row.extra_legs_qty) || 0);
+        let primaryQty = Math.max(0, Math.round(Number(newTotalQty) || 0) - extras);
+        const lines = data.pedido_propuesto || [];
+        const idx = lines.findIndex(
+            l => String(l.barra || '') === barra && String(l.proveedor || '') === proveedor
+        );
+        if (primaryQty <= 0) {
+            if (idx >= 0) lines.splice(idx, 1);
+            data.pedido_propuesto = lines;
+            return;
+        }
+        if (idx >= 0) {
+            lines[idx].cantidad = primaryQty;
+        } else if (proveedor) {
+            lines.push({
+                barra,
+                descripcion: row.desc_propuesto || '',
+                proveedor,
+                cantidad: primaryQty,
+                precio: null,
+            });
+        }
+        data.pedido_propuesto = lines;
+    }
+
+    function qtyWarnFlags(row) {
+        const qty = Number(row.qty_propuesto) || 0;
+        const base = Number(row.qty_baseline) || 0;
+        const gProp = Number(row.grupo_sum_propuesto) || 0;
+        const gBase = Number(row.grupo_sum_baseline) || 0;
+        return {
+            overLine: qty > base,
+            overGrupo: gProp > gBase,
+        };
+    }
+
+    function clearComparativaActiveRow() {
+        document.querySelectorAll('#comparativaTableBody tr.comparativa-main-row.is-qty-focus')
+            .forEach(el => el.classList.remove('is-qty-focus'));
+    }
+
+    function setComparativaActiveRow(tr) {
+        clearComparativaActiveRow();
+        if (tr) tr.classList.add('is-qty-focus');
+    }
+
+    function closeQtyContextoDrawer() {
+        const drawer = document.getElementById('qtyContextoDrawer');
+        if (drawer) drawer.style.display = 'none';
+        clearComparativaActiveRow();
+    }
+
+    function openQtyContextoDrawer(row, tr = null) {
+        const drawer = document.getElementById('qtyContextoDrawer');
+        const body = document.getElementById('qtyContextoDrawerBody');
+        if (!drawer || !body) return;
+        if (tr) setComparativaActiveRow(tr);
+        const warn = qtyWarnFlags(row);
+        const stockOferta = row.stock_oferta != null ? row.stock_oferta : '—';
+        let competenciaHtml = '';
+        (row.justificacion_factores || []).forEach(f => {
+            const block = renderCompetenciaBlock(f.datos || {});
+            if (block) competenciaHtml += block;
+        });
+        if (!competenciaHtml) {
+            competenciaHtml = '<div style="opacity:0.7;">Sin rivales/hermanos en justificación.</div>';
+        }
+        const warnHtml = (warn.overLine || warn.overGrupo)
+            ? `<div style="margin:0.5rem 0; padding:0.4rem 0.5rem; border-left:3px solid #f59e0b; background:rgba(245,158,11,0.12); color:var(--text-primary);">
+                ${warn.overLine ? 'Qty fila &gt; baseline.<br>' : ''}
+                ${warn.overGrupo ? 'Σ propuesto del Grupo &gt; Σ baselines.' : ''}
+               </div>`
+            : '';
+        const reemplazoHtml = renderReemplazoBaselineBlock(row);
+        body.innerHTML = `
+            ${warnHtml}
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:0.25rem;">Línea</div>
+            <div>Baseline neto: <strong>${Number(row.qty_baseline) || 0}</strong></div>
+            <div>Qty propuesto: <strong>${Number(row.qty_propuesto) || 0}</strong></div>
+            <div>Existen: <strong>${row.existen != null ? row.existen : '—'}</strong></div>
+            <div>Backorder: <strong>${Number(row.backorder_qty) || 0}</strong></div>
+            <div>Stock oferta: <strong>${stockOferta}</strong></div>
+            <div>Proveedor: <strong>${escapeHtml(row.proveedor || '—')}</strong></div>
+            ${reemplazoHtml}
+            <div style="font-weight:600; color:var(--text-primary); margin:0.65rem 0 0.25rem;">Grupo</div>
+            <div>Σ propuesto / Σ baseline: <strong>${Number(row.grupo_sum_propuesto) || 0}</strong> / <strong>${Number(row.grupo_sum_baseline) || 0}</strong></div>
+            <div style="font-weight:600; color:var(--text-primary); margin:0.65rem 0 0.25rem;">Competencia (elegida)</div>
+            ${competenciaHtml}
+        `;
+        drawer.style.display = 'block';
+    }
+
+    document.getElementById('qtyContextoDrawerClose')?.addEventListener('click', closeQtyContextoDrawer);
+
+    function onQtyPropuestoEdit(row, inputEl) {
+        const raw = inputEl.value;
+        let newQty = Math.max(0, Math.round(Number(raw) || 0));
+        if (String(raw) !== String(newQty)) inputEl.value = String(newQty);
+        if (row.qty_propuesto_original == null) {
+            row.qty_propuesto_original = Number(row.qty_propuesto);
+        }
+        row.qty_propuesto = newQty;
+        row.qty_editado = newQty !== Number(row.qty_propuesto_original);
+        if (lastGenerarResult) {
+            syncPedidoPropuestoPrimary(lastGenerarResult, row, newQty);
+            refreshGrupoSumsInPlace(lastGenerarResult.comparativa_cantidades || []);
+            renderGenerarResult(lastGenerarResult, { scroll: false, keepDrawerRow: row });
+        }
+    }
+
     function isComparativaIdentityRow(row) {
+        if (row.qty_editado) return false;
         const sameBarra = String(row.barra_baseline || '') === String(row.barra_propuesto || '');
         const sameQty = Number(row.qty_baseline) === Number(row.qty_propuesto);
         return sameBarra && sameQty;
     }
 
-    function renderGenerarResult(data) {
+    function renderGenerarResult(data, { scroll = true, keepDrawerRow = null } = {}) {
         const section = document.getElementById('generarResultSection');
         const compBody = document.getElementById('comparativaTableBody');
         const propBody = document.getElementById('propuestoTableBody');
@@ -574,36 +1571,125 @@ document.addEventListener('DOMContentLoaded', () => {
         const hiddenN = allRows.length - visibleRows.length;
         const hint = document.getElementById('comparativaFilterHint');
         if (hint) {
-            hint.textContent = soloCambios && hiddenN > 0
-                ? `Ocultas ${hiddenN} filas sin cambio (misma barra y qty). Desmarque «Solo cambios» para verlas.`
-                : (allRows.length ? `${allRows.length} filas en Comparativa.` : '');
+            if (!allRows.length) {
+                hint.textContent = 'Comparativa vacía: el motor no devolvió filas.';
+            } else if (soloCambios && visibleRows.length === 0) {
+                hint.textContent = `Ningún cambio de unidad/barra (${allRows.length} filas ocultas). Desmarque «Solo cambios» para verlas, o revise desvío/amplificador.`;
+            } else if (soloCambios && hiddenN > 0) {
+                hint.textContent = `Mostrando ${visibleRows.length} cambios · ocultas ${hiddenN} sin cambio de barra/qty.`;
+            } else {
+                hint.textContent = `${allRows.length} filas en Comparativa` +
+                    (visibleRows.length !== allRows.length ? ` (${visibleRows.length} visibles).` : '.');
+            }
         }
 
         compBody.innerHTML = '';
         let openJustRow = null;
+
+        if (!visibleRows.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td colspan="7" style="padding:1rem; color:var(--text-secondary); text-align:center;">
+                ${soloCambios && allRows.length
+                    ? 'Sin diferencias de unidad/barra con el filtro «Solo cambios». Desmarque el checkbox arriba para ver todas las filas.'
+                    : 'Sin filas para mostrar.'}
+            </td>`;
+            compBody.appendChild(tr);
+        }
+
         visibleRows.forEach((row, idx) => {
             const tr = document.createElement('tr');
             tr.className = 'comparativa-main-row';
             tr.dataset.justIdx = String(idx);
+            tr.dataset.barra = String(row.barra_propuesto || row.barra_baseline || '');
+            tr.dataset.proveedor = String(row.proveedor || '');
             const resumen = row.justificacion_delta || '';
             const factores = row.justificacion_factores || [];
-            const hover = factorsHoverText(factores) || resumen;
             const hasDetail = factores.length > 0 || !!resumen;
+            const warn = qtyWarnFlags(row);
+            const warnBorder = (warn.overLine || warn.overGrupo)
+                ? 'outline:2px solid #f59e0b; outline-offset:1px; border:1px solid #f59e0b;'
+                : 'border:1px solid var(--border-subtle);';
+            if (warn.overLine || warn.overGrupo) {
+                tr.style.background = 'rgba(245,158,11,0.08)';
+            }
+            const bb = String(row.barra_baseline || '').trim();
+            const bp = String(row.barra_propuesto || '').trim();
+            const isBarraCambio = !!(bb && bp && bb !== bp);
+            if (isBarraCambio) tr.classList.add('is-barra-cambio');
+            const editBadge = row.qty_editado
+                ? ' <span style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.04em; color:#f59e0b; font-weight:700;">editado</span>'
+                : '';
+            const barraCambioBadge = isBarraCambio
+                ? ' <span class="barra-cambio-badge" title="Código distinto vs Pedido Sencillo">barra distinta</span>'
+                : '';
+            const barraPropHtml = isBarraCambio
+                ? `<span class="barra-cambio" title="Sucedáneo / cambio de barra vs Sencillo">${escapeHtml(row.barra_propuesto)}</span>${barraCambioBadge}`
+                : `<span style="font-family:monospace;">${escapeHtml(row.barra_propuesto)}</span>`;
+            const stockTxt = row.stock_oferta != null ? String(row.stock_oferta) : '—';
+            const boTxt = String(Number(row.backorder_qty) || 0);
+            const exTxt = row.existen != null ? String(row.existen) : '—';
+            const hoverTitle = (factorsHoverText(factores) || resumen || '').replace(/[\r\n]+/g, ' · ');
+            const ofertaBase = isBarraCambio ? findOfertaBaseline(row) : null;
+            const baselinePrecioHtml = (ofertaBase && ofertaBase.precio != null)
+                ? `<div style="font-size:0.68rem; color:var(--barra-cambio, #c4783a); margin-top:0.2rem;">precio baseline <strong>$${Number(ofertaBase.precio).toFixed(4)}</strong>${ofertaBase.proveedor ? ` · ${escapeHtml(ofertaBase.proveedor)}` : ''}</div>`
+                : (isBarraCambio
+                    ? `<div style="font-size:0.65rem; color:var(--text-secondary); margin-top:0.2rem;">precio baseline: regenere Generar para ver oferta</div>`
+                    : '');
+            const justHtml = formatJustificacionPrimaryHtml(row);
+            const justUnderline = hasDetail ? 'border-bottom:1px dotted var(--text-secondary);' : 'border-bottom:none;';
+            // Re-wrap primary with underline when accordionable
+            const primaryWithCue = justHtml.primaryHtml.replace(
+                'style="display:block;',
+                `style="display:block; ${justUnderline}`
+            );
             tr.innerHTML = `
                 <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_baseline)}</td>
-                <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}</td>
+                <td style="padding:0.5rem;">${escapeHtml(row.desc_baseline || '')}${baselinePrecioHtml}</td>
                 <td style="padding:0.5rem; text-align:right;">${row.qty_baseline}</td>
-                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(row.barra_propuesto)}</td>
+                <td class="barra-propuesto-cell" style="padding:0.5rem; cursor:context-menu;" title="Clic derecho: reemplazar (Original | Rivales)">${barraPropHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(row.desc_propuesto || '')}</td>
-                <td style="padding:0.5rem; text-align:right;">${row.qty_propuesto}</td>
-                <td class="justificacion-cell" style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary); max-width:220px; cursor:${hasDetail ? 'pointer' : 'default'};">
-                    <span class="justificacion-resumen" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-bottom:${hasDetail ? '1px dotted var(--text-secondary)' : 'none'};" title="${escapeHtml(hover)}">${escapeHtml(resumen) || '—'}</span>
+                <td style="padding:0.5rem; text-align:right; white-space:nowrap;">
+                    <input type="number" min="0" step="1" class="qty-propuesto-input"
+                        value="${Number(row.qty_propuesto) || 0}"
+                        style="width:4.5rem; text-align:right; padding:0.25rem 0.35rem; border-radius:4px; background:rgba(0,0,0,0.25); color:inherit; ${warnBorder}"
+                        title="${warn.overLine || warn.overGrupo ? 'Qty por encima del baseline (informativo)' : 'Editar qty propuesto'}">
+                    ${editBadge}
+                    <div style="font-size:0.68rem; color:var(--text-secondary); margin-top:0.2rem; line-height:1.35; text-align:right;">
+                        stock oferta <strong style="color:var(--text-primary);">${escapeHtml(stockTxt)}</strong>
+                        · BO <strong style="color:var(--text-primary);">${escapeHtml(boTxt)}</strong>
+                        · existen <strong style="color:var(--text-primary);">${escapeHtml(exTxt)}</strong>
+                    </div>
+                </td>
+                <td class="justificacion-cell" style="padding:0.5rem; font-size:0.8rem; color:var(--text-secondary); max-width:260px; cursor:${hasDetail ? 'pointer' : 'default'};">
+                    ${primaryWithCue}${justHtml.barraHtml}${justHtml.factoresHtml}
                 </td>
             `;
+            const justSpan = tr.querySelector('.justificacion-primary') || tr.querySelector('.justificacion-resumen');
+            if (justSpan && hoverTitle) {
+                justSpan.setAttribute('title', hoverTitle);
+            }
+            const qtyInput = tr.querySelector('.qty-propuesto-input');
+            qtyInput.addEventListener('focus', () => openQtyContextoDrawer(row, tr));
+            qtyInput.addEventListener('change', () => onQtyPropuestoEdit(row, qtyInput));
+            qtyInput.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    qtyInput.blur();
+                }
+            });
+            const barraTd = tr.querySelector('.barra-propuesto-cell');
+            if (barraTd) {
+                barraTd.addEventListener('contextmenu', (ev) => {
+                    ev.preventDefault();
+                    openReemplazoModal(row);
+                });
+            }
+
             const detailTr = document.createElement('tr');
             detailTr.className = 'comparativa-detail-row';
             detailTr.style.display = 'none';
-            detailTr.innerHTML = `<td colspan="7" style="background:rgba(0,0,0,0.15); border-bottom:1px solid var(--border-subtle); padding:0;">${renderFactoresAccordion(factores)}</td>`;
+            // Lazy: do not expand rivales/hermanos HTML for every row up-front (kills UI on Agresivo).
+            detailTr.innerHTML = `<td colspan="7" style="background:rgba(0,0,0,0.15); border-bottom:1px solid var(--border-subtle); padding:0.75rem; color:var(--text-secondary); font-size:0.8rem;">Cargando detalle…</td>`;
 
             if (hasDetail) {
                 tr.querySelector('.justificacion-cell').addEventListener('click', (ev) => {
@@ -611,6 +1697,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const opening = detailTr.style.display === 'none';
                     if (openJustRow && openJustRow !== detailTr) {
                         openJustRow.style.display = 'none';
+                    }
+                    if (opening && detailTr.dataset.rendered !== '1') {
+                        detailTr.innerHTML = `<td colspan="7" style="background:rgba(0,0,0,0.15); border-bottom:1px solid var(--border-subtle); padding:0;">${renderFactoresAccordion(factores)}</td>`;
+                        detailTr.dataset.rendered = '1';
                     }
                     detailTr.style.display = opening ? 'table-row' : 'none';
                     openJustRow = opening ? detailTr : null;
@@ -622,28 +1712,79 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         propBody.innerHTML = '';
+        const thPrecio = document.querySelector('#propuestoTableBody')?.closest('table')?.querySelector('thead th:nth-child(4)');
+        if (thPrecio) thPrecio.textContent = `Precio (${moneyUnitLabel()})`;
+        const thTotal = document.querySelector('#propuestoTableBody')?.closest('table')?.querySelector('thead th:nth-child(6)');
+        if (thTotal) thTotal.textContent = `Total (${moneyUnitLabel()})`;
+
         (data.pedido_propuesto || []).forEach(line => {
+            const qty = Number(line.cantidad) || 0;
+            const pxUsd = line.precio != null ? Number(line.precio) : null;
+            const totalUsd = pxUsd != null ? pxUsd * qty : null;
+            const barra = String(line.barra || '');
+            const isBarraCambio = (data.comparativa_cantidades || []).some(r => {
+                const bb = String(r.barra_baseline || '').trim();
+                const bp = String(r.barra_propuesto || '').trim();
+                return bb && bp && bb !== bp && bp === barra.trim();
+            });
+            const barraHtml = isBarraCambio
+                ? `<span class="barra-cambio" title="Esta barra sustituye a otra del Pedido Sencillo">${escapeHtml(barra)}</span>`
+                : escapeHtml(barra);
             const tr = document.createElement('tr');
+            if (isBarraCambio) tr.classList.add('is-barra-cambio');
             tr.innerHTML = `
-                <td style="padding:0.5rem; font-family:monospace;">${escapeHtml(line.barra)}</td>
+                <td style="padding:0.5rem;">${barraHtml}</td>
                 <td style="padding:0.5rem;">${escapeHtml(line.descripcion || '')}</td>
                 <td style="padding:0.5rem; font-weight:600;">${escapeHtml(line.proveedor || '')}</td>
-                <td style="padding:0.5rem; text-align:right;">${line.cantidad}</td>
+                <td style="padding:0.5rem; text-align:right; font-variant-numeric:tabular-nums;">${moneyDisplay(pxUsd, { digits: 4 })}</td>
+                <td style="padding:0.5rem; text-align:right;">${qty}</td>
+                <td style="padding:0.5rem; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${moneyDisplay(totalUsd)}</td>
             `;
             propBody.appendChild(tr);
         });
 
         section.style.display = 'block';
         setConfigCollapsed(true);
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (keepDrawerRow) {
+            const kBarra = String(keepDrawerRow.barra_propuesto || keepDrawerRow.barra_baseline || '');
+            const kProv = String(keepDrawerRow.proveedor || '');
+            const matchTr = Array.from(
+                compBody.querySelectorAll('tr.comparativa-main-row')
+            ).find(el =>
+                String(el.dataset.barra || '') === kBarra
+                && String(el.dataset.proveedor || '') === kProv
+            );
+            openQtyContextoDrawer(keepDrawerRow, matchTr || null);
+            if (matchTr) {
+                const inp = matchTr.querySelector('.qty-propuesto-input');
+                if (inp && document.activeElement !== inp) {
+                    // Restore focus after re-render without scrolling page
+                    try { inp.focus({ preventScroll: true }); } catch (_) { inp.focus(); }
+                }
+            }
+        } else if (!scroll) {
+            // keep drawer as-is on silent re-render without keepDrawerRow
+        } else {
+            closeQtyContextoDrawer();
+        }
+        if (scroll) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     document.getElementById('comparativaSoloCambios')?.addEventListener('change', () => {
-        if (lastGenerarResult) renderGenerarResult(lastGenerarResult);
+        if (lastGenerarResult) renderGenerarResult(lastGenerarResult, { scroll: false });
     });
 
     function stashGenerarResult(data, { resetVm = true } = {}) {
+        applyPendingOverrides(data);
         lastGenerarResult = data;
+        window.lastGenerarResult = data;
+        window.stashGenerarResult = stashGenerarResult;
+        if (data && data.meta) {
+            if (data.meta.moneda_trabajo) fxState.moneda_trabajo = String(data.meta.moneda_trabajo).toUpperCase();
+            if (data.meta.dolarbcv != null) fxState.dolarbcv = Number(data.meta.dolarbcv);
+        }
         if (resetVm) {
             vmIntentosRecalc = {};
             vmActivoProveedor = null;
@@ -652,21 +1793,111 @@ document.addEventListener('DOMContentLoaded', () => {
             if (vmPanel) vmPanel.style.display = 'none';
         }
         renderGenerarResult(data);
+        updateComparadorActivoCard();
+    }
+
+    function hideValidarMinimosAlarm() {
+        const alarm = document.getElementById('validarMinimosAlarm');
+        if (alarm) alarm.style.display = 'none';
+        const panel = document.getElementById('validarMinimosPanel');
+        if (panel) panel.style.display = 'none';
+    }
+
+    /** Post-elección: alarma + CTA; never forced by batch completion (ticket 11). */
+    function showValidarMinimosAlarm({ afterSelection = false, colaN = null } = {}) {
+        const alarm = document.getElementById('validarMinimosAlarm');
+        const text = document.getElementById('validarMinimosAlarmText');
+        const section = document.getElementById('validarMinimosSection');
+        if (!alarm) return;
+        if (!afterSelection && !activeBatchPerfilId) {
+            alarm.style.display = 'none';
+            return;
+        }
+        alarm.style.display = 'block';
+        if (section) section.style.display = 'block';
+        if (text) {
+            const slot = activeBatchPerfilId
+                ? `perfil activo «${activeBatchPerfilId}»`
+                : 'perfil elegido';
+            if (colaN != null && colaN > 0) {
+                text.innerHTML = `Hay <strong>${colaN}</strong> proveedor(es) bajo mínimo en el ${escapeHtml(slot)}. Pulse <em>Evaluar mínimos</em> para abrir cola / % / Aceptar / Redistribuir (ADR-0016).`;
+            } else if (colaN === 0) {
+                text.innerHTML = `Sin proveedores bajo mínimo en el ${escapeHtml(slot)}. Puede re-evaluar tras cambios.`;
+            } else {
+                text.innerHTML = `Tras elegir perfil, evalúe mínimos <em>solo de este ${escapeHtml(slot)}</em>. El batch no corre ValidarMinimos.`;
+            }
+        }
+    }
+
+    function syncActiveBatchSlotFromLastGenerar() {
+        if (!lastBatchResult || !activeBatchPerfilId || !lastGenerarResult) return false;
+        const slot = (lastBatchResult.perfiles || []).find(
+            (p) => String(p.id) === String(activeBatchPerfilId)
+        );
+        if (!slot) return false;
+        const sharedBaseline = lastBatchResult.pedido_baseline
+            || lastGenerarResult.pedido_baseline
+            || [];
+        slot.result = {
+            ...(slot.result || {}),
+            ...lastGenerarResult,
+            pedido_baseline: sharedBaseline,
+            pedido_propuesto: lastGenerarResult.pedido_propuesto,
+            comparativa_cantidades: lastGenerarResult.comparativa_cantidades,
+            meta: {
+                ...(lastGenerarResult.meta || {}),
+                slot_id: slot.id,
+                slot_label: slot.label,
+                baseline_shared: true,
+                phase: 'generacion_unica',
+            },
+        };
+        lastBatchResult.pedido_baseline = sharedBaseline;
+        return true;
     }
 
     function applyValidarMinimosResponse(data) {
         if (!lastGenerarResult) lastGenerarResult = {};
         lastGenerarResult.pedido_propuesto = data.pedido_propuesto;
         lastGenerarResult.comparativa_cantidades = data.comparativa_cantidades;
-        if (data.pedido_baseline) lastGenerarResult.pedido_baseline = data.pedido_baseline;
+        // Keep shared PedidoBaseline when operating on a batch slot.
+        if (activeBatchPerfilId && lastBatchResult?.pedido_baseline) {
+            lastGenerarResult.pedido_baseline = lastBatchResult.pedido_baseline;
+        } else if (data.pedido_baseline) {
+            lastGenerarResult.pedido_baseline = data.pedido_baseline;
+        }
         const vm = (data.meta && data.meta.validar_minimos) || {};
         vmIntentosRecalc = vm.intentos_recalc || vmIntentosRecalc;
         vmActivoProveedor = vm.activo || null;
-        renderGenerarResult(lastGenerarResult);
+        syncActiveBatchSlotFromLastGenerar();
+        renderGenerarResult(lastGenerarResult, { scroll: false });
         renderValidarMinimosUI(vm);
+        showValidarMinimosAlarm({
+            afterSelection: !!activeBatchPerfilId,
+            colaN: (vm.cola || []).length,
+        });
         if (vm.requiere_panel_antes_recalc) {
             vmPanelAck = true;
         }
+        // Stay on Validar mínimos panel (do not jump to Comparativa top).
+        const vmSection = document.getElementById('validarMinimosSection');
+        if (vmSection) {
+            vmSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    function scrollToPedidoBarra(barra) {
+        const b = String(barra || '').trim();
+        if (!b) return;
+        const el = document.querySelector(`#propuestoTableBody tr[data-barra="${b.replace(/"/g, '')}"]`)
+            || document.querySelector(`#comparativaTableBody tr[data-barra="${b.replace(/"/g, '')}"]`);
+        if (!el) {
+            showAlert(`No encontré la línea ${b} en el pedido visible.`, false);
+            return;
+        }
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.outline = '2px solid var(--primary-accent)';
+        setTimeout(() => { el.style.outline = ''; }, 2200);
     }
 
     function renderValidarMinimosUI(vm) {
@@ -681,47 +1912,129 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function panelHtml(p) {
             if (!p) return '';
-            const idLabel = p.proveedor_id != null ? `#${p.proveedor_id} ` : '';
             const name = p.nombre_corto || p.proveedor;
             const aliases = (p.aliases || []).length
                 ? ` <span style="color:var(--text-secondary);font-size:0.8em;">[${(p.aliases || []).join(', ')}]</span>`
                 : '';
-            const reps = (p.reemplazos || []).slice(0, 8).map(r =>
-                `${r.barra_actual}→${r.proveedor_alt}/${r.barra_alternativa} (ahorro línea $${r.ahorro_usd})`
-            ).join('<br>');
-            const huerf = (p.huerfanos_si_rechaza || []).map(h => h.barra).join(', ') || 'ninguno';
             const deficit = Number(p.deficit_usd || 0);
             const okBadge = deficit <= 0
                 ? ' <span style="color:#10b981;font-weight:600;">(cumple mínimo)</span>'
                 : '';
+
+            const rows = [];
+            (p.reemplazos || []).forEach(r => {
+                const unreliable = !!(r.precio_actual_missing || r.precio_actual_invalido || r.ahorro_usd == null);
+                const checked = r.redistribuible_default !== false && !unreliable;
+                const desc = r.descripcion_actual || r.descripcion_alt || '';
+                const dest = `${r.proveedor_alt}/${r.barra_alternativa}`;
+                let deltaCell = '—';
+                if (!unreliable) {
+                    const delta = Number(r.ahorro_usd);
+                    const sign = delta >= 0 ? '+' : '';
+                    deltaCell = `${sign}${moneyDisplay(delta)}`;
+                    if (r.delta_pct != null) {
+                        const pct = Number(r.delta_pct);
+                        deltaCell += ` (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+                    }
+                } else {
+                    deltaCell = '⚠ no confiable';
+                }
+                rows.push({
+                    barra: r.barra_actual,
+                    desc,
+                    dest: `${r.proveedor_actual || p.proveedor} → ${dest}`,
+                    deltaCell,
+                    checked,
+                    kind: 'reemplazo',
+                    disabled: false,
+                });
+            });
+            (p.huerfanos_si_rechaza || []).forEach(h => {
+                rows.push({
+                    barra: h.barra,
+                    desc: h.descripcion || '',
+                    dest: 'sin 2º (huérfano si se saca del lab)',
+                    deltaCell: '—',
+                    checked: false,
+                    kind: 'huerfano',
+                    disabled: false,
+                });
+            });
+
+            const tableRows = rows.map(row => `
+                <tr>
+                  <td style="padding:0.35rem 0.4rem; vertical-align:top;">
+                    <input type="checkbox" class="vm-redis-cb" data-barra="${escapeHtml(row.barra)}"
+                      ${row.checked ? 'checked' : ''} ${row.disabled ? 'disabled' : ''}
+                      title="${row.kind === 'huerfano' ? 'Si marca: saca del lab → huérfano' : 'Si marca: mueve al 2º'}">
+                  </td>
+                  <td style="padding:0.35rem 0.4rem;">
+                    <a href="#" class="vm-jump-barra" data-barra="${escapeHtml(row.barra)}"
+                       style="color:var(--text-primary); text-decoration:underline; text-underline-offset:2px;">
+                      ${escapeHtml(row.desc || '(sin descripción)')}
+                    </a>
+                    <div style="font-family:monospace; font-size:0.72rem; color:var(--text-secondary);">${escapeHtml(row.barra)}</div>
+                  </td>
+                  <td style="padding:0.35rem 0.4rem; font-size:0.8rem;">${escapeHtml(row.dest)}</td>
+                  <td style="padding:0.35rem 0.4rem; text-align:right; white-space:nowrap;">${row.deltaCell}</td>
+                </tr>`).join('');
+
             return `
-                <div><strong>Activo:</strong> ${idLabel}${name} <code>${p.proveedor}</code>${aliases} — total <strong>$${p.total_usd}</strong>, mín $${p.minimo_usd}, déficit <strong>$${p.deficit_usd}</strong>${okBadge}</div>
-                <div><strong>Ahorro vs 2º (barra→Grupo):</strong> $${p.ahorro_vs_segundo_usd}</div>
-                <div style="margin-top:0.4rem;"><strong>Reemplazos:</strong><br>${reps || '—'}</div>
-                <div style="margin-top:0.4rem;"><strong>Huérfanos si rechaza:</strong> ${huerf}</div>
+                <div style="margin-bottom:0.5rem;">
+                  <strong>En turno:</strong> ${escapeHtml(name)} <code>${escapeHtml(p.proveedor)}</code>${aliases}
+                  — total <strong>${moneyDisplay(p.total_usd)}</strong>, mín ${moneyDisplay(p.minimo_usd)},
+                  déficit <strong>${moneyDisplay(p.deficit_usd)}</strong>${okBadge}
+                </div>
+                <div style="margin-bottom:0.5rem; font-size:0.85rem;">
+                  <strong>Δ si mueve todo lo confiable:</strong> ${moneyDisplay(p.ahorro_vs_segundo_usd)}
+                  <span style="color:var(--text-secondary);">(solo líneas con precio OK; motor USD)</span>
+                </div>
+                <div style="overflow:auto; max-height:320px; border:1px solid var(--border-subtle);">
+                  <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                    <thead style="position:sticky; top:0; background:var(--bg-surface);">
+                      <tr>
+                        <th style="padding:0.4rem; text-align:left; width:2rem;">Mover</th>
+                        <th style="padding:0.4rem; text-align:left;">Descripción</th>
+                        <th style="padding:0.4rem; text-align:left;">Destino</th>
+                        <th style="padding:0.4rem; text-align:right;">Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody>${tableRows || '<tr><td colspan="4" style="padding:0.75rem;">Sin líneas de este lab.</td></tr>'}</tbody>
+                  </table>
+                </div>
+                <p style="margin:0.5rem 0 0; font-size:0.75rem; color:var(--text-secondary);">
+                  Marcadas = van al 2º (o huérfano). Sin marcar = se quedan con <strong>${escapeHtml(name)}</strong> (submínimo parcial).
+                  Clic en la descripción para ir a la línea del pedido.
+                </p>
             `;
         }
 
         if (!cola.length) {
             colaEl.innerHTML = '<strong style="color:#10b981;">Todos los proveedores cumplen el mínimo (o no tienen mínimo configurado).</strong>';
             detEl.innerHTML = panelHtml(p);
-            if (hint) hint.textContent = p
-                ? 'Montos actualizados tras la última acción.'
-                : '';
+            if (hint) hint.textContent = p ? 'Montos actualizados tras la última acción.' : '';
             return;
         }
         colaEl.innerHTML = '<strong>Cola (mayor déficit primero):</strong><ul style="margin:0.4rem 0 0 1.2rem;">' +
-            cola.map(d => {
-                const id = d.proveedor_id != null ? `#${d.proveedor_id} ` : '';
+            cola.map((d, i) => {
                 const label = d.nombre_corto || d.proveedor;
-                return `<li>${id}<strong>${label}</strong> <code>${d.proveedor}</code> total $${d.total_usd} / mín $${d.minimo_usd} (déficit $${d.deficit_usd})</li>`;
+                const enTurno = i === 0 ? ' <span style="color:var(--primary-accent);font-weight:600;">← en turno</span>' : '';
+                return `<li><strong>${escapeHtml(label)}</strong> <code>${escapeHtml(d.proveedor)}</code>
+                  total ${moneyDisplay(d.total_usd)} / mín ${moneyDisplay(d.minimo_usd)}
+                  (déficit ${moneyDisplay(d.deficit_usd)})${enTurno}</li>`;
             }).join('') +
             '</ul>';
         detEl.innerHTML = panelHtml(p);
+        detEl.querySelectorAll('.vm-jump-barra').forEach(a => {
+            a.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                scrollToPedidoBarra(a.getAttribute('data-barra'));
+            });
+        });
         if (hint) {
             hint.textContent = vm.requiere_panel_antes_recalc
-                ? 'Tras el 1er recálculo debe revisar el panel (costo de rechazo / reemplazos) antes de otro %. Pulse Recalcular de nuevo para confirmar (panel_ack).'
-                : 'Sugerencia: +50% cobertura solo en SKUs de este proveedor. Puede aceptar submínimo o rechazar.';
+                ? 'Tras el 1er recálculo revise la tabla (confiables marcados por defecto) antes de otro %. Pulse Recalcular de nuevo para confirmar.'
+                : 'Marque qué líneas redistribuir. «Aceptar submínimo» = quedarse con el lab. «Aplicar redistribución» = mover solo las marcadas.';
         }
         if (vm.requiere_panel_antes_recalc) {
             vmPanelAck = true;
@@ -730,7 +2043,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function callValidarMinimos(action, extra = {}) {
         if (!lastGenerarResult) {
-            showAlert('Primero ejecute Generar (Sencillo).', false);
+            showAlert('Primero elija un perfil (clic en columna) o ejecute Generar.', false);
             return;
         }
         const payload = {
@@ -745,6 +2058,9 @@ document.addEventListener('DOMContentLoaded', () => {
             pct_extra: Number(document.getElementById('vmPctExtra')?.value || 50),
             panel_ack: !!extra.panel_ack || (action === 'recalcular' && vmPanelAck),
         };
+        if (extra.barras_redistribuir !== undefined) {
+            payload.barras_redistribuir = extra.barras_redistribuir;
+        }
         const response = await fetch('/api/pedidos/validar-minimos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -760,8 +2076,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (action === 'evaluar' && !(vm.cola || []).length) {
             showAlert('Sin proveedores bajo mínimo.', true);
         } else if (action === 'recalcular' && vm.requiere_panel_antes_recalc && (lastGenerarResult.pedido_propuesto || []).length) {
-            // if qty unchanged because ack required first time — message already in hint
             showAlert(`Validar mínimos: revise panel de ${vm.activo || ''}.`, true);
+        } else if (action === 'redistribuir') {
+            showAlert(`Redistribución aplicada (${(extra.barras_redistribuir || []).length} líneas). Cola: ${(vm.cola || []).length}`, true);
         } else {
             showAlert(`Validar mínimos (${action}) — cola: ${(vm.cola || []).length}`, true);
         }
@@ -788,9 +2105,18 @@ document.addEventListener('DOMContentLoaded', () => {
             showAlert(e.message, false);
         }
     });
-    document.getElementById('btnVmRechazar')?.addEventListener('click', async () => {
+    document.getElementById('btnVmRedistribuir')?.addEventListener('click', async () => {
         try {
-            await callValidarMinimos('rechazar');
+            const cbs = [...document.querySelectorAll('.vm-redis-cb:checked')];
+            const barras = cbs.map(cb => cb.getAttribute('data-barra')).filter(Boolean);
+            if (!barras.length) {
+                showAlert('No hay líneas marcadas. Marque qué redistribuir, o use «Aceptar submínimo».', false);
+                return;
+            }
+            if (!confirm(`¿Mover ${barras.length} línea(s) al 2º proveedor (o huérfano)?\nLas no marcadas se quedan con el lab actual.`)) {
+                return;
+            }
+            await callValidarMinimos('redistribuir', { barras_redistribuir: barras });
         } catch (e) {
             showAlert(e.message, false);
         }
@@ -1014,30 +2340,71 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     loadDefinitivoOverrideSchema(0);
 
+    function factoryOptionsHtml(selectedValue) {
+        const factories = ['Conservador', 'Normal', 'Agresivo'];
+        return factories.map((name) => {
+            const sel = selectedValue && name === selectedValue ? ' selected' : '';
+            return `<option value="factory:${name}"${sel}>${name}</option>`;
+        }).join('');
+    }
+
+    function syncBatchPerfilSlotOptions(presets) {
+        const defaults = { 1: 'Conservador', 2: 'Normal', 3: 'Agresivo' };
+        document.querySelectorAll('.batch-perfil-slot').forEach((sel) => {
+            const prev = sel.value;
+            const slotN = Number(sel.dataset.slot || 0);
+            let selectedFactory = null;
+            if (prev.startsWith('factory:')) {
+                selectedFactory = prev.slice('factory:'.length);
+            } else if (!prev) {
+                selectedFactory = defaults[slotN] || 'Normal';
+            }
+            sel.innerHTML = factoryOptionsHtml(selectedFactory);
+            (presets || []).forEach((p) => {
+                const o = document.createElement('option');
+                o.value = `custom:${p.preset_id}`;
+                o.textContent = `${p.nombre} (custom)`;
+                o.dataset.basePreset = p.base_preset || 'Normal';
+                o.dataset.nivel = p.nivel || 'Sencillo';
+                o.dataset.overrides = JSON.stringify(p.overrides || {});
+                if (prev === o.value) o.selected = true;
+                sel.appendChild(o);
+            });
+            if (prev && [...sel.options].some((o) => o.value === prev)) {
+                sel.value = prev;
+            } else if (selectedFactory) {
+                sel.value = `factory:${selectedFactory}`;
+            }
+        });
+    }
+
     async function refreshCustomPresetsList() {
         const sel = document.getElementById('customPresetSelect');
-        if (!sel) return;
+        let presets = [];
         try {
             const response = await fetch('/api/pedidos/presets');
             if (!response.ok) throw new Error(`presets HTTP ${response.status}`);
             const data = await response.json();
-            const presets = data.presets || [];
-            const prev = sel.value;
-            sel.innerHTML = '<option value="">Mis presets…</option>';
-            presets.forEach((p) => {
-                const o = document.createElement('option');
-                o.value = String(p.preset_id);
-                o.textContent = `${p.nombre} (${p.nivel}/${p.base_preset})`;
-                o.dataset.nombre = p.nombre;
-                o.dataset.nivel = p.nivel;
-                o.dataset.basePreset = p.base_preset;
-                o.dataset.overrides = JSON.stringify(p.overrides || {});
-                sel.appendChild(o);
-            });
-            if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+            presets = data.presets || [];
+            if (sel) {
+                const prev = sel.value;
+                sel.innerHTML = '<option value="">Mis presets…</option>';
+                presets.forEach((p) => {
+                    const o = document.createElement('option');
+                    o.value = String(p.preset_id);
+                    o.textContent = `${p.nombre} (${p.nivel}/${p.base_preset})`;
+                    o.dataset.nombre = p.nombre;
+                    o.dataset.nivel = p.nivel;
+                    o.dataset.basePreset = p.base_preset;
+                    o.dataset.overrides = JSON.stringify(p.overrides || {});
+                    sel.appendChild(o);
+                });
+                if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+            }
         } catch (err) {
             console.warn('custom presets list failed', err);
         }
+        syncBatchPerfilSlotOptions(presets);
     }
 
     document.getElementById('btnSaveCustomPreset')?.addEventListener('click', async () => {
@@ -1122,9 +2489,10 @@ document.addEventListener('DOMContentLoaded', () => {
             hideAlert();
             const resultSection = document.getElementById('generarResultSection');
             if (!resultSection || resultSection.style.display === 'none') {
-                showAlert("Primero ejecute Generar (Sencillo) para ver la Comparativa.", false);
+                showAlert("Primero Generar y elija un perfil en la grilla para ver la Comparativa.", false);
                 return;
             }
+            promptOverridesBeforeGenerar();
             btnRegenerarDefinitivo.disabled = true;
             const original = btnRegenerarDefinitivo.innerHTML;
             btnRegenerarDefinitivo.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Regenerando Definitivo...';
@@ -1148,12 +2516,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(errorData.detail || "Error al regenerar Definitivo");
                 }
                 const data = await response.json();
-                stashGenerarResult(data, { resetVm: true });
+                const patched = applyRegenToActiveBatchSlot(data);
+                if (!patched) {
+                    // Non-batch path already stashed inside applyRegenToActiveBatchSlot
+                }
                 lastDefinitivoParams = buildDefinitivoParamsSnapshot(payload, data);
+                if (activeBatchPerfilId) {
+                    lastDefinitivoParams.perfil_id = String(activeBatchPerfilId);
+                    lastDefinitivoParams.perfil_label = (lastGenerarResult
+                        && lastGenerarResult.meta
+                        && lastGenerarResult.meta.slot_label)
+                        || String(activeBatchPerfilId);
+                    const slot = (lastBatchResult && lastBatchResult.perfiles || []).find(
+                        (p) => String(p.id) === String(activeBatchPerfilId)
+                    );
+                    if (slot && slot.knobs_efectivos) {
+                        lastDefinitivoParams.knobs_efectivos = slot.knobs_efectivos;
+                    }
+                }
                 setDefinitivoReadyForBorrador(true);
                 const applied = (data.meta?.overrides_applied || []).join(', ') || 'ninguno';
+                const slotNote = activeBatchPerfilId
+                    ? ` Perfil activo «${activeBatchPerfilId}» actualizado; hermanas y Baseline intactos.`
+                    : '';
                 showAlert(
-                    `Pedido Definitivo regenerado (${data.meta?.nivel}). Overrides: ${applied}.`,
+                    `Pedido Definitivo regenerado (${data.meta?.nivel}). Overrides: ${applied}.${slotNote}`,
                     true
                 );
             } catch (error) {
@@ -1170,12 +2557,18 @@ document.addEventListener('DOMContentLoaded', () => {
         setDefinitivoReadyForBorrador(false);
         btnGuardarBorrador.addEventListener('click', async () => {
             hideAlert();
-            if (!definitivoReadyForBorrador) {
-                showAlert('Primero Regenerar Definitivo antes de Guardar borrador.', false);
+            if (!canGuardarChosenPerfil()) {
+                if (lastBatchResult && !activeBatchPerfilId) {
+                    showAlert('Elija un perfil en la grilla antes de Guardar borrador.', false);
+                } else if (!definitivoReadyForBorrador) {
+                    showAlert('Primero Regenerar el perfil activo antes de Guardar borrador.', false);
+                } else {
+                    showAlert('No hay líneas del perfil elegido para guardar.', false);
+                }
                 return;
             }
-            const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
-            if (!propuesto.length) {
+            const body = buildGuardarBorradorPayload();
+            if (!(body.pedido_propuesto || []).length) {
                 showAlert('No hay líneas de Pedido Definitivo para guardar.', false);
                 return;
             }
@@ -1183,13 +2576,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const original = btnGuardarBorrador.innerHTML;
             btnGuardarBorrador.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Guardando borrador...';
             try {
+                // One POST — active perfil only; siblings never auto-saved (ticket 12).
                 const response = await fetch('/api/pedidos/guardar-borrador', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        pedido_propuesto: propuesto,
-                        parametros: lastDefinitivoParams || undefined,
-                    }),
+                    body: JSON.stringify(body),
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
@@ -1206,17 +2597,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ids = (data.cabeceras || [])
                     .map(c => `#${c.propuesta_id} ${c.cod_prov}`)
                     .join(', ');
+                const perfilNote = body.parametros && body.parametros.perfil_id
+                    ? ` Perfil «${body.parametros.perfil_label || body.parametros.perfil_id}» únicamente.`
+                    : '';
                 showAlert(
                     `Borrador guardado: ${nCab} cabecera(s)${ids ? ` (${ids})` : ''}. ` +
-                    `Omitidos: ${nOmitProv} proveedor(es), ${nOmitSap} línea(s) SAPROD.`,
+                    `Omitidos: ${nOmitProv} proveedor(es), ${nOmitSap} línea(s) SAPROD.${perfilNote}`,
                     true
                 );
             } catch (error) {
                 showAlert(error.message, false);
             } finally {
                 btnGuardarBorrador.innerHTML = original;
-                setDefinitivoReadyForBorrador(definitivoReadyForBorrador);
+                refreshGuardarBorradorGate();
             }
+        });
+    }
+
+    const btnEnviarPedido = document.getElementById('btnEnviarPedido');
+    if (btnEnviarPedido) {
+        btnEnviarPedido.addEventListener('click', async () => {
+            if (window.__bandejaMode && window.__bandejaMode.propuesta_id) {
+                try {
+                    const id = window.__bandejaMode.propuesta_id;
+                    const propuesto = (lastGenerarResult && lastGenerarResult.pedido_propuesto) || [];
+                    const comparativa = (lastGenerarResult && lastGenerarResult.comparativa_cantidades) || [];
+                    await fetch(`/api/pedidos/bandeja/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            pedido_propuesto: propuesto,
+                            comparativa_cantidades: comparativa,
+                        }),
+                    });
+                    const r = await fetch(`/api/pedidos/bandeja/${id}/enviar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            revision: window.__bandejaMode.revision,
+                            snapshot_hash: window.__bandejaMode.snapshot_hash,
+                        }),
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (!r.ok) {
+                        const d = data.detail;
+                        if (d && d.error === 'requiere_analizar') {
+                            showAlert(d.message || 'Hay desvíos: revise Comparativa.', false);
+                            return;
+                        }
+                        throw new Error(typeof d === 'string' ? d : 'Error al enviar');
+                    }
+                    showAlert(data.aviso || `Enviando #${id}`, true);
+                    if (typeof window.refreshBandejaBadges === 'function') window.refreshBandejaBadges();
+                } catch (err) {
+                    showAlert(err.message || String(err), false);
+                }
+                return;
+            }
+            showAlert(
+                'Enviar pedido (FTP/Telegram): abra Bandeja de pedidos o cargue una propuesta con Analizar. Spec ADR-0029/0030.',
+                false
+            );
         });
     }
 
@@ -1231,41 +2672,51 @@ document.addEventListener('DOMContentLoaded', () => {
             const excludedSection = document.getElementById('excludedSection');
             if (excludedSection) excludedSection.style.display = 'none';
 
-            const payload = buildSencilloPayload();
+            const payload = buildBatchPayload();
             if (!payload.categorias || payload.categorias.length === 0) {
                 showAlert("Debe seleccionar al menos una familia.", false);
                 submitBtn.disabled = false;
-                btnText.innerHTML = 'Generar (Sencillo)';
+                btnText.innerHTML = 'Generar';
                 return;
             }
             if (!payload.criterios_agrupacion.length) {
                 showAlert("Seleccione al menos un Criterio de Agrupación.", false);
                 submitBtn.disabled = false;
-                btnText.innerHTML = 'Generar (Sencillo)';
+                btnText.innerHTML = 'Generar';
+                return;
+            }
+            if (!payload.perfiles || !payload.perfiles.length) {
+                showAlert("Seleccione al menos un perfil para generar.", false);
+                submitBtn.disabled = false;
+                btnText.innerHTML = 'Generar';
                 return;
             }
 
+            promptOverridesBeforeGenerar();
+
             try {
-                const response = await fetch('/api/pedidos/generar-sencillo', {
+                const response = await fetch('/api/pedidos/generar-batch', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || "Error en Generar Sencillo");
+                    throw new Error(errorData.detail || "Error en Generar batch");
                 }
                 const data = await response.json();
-                stashGenerarResult(data);
-                setDefinitivoReadyForBorrador(false);
-                const nComp = (data.comparativa_cantidades || []).length;
-                const nProp = (data.pedido_propuesto || []).length;
-                showAlert(`Generar Sencillo listo: ${nComp} filas Comparativa, ${nProp} líneas Propuesto (${data.meta?.preset || ''}).`, true);
+                stashBatchResult(data);
+                const n = (data.perfiles || []).length;
+                const nBase = (data.pedido_baseline || []).length;
+                showAlert(
+                    `Generación única: Baseline ${nBase} barras · ${n} perfil(es). Elija una columna para Comparativa.`,
+                    true
+                );
             } catch (error) {
                 showAlert(error.message, false);
             } finally {
                 submitBtn.disabled = false;
-                btnText.innerHTML = 'Generar (Sencillo)';
+                btnText.innerHTML = 'Generar';
             }
         });
     }
@@ -1416,4 +2867,102 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedFiles = [];
         renderFileList();
     }
+
+    // --- Moneda trabajo + MonedaOferta por lab ---
+    async function loadMonedaConfig() {
+        const sel = document.getElementById('monedaTrabajo');
+        const bcvEl = document.getElementById('dolarbcvLabel');
+        const table = document.getElementById('proveedorMonedaTable');
+        try {
+            const resp = await fetch('/api/pedidos/moneda-config');
+            if (!resp.ok) throw new Error('No se pudo cargar moneda-config');
+            const data = await resp.json();
+            fxState.moneda_trabajo = (data.moneda_trabajo || 'USD').toUpperCase();
+            fxState.dolarbcv = data.dolarbcv != null ? Number(data.dolarbcv) : null;
+            if (sel) sel.value = fxState.moneda_trabajo === 'VES' ? 'VES' : 'USD';
+            if (bcvEl) {
+                bcvEl.textContent = fxState.dolarbcv
+                    ? Number(fxState.dolarbcv).toLocaleString('es-VE', { maximumFractionDigits: 4 })
+                    : 'n/d';
+            }
+            if (table) {
+                const rows = (data.proveedores || []).map(p => {
+                    const mon = (p.moneda_oferta || 'USD').toUpperCase();
+                    return `<tr>
+                        <td style="padding:0.35rem 0.5rem;">${escapeHtml(p.nombre_corto || p.cod_prov)}</td>
+                        <td style="padding:0.35rem 0.5rem; font-family:monospace; font-size:0.75rem;">${escapeHtml(p.cod_prov)}</td>
+                        <td style="padding:0.35rem 0.5rem;">
+                          <select data-prov-id="${p.proveedor_id}" class="prov-moneda-sel form-control" style="height:32px; font-size:0.8rem;">
+                            <option value="USD" ${mon === 'USD' ? 'selected' : ''}>USD</option>
+                            <option value="VES" ${mon === 'VES' ? 'selected' : ''}>VES (Bs)</option>
+                          </select>
+                        </td>
+                      </tr>`;
+                }).join('');
+                table.innerHTML = `
+                  <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr>
+                      <th style="text-align:left; padding:0.35rem 0.5rem;">Lab</th>
+                      <th style="text-align:left; padding:0.35rem 0.5rem;">CodProv</th>
+                      <th style="text-align:left; padding:0.35rem 0.5rem;">Oferta en</th>
+                    </tr></thead>
+                    <tbody>${rows || '<tr><td colspan="3" style="padding:0.5rem;">Sin proveedores</td></tr>'}</tbody>
+                  </table>`;
+                table.querySelectorAll('.prov-moneda-sel').forEach(s => {
+                    s.addEventListener('change', async () => {
+                        const id = s.getAttribute('data-prov-id');
+                        try {
+                            const r = await fetch(`/api/pedidos/moneda-config/proveedor/${id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ moneda_oferta: s.value }),
+                            });
+                            if (!r.ok) {
+                                const err = await r.json().catch(() => ({}));
+                                throw new Error(err.detail || 'Error al guardar');
+                            }
+                            showAlert(`Moneda oferta actualizada (${s.value}).`, true);
+                        } catch (e) {
+                            showAlert(e.message, false);
+                        }
+                    });
+                });
+            }
+        } catch (e) {
+            if (bcvEl) bcvEl.textContent = 'error';
+            console.warn(e);
+        }
+    }
+
+    document.getElementById('monedaTrabajo')?.addEventListener('change', async (ev) => {
+        const val = ev.target.value;
+        try {
+            const r = await fetch('/api/pedidos/moneda-config/trabajo', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ moneda_trabajo: val }),
+            });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                throw new Error(err.detail || 'Error al guardar');
+            }
+            const data = await r.json();
+            fxState.moneda_trabajo = (data.moneda_trabajo || val).toUpperCase();
+            if (data.dolarbcv != null) fxState.dolarbcv = Number(data.dolarbcv);
+            if (lastGenerarResult) {
+                lastGenerarResult.meta = { ...(lastGenerarResult.meta || {}), ...fxState };
+                renderGenerarResult(lastGenerarResult, { scroll: false });
+            }
+            showAlert(
+                fxState.moneda_trabajo === 'VES'
+                    ? 'Pantalla en bolívares (desvío sigue en USD; Δ reconvertido con BCV).'
+                    : 'Pantalla en dólares.',
+                true
+            );
+        } catch (e) {
+            showAlert(e.message, false);
+        }
+    });
+
+    loadMonedaConfig();
 });

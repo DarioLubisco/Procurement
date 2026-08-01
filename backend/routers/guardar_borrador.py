@@ -25,6 +25,10 @@ class GuardarBorradorRequest(BaseModel):
         None,
         description="Snapshot Definitivo: nivel, base_preset, cobertura, criterios, overrides, meta",
     )
+    comparativa_cantidades: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description="ADR-0030 snapshot for Bandeja Analizar (Comparativa)",
+    )
     # Test / offline inject
     proveedor_groups: Optional[List[Dict[str, Any]]] = None
     saprod_codprods: Optional[List[str]] = None
@@ -121,7 +125,11 @@ async def guardar_borrador(body: GuardarBorradorRequest):
             from services.guardar_borrador_service import (  # type: ignore
                 guardar_borradores_from_db,
             )
-        written = guardar_borradores_from_db(plan)
+        written = guardar_borradores_from_db(
+            plan,
+            comparativa_cantidades=body.comparativa_cantidades,
+            pedido_propuesto=body.pedido_propuesto,
+        )
     except Exception as exc:
         logging.error("guardar-borrador persist failed: %s", exc, exc_info=True)
         raise HTTPException(

@@ -5,6 +5,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 
 _SQL_ACTIVE = """
+SELECT ProveedorID, CodProv, NombreCorto, MontoMinimoPedidoUSD, MonedaOferta
+FROM Procurement.ProveedorConfig
+WHERE Activo = 1
+"""
+
+_SQL_ACTIVE_NO_MONEDA = """
 SELECT ProveedorID, CodProv, NombreCorto, MontoMinimoPedidoUSD
 FROM Procurement.ProveedorConfig
 WHERE Activo = 1
@@ -14,6 +20,12 @@ _SQL_ACTIVE_LEGACY = """
 SELECT CodProv, NombreCorto, MontoMinimoPedidoUSD
 FROM Procurement.ProveedorConfig
 WHERE Activo = 1
+"""
+
+_SQL_UPDATE_MONEDA = """
+UPDATE Procurement.ProveedorConfig
+SET MonedaOferta = ?, FechaActualizacion = SYSUTCDATETIME()
+WHERE ProveedorID = ? AND Activo = 1
 """
 
 _SQL_ALIASES = """
@@ -33,17 +45,22 @@ def build_proveedor_groups(
     """Build commercial groups: one entry per active ProveedorID with alias CodProvs.
 
     Each group:
-      proveedor_id, cod_prov (canonical), nombre_corto, monto_minimo_pedido_usd, aliases[]
+      proveedor_id, cod_prov (canonical), nombre_corto, monto_minimo_pedido_usd,
+      moneda_oferta (USD|VES), aliases[]
     """
     by_id: Dict[int, Dict[str, Any]] = {}
     for r in active_rows:
         pid = int(r["proveedor_id"])
         cod = str(r["cod_prov"]).strip()
+        mon = str(r.get("moneda_oferta") or "USD").strip().upper()
+        if mon not in ("USD", "VES"):
+            mon = "USD"
         by_id[pid] = {
             "proveedor_id": pid,
             "cod_prov": cod,
             "nombre_corto": str(r.get("nombre_corto") or "").strip() or cod,
             "monto_minimo_pedido_usd": r.get("monto_minimo_pedido_usd"),
+            "moneda_oferta": mon,
             "aliases": [cod],
         }
 
@@ -70,6 +87,21 @@ def build_proveedor_groups(
         g["aliases"] = [can] + rest
         out.append(g)
     return out
+
+
+def moneda_oferta_index_from_groups(
+    groups: Sequence[Dict[str, Any]],
+) -> Dict[str, str]:
+    """upper(CodProv alias) → MonedaOferta USD|VES."""
+    idx: Dict[str, str] = {}
+    for g in groups:
+        mon = str(g.get("moneda_oferta") or "USD").strip().upper()
+        if mon not in ("USD", "VES"):
+            mon = "USD"
+        for a in g.get("aliases") or [g["cod_prov"]]:
+            idx[_upper(a)] = mon
+        idx[_upper(g["cod_prov"])] = mon
+    return idx
 
 
 def alias_index_from_groups(
@@ -112,6 +144,7 @@ def groups_from_flat_minimos(
                 "cod_prov": c,
                 "nombre_corto": c,
                 "monto_minimo_pedido_usd": minimo,
+                "moneda_oferta": "USD",
                 "aliases": [c],
             }
         )
@@ -125,11 +158,14 @@ def fetch_proveedor_config_rows(
 ) -> List[Dict[str, Any]]:
     """Active ProveedorConfig rows (canonical commercial entities when aliases seeded)."""
 
-    def _run(sql: str):
+    def _run(sql: str, params: Optional[tuple] = None):
         if execute is not None:
-            return execute(sql)
+            return execute(sql) if params is None else execute(sql, params)
         cur = conn.cursor()
-        cur.execute(sql)
+        if params is None:
+            cur.execute(sql)
+        else:
+            cur.execute(sql, params)
         return cur.fetchall()
 
     try:
@@ -140,32 +176,71 @@ def fetch_proveedor_config_rows(
             if not cod:
                 continue
             raw = row[3]
+            mon = str(row[4] or "USD").strip().upper() if len(row) > 4 else "USD"
+            if mon not in ("USD", "VES"):
+                mon = "USD"
             out.append(
                 {
                     "proveedor_id": int(row[0]),
                     "cod_prov": cod,
                     "nombre_corto": str(row[2] or "").strip(),
                     "monto_minimo_pedido_usd": None if raw is None else float(raw),
+                    "moneda_oferta": mon,
                 }
             )
         return out
     except Exception:
-        rows = _run(_SQL_ACTIVE_LEGACY)
-        out = []
-        for i, row in enumerate(rows, start=1):
-            cod = str(row[0] or "").strip()
-            if not cod:
-                continue
-            raw = row[2]
-            out.append(
-                {
-                    "proveedor_id": i,
-                    "cod_prov": cod,
-                    "nombre_corto": str(row[1] or "").strip(),
-                    "monto_minimo_pedido_usd": None if raw is None else float(raw),
-                }
-            )
-        return out
+        try:
+            rows = _run(_SQL_ACTIVE_NO_MONEDA)
+            out = []
+            for row in rows:
+                cod = str(row[1] or "").strip()
+                if not cod:
+                    continue
+                raw = row[3]
+                out.append(
+                    {
+                        "proveedor_id": int(row[0]),
+                        "cod_prov": cod,
+                        "nombre_corto": str(row[2] or "").strip(),
+                        "monto_minimo_pedido_usd": None if raw is None else float(raw),
+                        "moneda_oferta": "USD",
+                    }
+                )
+            return out
+        except Exception:
+            rows = _run(_SQL_ACTIVE_LEGACY)
+            out = []
+            for i, row in enumerate(rows, start=1):
+                cod = str(row[0] or "").strip()
+                if not cod:
+                    continue
+                raw = row[2]
+                out.append(
+                    {
+                        "proveedor_id": i,
+                        "cod_prov": cod,
+                        "nombre_corto": str(row[1] or "").strip(),
+                        "monto_minimo_pedido_usd": None if raw is None else float(raw),
+                        "moneda_oferta": "USD",
+                    }
+                )
+            return out
+
+
+def update_moneda_oferta(conn: Any, proveedor_id: int, moneda: str) -> None:
+    """Set MonedaOferta USD|VES for an active ProveedorID."""
+    mon = str(moneda or "").strip().upper()
+    if mon not in ("USD", "VES"):
+        raise ValueError("MonedaOferta must be USD|VES")
+    cur = conn.cursor()
+    cur.execute(_SQL_UPDATE_MONEDA, (mon, int(proveedor_id)))
+    if cur.rowcount == 0:
+        raise LookupError(f"ProveedorID {proveedor_id} not found or inactive")
+    try:
+        conn.commit()
+    except Exception:
+        pass
 
 
 def fetch_alias_rows(

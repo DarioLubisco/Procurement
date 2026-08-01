@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from .generar_pedido import refresh_grupo_sums
+
 
 @dataclass(frozen=True)
 class ProveedorDeficit:
@@ -365,7 +367,7 @@ def apply_qty_boost(
 
     return ValidarMinimosState(
         pedido_propuesto=new_prop,
-        comparativa_cantidades=new_comp,
+        comparativa_cantidades=refresh_grupo_sums(new_comp),
         pedido_baseline=list(state.pedido_baseline),
         cobertura=state.cobertura,
         criterios_agrupacion=list(state.criterios_agrupacion),
@@ -656,6 +658,8 @@ def reject_proveedor(
             r["barra_propuesto"] = info["barra"]
             r["desc_propuesto"] = info["descripcion"]
             r["qty_propuesto"] = info["cantidad"]
+            if info.get("proveedor") is not None:
+                r["proveedor"] = info["proveedor"]
             r = _annotate_vm_factor(
                 r,
                 info["note"],
@@ -670,7 +674,7 @@ def reject_proveedor(
     return (
         ValidarMinimosState(
             pedido_propuesto=new_prop,
-            comparativa_cantidades=new_comp,
+            comparativa_cantidades=refresh_grupo_sums(new_comp),
             pedido_baseline=list(state.pedido_baseline),
             cobertura=state.cobertura,
             criterios_agrupacion=list(state.criterios_agrupacion),

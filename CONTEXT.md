@@ -11,24 +11,24 @@ Cantidades a reponer por producto, sin asignar proveedor. Identidad técnica: c�
 _Avoid_: Pedido, export de solo dos columnas como única salida de UI
 
 **PedidoBaseline:**
-Cantidades **solo con rotación × cobertura − stock**, **sin motor de scoring**. La rotación/stock se agregan con los **mismos CriteriosAgrupacion** de la corrida (default: PA+FF+conc+cantidad_presentacion+contenido_neto, o los editados en el FE). Comparte Cobertura y FiltrosOperativos; no aplica PriceOpportunity, pesos ni LeadTime.
-_Avoid_: Baseline en rotación SKU mientras Propuesto usa Grupo de 5 attrs; aplicar amplificador al Baseline; llamar “perfil Lineal v3.2” al Baseline
+Cantidades **solo con rotación × cobertura − stock**, **sin motor de scoring**. La rotación/stock se agregan con los **mismos CriteriosAgrupacion** de la corrida (default: PA+FF+conc+cantidad_presentacion, o los editados en el FE). Comparte Cobertura y FiltrosOperativos; no aplica PriceOpportunity, pesos ni LeadTime. En **generación única** se calcula **una vez** y se comparte entre hasta tres perfiles del mismo Generar.
+_Avoid_: Baseline en rotación SKU mientras Propuesto usa Grupo de 5 attrs; aplicar amplificador al Baseline; llamar “perfil Lineal v3.2” al Baseline; re-samplear Baseline por cada perfil del batch
 
 **CriteriosAgrupacion:**
-Lista de atributos MDM que definen el Grupo (whitelist `ATRIBUTOS_VALIDOS` / `RotacionGrupal_Atributos`, 10 campos). Default de sistema: `principio_activo`, `forma_farmaceutica`, `concentracion`, `cantidad_presentacion`, `contenido_neto` — sobreescribible en el FE (subconjunto no vacío). El request siempre envía la lista efectiva; el catálogo carga los 10 attrs. Ver ADR-0008 + ADR-0020.
+Lista de atributos MDM que definen el Grupo (whitelist `ATRIBUTOS_VALIDOS` / `RotacionGrupal_Atributos`, 10 campos). Default de sistema: `principio_activo`, `forma_farmaceutica`, `concentracion`, `cantidad_presentacion` — **no** incluye `contenido_neto` (ml/g; opcional en FE). Sobreescribible en el FE (subconjunto no vacío). El request siempre envía la lista efectiva; el catálogo carga los attrs de la whitelist. Ver ADR-0008 + ADR-0020.
 _Avoid_: criterios_agrupamiento ignored del v3.2; mostrar attrs en FE sin columnas en catálogo; aceptar attrs fuera de whitelist; solo PA+FF+conc hardcodeado; Baseline SKU vs Propuesto grupal; default solo en localStorage sin default de sistema
 
 **PedidoPropuesto:**
-Primera salida del motor (mercado vivo, DistribucionParcial). Perfil **Sencillo**: preset + Cobertura + FiltrosOperativos + presupuesto opcional. Puede usar otras BARRAs del mismo Grupo. En el primer Generar se entrega **junto con** la ComparativaCantidades, con asignación a **proveedor**.
-_Avoid_: Pedido definitivo; ocultar proveedor hasta el Definitivo; Intermedio obligatorio en el primer Generar
+Salida del motor (mercado vivo, DistribucionParcial) con asignación a **proveedor**. Cada perfil del primer Generar (PresetSencillo o custom) produce un Propuesto + ComparativaCantidades contra el PedidoBaseline compartido. Puede usar otras BARRAs del mismo Grupo.
+_Avoid_: Pedido definitivo; ocultar proveedor hasta el Definitivo; Intermedio obligatorio en el primer Generar; persistir los tres perfiles del batch a la vez
 
 **PedidoDefinitivo:**
-Regeneración tras ver la Comparativa y ajustar parámetros **Intermedio o Avanzado** (u overrides).
-_Avoid_: Llamar “definitivo” al primer pase Sencillo
+Regeneración del **perfil activo** tras ver la Comparativa y ajustar parámetros **Intermedio o Avanzado** (u overrides). No recalcula el PedidoBaseline compartido.
+_Avoid_: Llamar “definitivo” al primer pase de un perfil de generación única; regenerar hermanas del batch sin intención
 
 **Pedido:**
-Asignación de Necesidad a ofertas de mercado. Flujo: Baseline (legacy, sin motor) → Propuesto (Sencillo) → Definitivo (reafinación Intermedio/Avanzado) vía ComparativaCantidades.
-_Avoid_: Matriz de Decisión (no implementada)
+Asignación de Necesidad a ofertas de mercado. Flujo (generación única): Baseline (legacy, sin motor, **una vez**) → hasta **3** Propuestos en el primer Generar → elegir perfil (Comparativa) → opcional Definitivo (Intermedio/Avanzado) / ValidarMinimosProveedor / Guardar solo el elegido.
+_Avoid_: Matriz de Decisión (no implementada); exigir un único Sencillo serial como único camino de comparación
 
 **Elasticidad:**
 Atributo de producto en escala 0–5 (`elasticidad_demanda`) que indica cuánto puede ceder/reemplazarse demanda dentro del Grupo. Suele ser menor que 5, así que no hay sustitución total a un solo ganador. Es **un input más** del motor, no el árbitro único del Propuesto.
@@ -43,8 +43,8 @@ Cantidad mínima por oferta en SplitLeadTime: `max(rot×LT, MOQ)` si viene en la
 _Avoid_: usar SAPROD.Minimo; tratar el mínimo USD como uds sin conversión explícita
 
 **ValidarMinimosProveedor:**
-Paso explícito post-Generar. Proveedores bajo `MontoMinimoPedidoUSD` en **cola serie** (mayor déficit USD primero). Modal % extra (default +50%) → recálculo solo sus SKUs. Tras 1er fallo: panel (ahorro, costo rechazo, reemplazos Grupo) antes de más %; Aceptar / Rechazar / Probar otro % (ilimitado). Rechazo reasigna (barra→Grupo) o huérfano y **re-encola** destinos bajo mínimo. Trazas: `JustificacionDelta` por línea **y** `meta.validar_minimos`. `NULL` config = omitir.
-_Avoid_: mutar cobertura en el primer Generar; inventar qty para llegar a $; sin traza en Comparativa
+Paso explícito **tras elegir perfil** (alarma → botón → panel), no inline al completar el batch. Proveedores bajo `MontoMinimoPedidoUSD` en **cola serie** (mayor déficit USD primero). Modal % extra (default +50%) → recálculo solo sus SKUs. Tras 1er fallo: panel (ahorro, costo rechazo, reemplazos Grupo) antes de más %; Aceptar / Rechazar / Probar otro % (ilimitado). Rechazo reasigna (barra→Grupo) o huérfano y **re-encola** destinos bajo mínimo. Trazas: `JustificacionDelta` por línea **y** `meta.validar_minimos`. `NULL` config = omitir. Opera sobre el GenerarResult del perfil activo.
+_Avoid_: mutar cobertura en el primer Generar; inventar qty para llegar a $; sin traza en Comparativa; forzar mínimos para los tres perfiles del batch a la vez
 
 **LeadTime (LT):**
 Tiempo de despacho/entrega del proveedor (días/horas). Ver SplitLeadTime.
@@ -59,8 +59,8 @@ Cada línea Baseline del Grupo recibe/cede cuota del PedidoPropuesto según el *
 _Avoid_: prorrateo ciego; winner-takes-all; “solo elasticidad”; delta monocausal
 
 **ComparativaCantidades:**
-Artefacto de primer pase (grano: fila por BARRA Baseline). Convive en el mismo Generar con el PedidoPropuesto (líneas con proveedor). Columnas: BARRA/desc Baseline, BARRA/desc Propuesto, qty Baseline, qty Propuesto, JustificacionDelta (multi-factor).
-_Avoid_: Matriz de Decisión; Excel solo BARRA×CANTIDAD; primer Generar sin ver proveedor; delta monocausal
+Artefacto de primer pase (grano: fila por BARRA Baseline — ADR-0004). En generación única, al elegir un perfil se hidrata **una** Comparativa de ese slot (Baseline compartido + Propuesto del perfil). Columnas: BARRA/desc Baseline, BARRA/desc Propuesto, qty Baseline, qty Propuesto (editable FE, override local), JustificacionDelta (multi-factor). Drawer de contexto al editar qty (demanda/stock/BO/grupo/competencia). Ver ADR-0004, ADR-0027.
+_Avoid_: Matriz de Decisión; Excel solo BARRA×CANTIDAD; primer Generar sin ver proveedor; delta monocausal; re-correr motor en cada flecha de qty; cambiar el grano Baseline↔Propuesto
 
 **JustificacionDelta:**
 Explica el delta Baseline vs Propuesto con **factores estructurados** (`justificacion_factores`) + resumen corto en celda (`justificacion_delta`). Hover/acordeón muestran detalle. Ver ADR-0019.
@@ -83,8 +83,16 @@ Cantidades ya comprometidas / en tránsito / pendientes desde **tablas dedicadas
 _Avoid_: subtraction_files como fuente primaria; restar backorder solo a un lado de la Comparativa; confundir con BorradorPedidos
 
 **BorradorPedidos:**
-Persistencia explícita del **PedidoDefinitivo** en `BorradorPedidosCabecera`/`Lineas` (1 cabecera por CodProv canónico), con snapshot de knobs/params en `ParametrosJson`. No resta necesidad ni alimenta Generar. Ver ADR-0018.
-_Avoid_: usar Borrador como Backorder; auto-guardar en cada Regenerar; Guardar desde Sencillo; olvidar parametros/knobs del Definitivo
+Persistencia explícita del **PedidoDefinitivo** (y propuestas IA) en `BorradorPedidosCabecera`/`Lineas` (1 cabecera por CodProv canónico), con snapshot de knobs en `ParametrosJson` y Comparativa en tabla hija (`BorradorPedidosComparativa` + `Revision`/`Hash`). No resta necesidad ni alimenta Generar. Guardar v1: **solo el perfil elegido**. Ver ADR-0018. Envío: ADR-0029. Bandeja/TTL/análisis: ADR-0030.
+_Avoid_: usar Borrador como Backorder; auto-guardar en cada Regenerar; Guardar sin perfil elegido o auto-guardar hermanas del batch; olvidar knobs o snapshot Comparativa; celebrar envío sin ACK FTP/API; purgar `ENVIADO`
+
+**EnvioPedidos:**
+Pipeline único: Borrador (`PropuestaID`) → aprobación (FE Enviar o Telegram AMC_Administrativo) → n8n FTP/API (3×3=9, backoff largo entre ciclos) → ACK → `ENVIADO`/`FALLIDO_ENVIO`. PDF con sección exhaustiva de desvíos vs Sencillo. P1 solo labs con formato documentado. Ver ADR-0029 + ADR-0030.
+_Avoid_: segundo approve en Telegram tras Enviar FE; payload embebido como fuente de verdad; inventar TXT de Nena/ITS sin spec; notificar al canal genérico; aprobar Telegram con hash desactualizado
+
+**BandejaPedidos:**
+Modal en `modulo_pedidos` (sidebar + `?bandeja=1`): tabs Por enviar / Por aprobar (IA) / Historial. Analizar = hidratar Comparativa (qty solo web). Ver ADR-0030.
+_Avoid_: análisis = solo totales/PDF; re-correr motor al Analizar; multi-send P1; TTL 24 h sobre `ENVIADO`
 
 **SubtractionFiles:**
 _(Soporte eventual / secundario.)_ Upload Excel `BARRA`×`CANTIDAD` del Motor B legacy. Queda como mecanismo de contingencia si hace falta; el camino feliz es Backorder desde tablas dedicadas.
@@ -111,8 +119,8 @@ Gap intermedio para F5: `Gap_ext = Gap_oferta + (Gap_grupo − Gap_oferta) × f`
 _Avoid_: media simple; denom = rot_grupo total; reforzar no-oferta; Gap_grupo entero a la oferta
 
 **PerfilPedido:**
-Contrato por nivel de UI. Primer Generar (Propuesto): solo **Sencillo** (PresetSencillo + Cobertura + FiltrosOperativos + presupuesto opcional). Regenerar Definitivo: puede abrir **Intermedio/Avanzado**. Baseline no consume PerfilPedido del motor.
-_Avoid_: OptimizerConfig crudo como API de UI; Avanzado obligatorio en el primer Generar
+Contrato por nivel de UI. Primer Generar (**generación única**): hasta **tres** perfiles (cada uno PresetSencillo de fábrica y/o custom + Cobertura/Filtros/Criterios/Backorder **compartidos**). Regenerar Definitivo: **Intermedio/Avanzado solo sobre el perfil activo**. Baseline no consume PerfilPedido del motor. Ver ADR-0007.
+_Avoid_: OptimizerConfig crudo como API de UI; Avanzado obligatorio en el primer Generar; un solo Sencillo como único camino de comparación; re-samplear Baseline por perfil
 
 **Gap:**
 Unidades faltantes que alimentan la Necesidad: demanda del horizonte menos stock, a nivel SKU o Grupo/Molécula según criterios de agrupación.
@@ -131,8 +139,16 @@ Señal unificada del Desvío de precio: score, multiplicador de cantidad y días
 _Avoid_: F4, amplificador y F5 como tres conceptos de negocio en UI sencilla
 
 **Desvío:**
-Fracción `(precio − media_de_mediana) / media_de_mediana`. Negativo = más barato.
-_Avoid_: descuento comercial del proveedor
+Fracción `(precio_usd − media_de_mediana) / media_de_mediana`. Negativo = más barato. Ventana motor **120d** sobre `Mercado_Historico`; si `dias_hist < 7` → fallback `Mercado_Historico_Semanal`. `fuente_baseline` ∈ {diario, semanal, mixto}. `media_min` / `media_precio_min` informativos — no base del desvío. UI: precio · media hist · Δ$ · % (USD) + badge fuente. Ver ADR-0021 / ADR-0024.
+_Avoid_: descuento comercial del proveedor; usar `precio_min` como base; mezclar SACom 1:1 sobre semanas de mercado ya existentes
+
+**MonedaPedidos:**
+Motor siempre USD. `MonedaOferta` por lab (USD|VES→BCV). `MonedaTrabajo` solo display. Ver ADR-0023.
+_Avoid_: scoring en bolívares; asumir VES sin `MonedaOferta`
+
+**PDR:**
+Probabilidad de Disponibilidad Real (`Mercado_Vivo_PDR`). `NO_CONFIABLE` → fuera del pool; `BAJA` → no topear qty con stock + `score×max(0.5,pdr)`. Gate Generar: stock≤N y PPP&lt;umbral → acción (default NO_CONFIABLE); knobs FE. Pesos scoring en `PDR_Config` (0.45/0.30/0.25). Ver ADR-0025, ADR-0026.
+_Avoid_: confiar stock bajo a ciegas; filtrar labs enteros por un SKU; gate con umbral 0.001 sin tope de stock
 
 **S4:**
 Reducción de cobertura para SKUs costosos por elasticidad. No cableado; fuera del schema activo hasta reactivación.
